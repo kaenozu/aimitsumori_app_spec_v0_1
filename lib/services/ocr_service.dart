@@ -1,5 +1,5 @@
 /// ファイルパス: lib/services/ocr_service.dart
-/// PDFまたは画像から見積書テキストと構造化データを抽出するサービス
+/// PDFまたは画像から見積書テキスト、位置情報、信頼度を抽出するサービス
 library;
 
 import 'dart:io';
@@ -10,64 +10,78 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf_image_renderer/pdf_image_renderer.dart';
 
 import '../models.dart';
+import '../ocr_models.dart';
+import 'ocr_confidence_engine.dart';
 
 class OcrService {
-  OcrService({TextRecognizer? recognizer})
-      : _recognizer = recognizer ?? TextRecognizer(script: TextRecognitionScript.japanese);
+  OcrService({
+    TextRecognizer? recognizer,
+    this.confidenceEngine = const OcrConfidenceEngine(),
+  }) : _recognizer = recognizer ??
+            TextRecognizer(script: TextRecognitionScript.japanese);
 
   final TextRecognizer _recognizer;
+  final OcrConfidenceEngine confidenceEngine;
+  final List<String> _temporaryReviewImagePaths = [];
 
-  static const Map<String, List<String>> _categoryKeywords = {
-    'concrete': ['土間コンクリート', 'コンクリート', '生コン', '刷毛引き', '金鏝'],
-    'gravel_paving': ['砂利', '砕石', '舗装', '防草シート', 'アスファルト'],
-    'carport': ['カーポート', 'サイクルポート', '駐輪場'],
-    'fence': ['フェンス', '目隠し', 'メッシュフェンス'],
-    'gate': ['門柱', '門扉', '機能門柱', 'ポスト', '表札'],
-    'approach': ['アプローチ', 'インターロッキング', '平板', 'タイル'],
-    'earthwork': ['造成', '掘削', '根切', '盛土', '整地'],
-    'soil_disposal': ['残土', '発生土', '土処分'],
-    'drainage': ['排水', '雨水', '桝', '側溝', '水勾配'],
-    'lighting': ['照明', '電気', 'ライト', '配線', 'コンセント'],
-    'planting': ['植栽', '芝', '樹木', '庭木'],
-    'demolition': ['解体', '撤去', '処分'],
-    'protection': ['養生'],
-    'machinery_transport': ['重機回送', '重機運搬', '回送費'],
-    'overhead': ['諸経費', '現場管理費', '一般管理費'],
-    'application': ['申請', '届出', '許可'],
-    'discount': ['値引', '割引', '出精値引'],
-    'tax': ['消費税', '税額'],
-  };
+  OcrReviewBundle? lastReviewBundle;
 
   Future<RawQuoteData> extractQuote(String filePath) async {
-    final extension = p.extension(filePath).toLowerCase();
-    final text = extension == '.pdf'
-        ? await _recognizePdf(filePath)
-        : await _recognizeImage(filePath);
+    await _clearTemporaryReviewImages();
+    lastReviewBundle = null;
 
-    if (text.trim().isEmpty) {
+    final extension = p.extension(filePath).toLowerCase();
+    final document = extension == '.pdf'
+        ? await _recognizePdf(filePath)
+        : await _recognizeImage(filePath, pageNumber: 1);
+
+    if (document.text.trim().isEmpty) {
       throw const OcrException('文字を認識できませんでした。画像の明るさや解像度を確認してください。');
     }
 
-    return _parse(text: text, sourcePath: filePath);
+    return _parse(document: document, sourcePath: filePath);
   }
 
-  Future<String> _recognizeImage(String filePath) async {
+  Future<_RecognizedDocument> _recognizeImage(
+    String filePath, {
+    required int pageNumber,
+  }) async {
     final image = InputImage.fromFilePath(filePath);
     final result = await _recognizer.processImage(image);
-    return result.text;
+    final interpretations = <OcrLineInterpretation>[];
+    for (final block in result.blocks) {
+      for (final line in block.lines) {
+        final rect = line.boundingBox;
+        interpretations.add(
+          confidenceEngine.analyze(
+            rawText: line.text,
+            pageNumber: pageNumber,
+            boundingRect: OcrBoundingRect(
+              left: rect.left,
+              top: rect.top,
+              right: rect.right,
+              bottom: rect.bottom,
+            ),
+            sourceImagePath: filePath,
+            nativeOcrConfidence: line.confidence,
+          ),
+        );
+      }
+    }
+    return _RecognizedDocument(text: result.text, lines: interpretations);
   }
 
-  Future<String> _recognizePdf(String filePath) async {
+  Future<_RecognizedDocument> _recognizePdf(String filePath) async {
     final renderer = PdfImageRenderer(path: filePath);
     final temporaryDirectory = await getTemporaryDirectory();
-    final buffer = StringBuffer();
+    final textBuffer = StringBuffer();
+    final lines = <OcrLineInterpretation>[];
 
     await renderer.open();
     try {
       final pageCount = await renderer.getPageCount();
       for (var pageIndex = 0; pageIndex < pageCount; pageIndex++) {
         await renderer.openPage(pageIndex: pageIndex);
-        File? renderedFile;
         try {
           final size = await renderer.getPageSize(pageIndex: pageIndex);
           final bytes = await renderer.renderPage(
@@ -80,22 +94,25 @@ class OcrService {
           );
           if (bytes == null || bytes.isEmpty) continue;
 
-          renderedFile = File(
+          final renderedFile = File(
             p.join(
               temporaryDirectory.path,
-              'aimitsumori-ocr-${DateTime.now().microsecondsSinceEpoch}-$pageIndex.png',
+              'aimitsumori-review-${DateTime.now().microsecondsSinceEpoch}-$pageIndex.png',
             ),
           );
           await renderedFile.writeAsBytes(bytes, flush: true);
-          final pageText = await _recognizeImage(renderedFile.path);
-          if (pageText.trim().isNotEmpty) {
-            if (buffer.isNotEmpty) buffer.writeln();
-            buffer.writeln(pageText.trim());
+          _temporaryReviewImagePaths.add(renderedFile.path);
+
+          final page = await _recognizeImage(
+            renderedFile.path,
+            pageNumber: pageIndex + 1,
+          );
+          if (page.text.trim().isNotEmpty) {
+            if (textBuffer.isNotEmpty) textBuffer.writeln();
+            textBuffer.writeln(page.text.trim());
           }
+          lines.addAll(page.lines);
         } finally {
-          if (renderedFile != null && await renderedFile.exists()) {
-            await renderedFile.delete();
-          }
           await renderer.closePage(pageIndex: pageIndex);
         }
       }
@@ -103,50 +120,65 @@ class OcrService {
       await renderer.close();
     }
 
-    return buffer.toString().trim();
+    return _RecognizedDocument(
+      text: textBuffer.toString().trim(),
+      lines: lines,
+    );
   }
 
-  RawQuoteData _parse({required String text, required String sourcePath}) {
-    final lines = text
+  RawQuoteData _parse({
+    required _RecognizedDocument document,
+    required String sourcePath,
+  }) {
+    final textLines = document.text
         .split(RegExp(r'\r?\n'))
         .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
         .where((line) => line.isNotEmpty)
         .toList();
 
-    final contractorName = _parseContractorName(lines);
-    final totalAmount = _parseTotalAmount(lines);
+    final contractorName = _parseContractorName(textLines);
+    final totalAmount = _parseTotalAmount(textLines);
     final items = <RawQuoteLineItem>[];
 
-    for (final line in lines) {
-      final categoryId = _findCategoryId(line);
+    for (final interpretation in document.lines) {
+      final categoryId = interpretation.categoryId;
       if (categoryId == null) continue;
-
-      final quantityMatch = RegExp(
-        r'(\d+(?:\.\d+)?)\s*(㎡|m2|m²|㎥|m3|m³|m|本|基|台|式|箇所|ヶ所|個)',
-        caseSensitive: false,
-      ).firstMatch(line);
-      final amount = _extractAmount(line);
-      final inclusion = _parseInclusionStatus(line, amount);
-
+      final line = interpretation.recognizedLine;
       items.add(
         RawQuoteLineItem(
-          rawLabel: line,
+          rawLabel: line.rawText,
           categoryId: categoryId,
-          amountYen: amount,
-          inclusionStatus: inclusion,
-          quantity: double.tryParse(quantityMatch?.group(1) ?? ''),
-          unit: quantityMatch?.group(2),
-          specification: _extractSpecification(line),
-          note: inclusion == InclusionStatus.unknown ? 'OCR結果を確認してください' : null,
+          amountYen: interpretation.amountYen,
+          inclusionStatus: interpretation.inclusionStatus,
+          quantity: interpretation.quantity,
+          unit: interpretation.unit,
+          specification: interpretation.specification,
+          note: line.needsReview ? 'OCR信頼度を確認してください' : null,
         ),
       );
     }
+
+    final aggregateIssues = OcrConfidenceEngine.buildAggregateIssues(
+      totalAmountYen: totalAmount,
+      includedItemAmounts: items
+          .where(
+            (item) => item.inclusionStatus == InclusionStatus.included,
+          )
+          .map((item) => item.amountYen)
+          .whereType<int>(),
+    );
+    lastReviewBundle = OcrReviewBundle(
+      lines: document.lines
+          .map((interpretation) => interpretation.recognizedLine)
+          .toList(growable: false),
+      issues: aggregateIssues,
+    );
 
     return RawQuoteData(
       contractorName: contractorName,
       totalAmountYen: totalAmount,
       lineItems: items,
-      extractedText: text.trim(),
+      extractedText: document.text.trim(),
       sourcePath: sourcePath,
       createdAtEpochMillis: DateTime.now().millisecondsSinceEpoch,
     );
@@ -159,7 +191,9 @@ class OcrService {
     final excluded = RegExp(r'(御?見積|見積書|請求|合計|工事名|お客様|様$)');
 
     for (final line in lines.take(15)) {
-      if (companyPattern.hasMatch(line) && !excluded.hasMatch(line) && line.length <= 50) {
+      if (companyPattern.hasMatch(line) &&
+          !excluded.hasMatch(line) &&
+          line.length <= 50) {
         return line;
       }
     }
@@ -171,63 +205,57 @@ class OcrService {
   }
 
   int? _parseTotalAmount(List<String> lines) {
-    const totalKeywords = ['御見積金額', '見積金額', 'お見積金額', '総合計', '税込合計', '合計金額', '総額'];
+    const totalKeywords = [
+      '御見積金額',
+      '見積金額',
+      'お見積金額',
+      '総合計',
+      '税込合計',
+      '合計金額',
+      '総額',
+    ];
     for (final keyword in totalKeywords) {
       for (final line in lines) {
         if (line.contains(keyword)) {
-          final amount = _extractAmount(line);
-          if (amount != null) return amount;
+          final amounts = OcrConfidenceEngine.extractAmountCandidates(line);
+          if (amounts.isNotEmpty) return amounts.last;
         }
       }
     }
 
     for (final line in lines) {
       if (RegExp(r'(^|\s)合計($|\s|[:：])').hasMatch(line)) {
-        final amount = _extractAmount(line);
-        if (amount != null) return amount;
+        final amounts = OcrConfidenceEngine.extractAmountCandidates(line);
+        if (amounts.isNotEmpty) return amounts.last;
       }
     }
     return null;
   }
 
-  String? _findCategoryId(String line) {
-    for (final entry in _categoryKeywords.entries) {
-      if (entry.value.any(line.contains)) return entry.key;
+  Future<void> _clearTemporaryReviewImages() async {
+    final paths = List<String>.from(_temporaryReviewImagePaths);
+    _temporaryReviewImagePaths.clear();
+    for (final path in paths) {
+      try {
+        final file = File(path);
+        if (await file.exists()) await file.delete();
+      } catch (_) {
+        // 一時ファイル削除失敗は次回OSクリーンアップへ委ねる。
+      }
     }
-    return null;
   }
 
-  int? _extractAmount(String line) {
-    final matches = RegExp(
-      r'(?:¥|￥)?\s*(-?\d{1,3}(?:,\d{3})+|-?\d{4,})\s*円?',
-    ).allMatches(line).toList();
-    if (matches.isEmpty) return null;
-
-    final raw = matches.last.group(1)?.replaceAll(',', '');
-    return raw == null ? null : int.tryParse(raw);
+  Future<void> dispose() async {
+    await _recognizer.close();
+    await _clearTemporaryReviewImages();
   }
+}
 
-  InclusionStatus _parseInclusionStatus(String line, int? amount) {
-    if (RegExp(r'(別途|別見積|含まず)').hasMatch(line)) return InclusionStatus.separate;
-    if (RegExp(r'(オプション|任意)').hasMatch(line)) return InclusionStatus.optional;
-    if (RegExp(r'(対象外|除外|施工なし)').hasMatch(line)) return InclusionStatus.excluded;
-    if (RegExp(r'(該当なし|不要)').hasMatch(line)) return InclusionStatus.notApplicable;
-    if (amount != null || RegExp(r'(含む|込み|一式)').hasMatch(line)) {
-      return InclusionStatus.included;
-    }
-    return InclusionStatus.unknown;
-  }
+class _RecognizedDocument {
+  const _RecognizedDocument({required this.text, required this.lines});
 
-  String? _extractSpecification(String line) {
-    var value = line
-        .replaceAll(RegExp(r'(?:¥|￥)?\s*-?\d{1,3}(?:,\d{3})+\s*円?'), '')
-        .replaceAll(RegExp(r'(?:¥|￥)?\s*-?\d{4,}\s*円?'), '')
-        .trim();
-    if (value.length > 120) value = value.substring(0, 120);
-    return value.isEmpty ? null : value;
-  }
-
-  Future<void> dispose() => _recognizer.close();
+  final String text;
+  final List<OcrLineInterpretation> lines;
 }
 
 class OcrException implements Exception {

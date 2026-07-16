@@ -11,8 +11,11 @@ import 'package:intl/intl.dart';
 
 import '../data/category_master.dart';
 import '../models.dart';
+import '../ocr_models.dart';
 import '../repositories/project_repository.dart';
+import '../services/ocr_review_store.dart';
 import '../services/ocr_service.dart';
+import '../widgets/ocr_review_widgets.dart';
 
 class QuoteInputScreen extends StatefulWidget {
   const QuoteInputScreen({
@@ -20,11 +23,13 @@ class QuoteInputScreen extends StatefulWidget {
     required this.project,
     this.repository,
     this.ocrService,
+    this.reviewStore,
   });
 
   final Project project;
   final ProjectRepository? repository;
   final OcrService? ocrService;
+  final OcrReviewStore? reviewStore;
 
   @override
   State<QuoteInputScreen> createState() => _QuoteInputScreenState();
@@ -32,11 +37,14 @@ class QuoteInputScreen extends StatefulWidget {
 
 class _QuoteInputScreenState extends State<QuoteInputScreen> {
   late final OcrService _ocrService = widget.ocrService ?? OcrService();
+  late final OcrReviewStore _reviewStore = widget.reviewStore ?? OcrReviewStore();
   final ImagePicker _imagePicker = ImagePicker();
   final TextEditingController _contractorController = TextEditingController();
   final TextEditingController _totalController = TextEditingController();
 
   RawQuoteData? _rawQuote;
+  OcrReviewBundle? _reviewBundle;
+  Map<String, OcrReviewStatus> _reviewStatuses = {};
   List<_EditableLineItem> _editableItems = [];
   bool _processing = false;
   bool _saving = false;
@@ -117,11 +125,21 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
       _processing = true;
       _error = null;
       _rawQuote = null;
-      _replaceEditableItems(const []);
+      _reviewBundle = null;
+      _reviewStatuses = {};
+      _replaceEditableItems(const [], const []);
     });
 
     try {
       final result = await _ocrService.extractQuote(path);
+      final bundle = _ocrService.lastReviewBundle ??
+          const OcrReviewBundle(lines: [], issues: []);
+      final persisted = await _reviewStore.load(result.sourcePath);
+      final statuses = <String, OcrReviewStatus>{
+        for (final line in bundle.lines) line.id: line.initialStatus,
+        for (final issue in bundle.issues) issue.id: issue.initialStatus,
+        ...persisted,
+      };
       if (!mounted) return;
       _contractorController.text = result.contractorName;
       _totalController.text = result.totalAmountYen == null
@@ -129,7 +147,9 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
           : NumberFormat('#,##0', 'ja_JP').format(result.totalAmountYen);
       setState(() {
         _rawQuote = result;
-        _replaceEditableItems(result.lineItems);
+        _reviewBundle = bundle;
+        _reviewStatuses = statuses;
+        _replaceEditableItems(result.lineItems, bundle.lines);
       });
     } on OcrException catch (error) {
       if (!mounted) return;
@@ -145,17 +165,28 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     }
   }
 
-  void _replaceEditableItems(List<RawQuoteLineItem> items) {
+  void _replaceEditableItems(
+    List<RawQuoteLineItem> items,
+    List<OcrRecognizedLine> recognizedLines,
+  ) {
     for (final item in _editableItems) {
       item.dispose();
     }
-    _editableItems = items.map(_EditableLineItem.fromModel).toList();
+    final remaining = List<OcrRecognizedLine>.from(recognizedLines);
+    _editableItems = items.map((item) {
+      final matchIndex = remaining.indexWhere(
+        (line) =>
+            line.rawText == item.rawLabel &&
+            line.categoryCandidates.contains(item.categoryId),
+      );
+      final sourceLine =
+          matchIndex < 0 ? null : remaining.removeAt(matchIndex);
+      return _EditableLineItem.fromModel(item, sourceLine: sourceLine);
+    }).toList();
   }
 
   void _addLineItem() {
-    setState(() {
-      _editableItems.add(_EditableLineItem.empty());
-    });
+    setState(() => _editableItems.add(_EditableLineItem.empty()));
   }
 
   void _removeLineItem(int index) {
@@ -165,9 +196,65 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     });
   }
 
+  OcrReviewStatus _statusFor(OcrRecognizedLine line) =>
+      _reviewStatuses[line.id] ?? line.initialStatus;
+
+  void _setReviewStatus(String id, OcrReviewStatus status) {
+    final sourcePath = _rawQuote?.sourcePath;
+    setState(() => _reviewStatuses[id] = status);
+    if (sourcePath != null) {
+      unawaited(_reviewStore.save(sourcePath, _reviewStatuses));
+    }
+  }
+
+  int _criticalPendingCount() {
+    final bundle = _reviewBundle;
+    if (bundle == null) return 0;
+    final criticalLines = bundle.lines.where(
+      (line) =>
+          line.severity == OcrReviewSeverity.critical &&
+          (_reviewStatuses[line.id] ?? line.initialStatus) ==
+              OcrReviewStatus.pending,
+    );
+    final criticalIssues = bundle.issues.where(
+      (issue) =>
+          issue.severity == OcrReviewSeverity.critical &&
+          (_reviewStatuses[issue.id] ?? issue.initialStatus) ==
+              OcrReviewStatus.pending,
+    );
+    return criticalLines.length + criticalIssues.length;
+  }
+
+  Future<bool> _confirmSaveWithCriticalItems() async {
+    final count = _criticalPendingCount();
+    if (count == 0) return true;
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            icon: const Icon(Icons.warning_amber_outlined),
+            title: const Text('重大な未確認項目があります'),
+            content: Text(
+              '合計不一致や数量×単価不一致など、$count件が未確認です。保存前の確認を推奨します。',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('確認に戻る'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('未確認のまま保存'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   Future<void> _save() async {
     final rawQuote = _rawQuote;
     if (rawQuote == null || _saving) return;
+    if (!await _confirmSaveWithCriticalItems()) return;
 
     final contractorName = _contractorController.text.trim();
     if (contractorName.isEmpty) {
@@ -213,6 +300,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
         widget.project.id,
         corrected.toContractorQuote(),
       );
+      await _reviewStore.save(rawQuote.sourcePath, _reviewStatuses);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('見積を保存しました。')),
@@ -231,6 +319,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
   @override
   Widget build(BuildContext context) {
     final rawQuote = _rawQuote;
+    final reviewBundle = _reviewBundle;
     return Scaffold(
       appBar: AppBar(
         title: const Text('見積書を取り込む'),
@@ -324,10 +413,14 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
           ],
           if (rawQuote != null) ...[
             const SizedBox(height: 20),
-            Text(
-              '基本情報',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            if (reviewBundle != null)
+              OcrReviewOverview(
+                bundle: reviewBundle,
+                statuses: _reviewStatuses,
+                onStatusChanged: _setReviewStatus,
+              ),
+            const SizedBox(height: 16),
+            Text('基本情報', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             TextField(
               controller: _contractorController,
@@ -389,19 +482,26 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
                 ),
               )
             else
-              SizedBox(
-                height: 520,
-                child: ListView.separated(
-                  itemCount: _editableItems.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) => _EditableLineCard(
-                    key: ValueKey(_editableItems[index]),
-                    index: index,
-                    item: _editableItems[index],
-                    onRemove: () => _removeLineItem(index),
+              ..._editableItems.asMap().entries.map(
+                    (entry) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _EditableLineCard(
+                        key: ValueKey(entry.value),
+                        index: entry.key,
+                        item: entry.value,
+                        reviewStatus: entry.value.sourceLine == null
+                            ? null
+                            : _statusFor(entry.value.sourceLine!),
+                        onReviewStatusChanged: entry.value.sourceLine == null
+                            ? null
+                            : (status) => _setReviewStatus(
+                                  entry.value.sourceLine!.id,
+                                  status,
+                                ),
+                        onRemove: () => _removeLineItem(entry.key),
+                      ),
+                    ),
                   ),
-                ),
-              ),
             const SizedBox(height: 16),
             ExpansionTile(
               tilePadding: EdgeInsets.zero,
@@ -409,10 +509,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
               children: [
                 Container(
                   width: double.infinity,
-                  constraints: const BoxConstraints(
-                    minHeight: 140,
-                    maxHeight: 320,
-                  ),
+                  constraints: const BoxConstraints(minHeight: 140, maxHeight: 320),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     border: Border.all(
@@ -450,11 +547,15 @@ class _EditableLineCard extends StatefulWidget {
     required this.index,
     required this.item,
     required this.onRemove,
+    this.reviewStatus,
+    this.onReviewStatusChanged,
   });
 
   final int index;
   final _EditableLineItem item;
   final VoidCallback onRemove;
+  final OcrReviewStatus? reviewStatus;
+  final ValueChanged<OcrReviewStatus>? onReviewStatusChanged;
 
   @override
   State<_EditableLineCard> createState() => _EditableLineCardState();
@@ -464,120 +565,138 @@ class _EditableLineCardState extends State<_EditableLineCard> {
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
+    final editor = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              '明細 ${widget.index + 1}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const Spacer(),
+            IconButton(
+              tooltip: '明細を削除',
+              onPressed: widget.onRemove,
+              icon: const Icon(Icons.delete_outline),
+            ),
+          ],
+        ),
+        TextField(
+          controller: item.rawLabelController,
+          decoration: const InputDecoration(
+            labelText: '項目名・原文',
+            border: OutlineInputBorder(),
+          ),
+          maxLines: 2,
+        ),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(
+          initialValue: item.categoryId,
+          decoration: const InputDecoration(
+            labelText: 'カテゴリ（自動判定・変更可）',
+            border: OutlineInputBorder(),
+          ),
+          items: [
+            for (final category in CategoryMaster.categories)
+              DropdownMenuItem(value: category.id, child: Text(category.nameJa)),
+          ],
+          onChanged: (value) {
+            if (value != null) setState(() => item.categoryId = value);
+          },
+        ),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<InclusionStatus>(
+          initialValue: item.inclusionStatus,
+          decoration: const InputDecoration(
+            labelText: '見積への含まれ方',
+            border: OutlineInputBorder(),
+          ),
+          items: [
+            for (final status in InclusionStatus.values)
+              DropdownMenuItem(value: status, child: Text(status.labelJa)),
+          ],
+          onChanged: (value) {
+            if (value != null) setState(() => item.inclusionStatus = value);
+          },
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: item.amountController,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: '金額（円・未記載は空欄）',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: TextField(
+                controller: item.quantityController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: '数量',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: item.unitController,
+                decoration: const InputDecoration(
+                  labelText: '単位',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: item.specificationController,
+          decoration: const InputDecoration(
+            labelText: '仕様・備考',
+            border: OutlineInputBorder(),
+          ),
+          maxLines: 2,
+        ),
+      ],
+    );
+
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  '明細 ${widget.index + 1}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                IconButton(
-                  tooltip: '明細を削除',
-                  onPressed: widget.onRemove,
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ],
-            ),
-            TextField(
-              controller: item.rawLabelController,
-              decoration: const InputDecoration(
-                labelText: '項目名・原文',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
-            ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              initialValue: item.categoryId,
-              decoration: const InputDecoration(
-                labelText: 'カテゴリ（自動判定・変更可）',
-                border: OutlineInputBorder(),
-              ),
-              items: [
-                for (final category in CategoryMaster.categories)
-                  DropdownMenuItem(
-                    value: category.id,
-                    child: Text(category.nameJa),
-                  ),
-              ],
-              onChanged: (value) {
-                if (value != null) setState(() => item.categoryId = value);
-              },
-            ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<InclusionStatus>(
-              initialValue: item.inclusionStatus,
-              decoration: const InputDecoration(
-                labelText: '見積への含まれ方',
-                border: OutlineInputBorder(),
-              ),
-              items: [
-                for (final status in InclusionStatus.values)
-                  DropdownMenuItem(
-                    value: status,
-                    child: Text(status.labelJa),
-                  ),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => item.inclusionStatus = value);
-                }
-              },
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: item.amountController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '金額（円・未記載は空欄）',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextField(
-                    controller: item.quantityController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: '数量',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: item.unitController,
-                    decoration: const InputDecoration(
-                      labelText: '単位',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: item.specificationController,
-              decoration: const InputDecoration(
-                labelText: '仕様・備考',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
-            ),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final line = item.sourceLine;
+            final status = widget.reviewStatus;
+            final onChanged = widget.onReviewStatusChanged;
+            if (line == null || status == null || onChanged == null) return editor;
+            final review = OcrLineReviewPanel(
+              line: line,
+              status: status,
+              onChanged: onChanged,
+            );
+            if (constraints.maxWidth >= 680) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 220, child: review),
+                  const SizedBox(width: 16),
+                  Expanded(child: editor),
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [review, const SizedBox(height: 12), editor],
+            );
+          },
         ),
       ),
     );
@@ -594,9 +713,13 @@ class _EditableLineItem {
     required this.categoryId,
     required this.inclusionStatus,
     this.note,
+    this.sourceLine,
   });
 
-  factory _EditableLineItem.fromModel(RawQuoteLineItem item) {
+  factory _EditableLineItem.fromModel(
+    RawQuoteLineItem item, {
+    OcrRecognizedLine? sourceLine,
+  }) {
     return _EditableLineItem(
       rawLabelController: TextEditingController(text: item.rawLabel),
       amountController: TextEditingController(
@@ -606,27 +729,25 @@ class _EditableLineItem {
         text: item.quantity == null ? '' : item.quantity.toString(),
       ),
       unitController: TextEditingController(text: item.unit ?? ''),
-      specificationController:
-          TextEditingController(text: item.specification ?? ''),
+      specificationController: TextEditingController(text: item.specification ?? ''),
       categoryId: CategoryMaster.find(item.categoryId) == null
           ? CategoryMaster.categories.first.id
           : item.categoryId,
       inclusionStatus: item.inclusionStatus,
       note: item.note,
+      sourceLine: sourceLine,
     );
   }
 
-  factory _EditableLineItem.empty() {
-    return _EditableLineItem(
-      rawLabelController: TextEditingController(),
-      amountController: TextEditingController(),
-      quantityController: TextEditingController(),
-      unitController: TextEditingController(),
-      specificationController: TextEditingController(),
-      categoryId: CategoryMaster.categories.first.id,
-      inclusionStatus: InclusionStatus.unknown,
-    );
-  }
+  factory _EditableLineItem.empty() => _EditableLineItem(
+        rawLabelController: TextEditingController(),
+        amountController: TextEditingController(),
+        quantityController: TextEditingController(),
+        unitController: TextEditingController(),
+        specificationController: TextEditingController(),
+        categoryId: CategoryMaster.categories.first.id,
+        inclusionStatus: InclusionStatus.unknown,
+      );
 
   final TextEditingController rawLabelController;
   final TextEditingController amountController;
@@ -636,31 +757,27 @@ class _EditableLineItem {
   String categoryId;
   InclusionStatus inclusionStatus;
   final String? note;
+  final OcrRecognizedLine? sourceLine;
 
   RawQuoteLineItem toModel(int index) {
     final rawLabel = rawLabelController.text.trim();
     if (rawLabel.isEmpty) {
       throw FormatException('明細${index + 1}の項目名を入力してください。');
     }
-
     final normalizedAmount =
         amountController.text.replaceAll(RegExp(r'[^0-9-]'), '');
-    final amount =
-        normalizedAmount.isEmpty ? null : int.tryParse(normalizedAmount);
+    final amount = normalizedAmount.isEmpty ? null : int.tryParse(normalizedAmount);
     if (normalizedAmount.isNotEmpty && amount == null) {
       throw FormatException('明細${index + 1}の金額を数値で入力してください。');
     }
-
-    final normalizedQuantity = quantityController.text
-        .trim()
-        .replaceAll(',', '.');
+    final normalizedQuantity =
+        quantityController.text.trim().replaceAll(',', '.');
     final quantity = normalizedQuantity.isEmpty
         ? null
         : double.tryParse(normalizedQuantity);
     if (normalizedQuantity.isNotEmpty && quantity == null) {
       throw FormatException('明細${index + 1}の数量を数値で入力してください。');
     }
-
     final unit = unitController.text.trim();
     final specification = specificationController.text.trim();
     return RawQuoteLineItem(
