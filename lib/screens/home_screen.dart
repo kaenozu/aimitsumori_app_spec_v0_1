@@ -8,6 +8,7 @@ import '../repositories/project_repository.dart';
 import '../repositories/project_requirement_repository.dart';
 import '../services/ad_service.dart';
 import '../services/haptic_service.dart';
+import '../services/id_generator.dart';
 import 'requirements_checklist_screen.dart';
 import 'requirements_comparison_shell.dart';
 import 'settings_screen.dart';
@@ -70,10 +71,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadProjects() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final projects = await _repository.getProjects();
       if (!mounted) return;
@@ -89,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<Project> _createProject(String name) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final project = Project(
-      id: 'project-$now',
+      id: IdGenerator.prefixed('project'),
       name: name,
       status: ProjectStatus.draft,
       createdAtEpochMillis: now,
@@ -194,6 +197,82 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _searchQuery = '');
   }
 
+  Future<void> _showCreateDialog() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('案件作成'),
+        content: TextField(
+          key: const ValueKey('project-name-field'),
+          controller: controller,
+          maxLength: 100,
+          decoration: const InputDecoration(
+            labelText: '案件名',
+            hintText: '例: 新築外構工事',
+          ),
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (value) {
+            final trimmed = value.trim();
+            if (trimmed.isNotEmpty && trimmed.length <= 100) {
+              Navigator.pop(dialogContext, trimmed);
+            }
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await HapticService.lightImpact();
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+            },
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              await HapticService.lightImpact();
+              final value = controller.text.trim();
+              if (value.isNotEmpty &&
+                  value.length <= 100 &&
+                  dialogContext.mounted) {
+                Navigator.pop(dialogContext, value);
+              }
+            },
+            child: const Text('次へ'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || !mounted) return;
+
+    try {
+      final project = await _createProject(name);
+      if (!mounted) return;
+      await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RequirementsChecklistScreen(
+            project: project,
+            repository: _requirementRepository,
+            creationFlow: true,
+          ),
+        ),
+      );
+      if (!mounted) return;
+      await _loadProjects();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('案件を作成しました。')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final filteredProjects = _filteredProjects;
@@ -235,7 +314,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   const Text(
                     '総合点や順位ではなく、価格・範囲・要望との差・不明点を並べて確認します。',
-                    style: TextStyle(fontSize: 14),
                   ),
                   const SizedBox(height: 12),
                   FilledButton.icon(
@@ -317,77 +395,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
       ),
     );
-  }
-
-  Future<void> _showCreateDialog() async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('案件作成'),
-        content: TextField(
-          key: const ValueKey('project-name-field'),
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: '案件名',
-            hintText: '例: 新築外構工事',
-          ),
-          autofocus: true,
-          textInputAction: TextInputAction.done,
-          onSubmitted: (value) {
-            final trimmed = value.trim();
-            if (trimmed.isNotEmpty) Navigator.pop(dialogContext, trimmed);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await HapticService.lightImpact();
-              if (dialogContext.mounted) Navigator.pop(dialogContext);
-            },
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              await HapticService.lightImpact();
-              final value = controller.text.trim();
-              if (value.isNotEmpty && dialogContext.mounted) {
-                Navigator.pop(dialogContext, value);
-              }
-            },
-            child: const Text('次へ'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (name == null || !mounted) return;
-
-    try {
-      final project = await _createProject(name);
-      if (!mounted) return;
-      await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => RequirementsChecklistScreen(
-            project: project,
-            repository: _requirementRepository,
-            creationFlow: true,
-          ),
-        ),
-      );
-      if (!mounted) return;
-      await _loadProjects();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('案件を作成しました。')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
-    }
   }
 }
 
