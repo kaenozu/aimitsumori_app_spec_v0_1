@@ -102,19 +102,38 @@ class RequirementsEngine {
             ),
           );
         }
-      } else if (actualUnit != null &&
-          UnitNormalizer.equivalent(expectedUnit, actualUnit) &&
-          !UnitNormalizer.quantitiesEquivalent(
-            expected: expectedQuantity,
-            expectedUnit: expectedUnit,
-            actual: actualQuantity,
-            actualUnit: actualUnit,
-          )) {
+      } else if (actualUnit == null) {
+        if (!_sameQuantity(expectedQuantity, actualQuantity)) {
+          mismatches.add(
+            RequirementMismatch(
+              type: RequirementMismatchType.quantity,
+              message: '希望数量 ${_formatNumber(expectedQuantity)}$expectedUnit / '
+                  '見積数量 ${_formatNumber(actualQuantity)}（単位未記載）',
+            ),
+          );
+        }
+      } else if (UnitNormalizer.equivalent(expectedUnit, actualUnit)) {
+        if (!UnitNormalizer.quantitiesEquivalent(
+          expected: expectedQuantity,
+          expectedUnit: expectedUnit,
+          actual: actualQuantity,
+          actualUnit: actualUnit,
+        )) {
+          mismatches.add(
+            RequirementMismatch(
+              type: RequirementMismatchType.quantity,
+              message: '希望数量 ${_formatNumber(expectedQuantity)}$expectedUnit / '
+                  '見積 ${_formatNumber(actualQuantity)}$actualUnit',
+            ),
+          );
+        }
+      } else if (!_sameQuantity(expectedQuantity, actualQuantity)) {
         mismatches.add(
           RequirementMismatch(
             type: RequirementMismatchType.quantity,
             message: '希望数量 ${_formatNumber(expectedQuantity)}$expectedUnit / '
-                '見積 ${_formatNumber(actualQuantity)}$actualUnit',
+                '見積 ${_formatNumber(actualQuantity)}$actualUnit'
+                '（単位が異なるため換算できません）',
           ),
         );
       }
