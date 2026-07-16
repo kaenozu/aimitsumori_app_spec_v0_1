@@ -1,11 +1,12 @@
 /// ファイルパス: lib/screens/comparison_screen.dart
-/// 比較画面 - サマリー、リワード解放する詳細比較、質問テンプレート、バナー広告
-/// 関連ファイル: lib/models.dart, lib/normalizer.dart, lib/services/ad_service.dart
+/// 比較画面 - サマリー、カテゴリ比較、質問テンプレート、共有、バナー広告
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../comparison_engine.dart';
 import '../models.dart';
@@ -13,6 +14,7 @@ import '../normalizer.dart';
 import '../question_generator.dart';
 import '../repositories/project_repository.dart';
 import '../services/ad_service.dart';
+import '../services/comparison_export_service.dart';
 import 'quote_input_screen.dart';
 
 class ComparisonScreen extends StatefulWidget {
@@ -39,7 +41,8 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
   bool _detailsUnlocked = false;
   bool _unlocking = false;
 
-  ProjectRepository get _repository => widget.repository ?? ProjectRepository.instance;
+  ProjectRepository get _repository =>
+      widget.repository ?? ProjectRepository.instance;
   AdService get _adService => widget.adService ?? AdService.instance;
 
   @override
@@ -73,11 +76,16 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
     );
   }
 
-  Future<void> _saveReport() async {
+  Future<void> _saveReport({bool showError = false}) async {
     try {
       await _repository.saveComparisonResult(_report);
-    } catch (error) {
-      debugPrint('Comparison result save failed: $error');
+    } catch (error, stackTrace) {
+      debugPrint('Comparison result save failed: $error\n$stackTrace');
+      if (showError && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.toString())),
+        );
+      }
     }
   }
 
@@ -97,51 +105,99 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
 
   void _loadBanner() {
     if (_adService.adFree.value || _bannerAd != null) return;
-    final ad = _adService.createBannerAd(
-      onLoaded: () {
-        if (mounted) setState(() => _bannerLoaded = true);
-      },
-      onFailed: (error) {
-        debugPrint('Banner ad failed to load: $error');
-        if (mounted) setState(() => _bannerLoaded = false);
-      },
-    );
-    _bannerAd = ad;
-    ad?.load();
+    try {
+      final ad = _adService.createBannerAd(
+        onLoaded: () {
+          if (mounted) setState(() => _bannerLoaded = true);
+        },
+        onFailed: (error) {
+          debugPrint('Banner ad failed to load: $error');
+          if (!mounted) return;
+          _bannerAd = null;
+          setState(() => _bannerLoaded = false);
+        },
+      );
+      _bannerAd = ad;
+      ad?.load();
+    } catch (error, stackTrace) {
+      debugPrint('Banner ad request failed: $error\n$stackTrace');
+      _bannerAd = null;
+      if (mounted) setState(() => _bannerLoaded = false);
+    }
+  }
+
+  Future<void> _refresh() async {
+    try {
+      final refreshed = await _repository.getProject(_project.id);
+      if (refreshed == null) {
+        throw const ProjectRepositoryException(
+          '案件の再読み込み',
+          'project not found',
+        );
+      }
+      if (!mounted) return;
+      setState(() {
+        _project = refreshed;
+        _report = _generateReport();
+        if (_adService.adFree.value) _detailsUnlocked = true;
+      });
+      await _saveReport(showError: true);
+    } catch (error, stackTrace) {
+      debugPrint('Comparison refresh failed: $error\n$stackTrace');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
   }
 
   Future<void> _addQuote() async {
-    final saved = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => QuoteInputScreen(
-          project: _project,
-          repository: _repository,
+    try {
+      final saved = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => QuoteInputScreen(
+            project: _project,
+            repository: _repository,
+          ),
         ),
-      ),
-    );
-    if (saved != true) return;
-
-    final refreshed = await _repository.getProject(_project.id);
-    if (!mounted || refreshed == null) return;
-    setState(() {
-      _project = refreshed;
-      _report = _generateReport();
-      _detailsUnlocked = _adService.adFree.value;
-    });
-    await _saveReport();
+      );
+      if (saved == true) await _refresh();
+    } catch (error, stackTrace) {
+      debugPrint('Quote input navigation failed: $error\n$stackTrace');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('見積の追加画面を開けませんでした。もう一度お試しください。')),
+      );
+    }
   }
 
   Future<void> _unlockDetails() async {
     if (_detailsUnlocked || _unlocking) return;
     setState(() => _unlocking = true);
-    final unlocked = await _adService.showRewardedAd();
+
+    RewardedAdOutcome outcome;
+    try {
+      outcome = await _adService.showRewardedAd();
+    } catch (error) {
+      debugPrint('Rewarded ad flow failed: $error');
+      outcome = RewardedAdOutcome.unavailable;
+    }
     if (!mounted) return;
+
+    final unlocked = outcome != RewardedAdOutcome.dismissed;
     setState(() {
       _unlocking = false;
       _detailsUnlocked = unlocked;
     });
-    if (!unlocked) {
+
+    if (outcome == RewardedAdOutcome.unavailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('広告を読み込めなかったため、詳細比較をそのまま表示します。'),
+        ),
+      );
+    } else if (!unlocked) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('広告を最後まで視聴すると詳細比較を表示できます。')),
       );
@@ -153,7 +209,45 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
     if (!mounted) return;
     if (!started) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('購入商品を取得できませんでした。ストア設定を確認してください。')),
+        const SnackBar(content: Text('購入商品を取得できませんでした。通信状態とストア設定を確認してください。')),
+      );
+    }
+  }
+
+  Future<void> _restorePurchases() async {
+    try {
+      await _adService.restorePurchases();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('購入履歴の復元を開始しました。')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('購入履歴を復元できませんでした。通信状態を確認してください。')),
+      );
+    }
+  }
+
+  Future<void> _shareComparison(BuildContext shareContext) async {
+    try {
+      final renderObject = shareContext.findRenderObject();
+      final origin = renderObject is RenderBox
+          ? renderObject.localToGlobal(Offset.zero) & renderObject.size
+          : null;
+      await SharePlus.instance.share(
+        ShareParams(
+          text: ComparisonExportService.toText(_report),
+          subject: '${_report.projectName} 相見積もり比較',
+          title: '比較結果を共有',
+          sharePositionOrigin: origin,
+        ),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Comparison share failed: $error\n$stackTrace');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('比較結果を共有できませんでした。もう一度お試しください。')),
       );
     }
   }
@@ -165,6 +259,13 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
       appBar: AppBar(
         title: const Text('比較'),
         actions: [
+          Builder(
+            builder: (shareContext) => IconButton(
+              tooltip: '比較結果を共有',
+              onPressed: () => _shareComparison(shareContext),
+              icon: const Icon(Icons.share_outlined),
+            ),
+          ),
           IconButton(
             tooltip: '見積を追加',
             onPressed: _addQuote,
@@ -174,7 +275,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
             PopupMenuButton<String>(
               onSelected: (value) {
                 if (value == 'purchase') _purchaseRemoveAds();
-                if (value == 'restore') _adService.restorePurchases();
+                if (value == 'restore') _restorePurchases();
               },
               itemBuilder: (_) => const [
                 PopupMenuItem(value: 'purchase', child: Text('広告を削除')),
@@ -183,69 +284,89 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
             ),
         ],
       ),
-      bottomNavigationBar: banner != null && _bannerLoaded && !_adService.adFree.value
-          ? SafeArea(
-              child: SizedBox(
-                width: banner.size.width.toDouble(),
-                height: banner.size.height.toDouble(),
-                child: AdWidget(ad: banner),
-              ),
-            )
-          : null,
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            _report.projectName,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            '順位・総合点は付けず、条件差と不明点を確認します。',
-            style: TextStyle(fontSize: 13),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: _addQuote,
-            icon: const Icon(Icons.add_a_photo_outlined),
-            label: const Text('PDF・写真から見積を追加'),
-          ),
-          const SizedBox(height: 16),
-          _SummaryCard(lines: _report.summaryLines),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 160,
-            child: _report.quoteSnapshots.isEmpty
-                ? const Card(child: Center(child: Text('見積書を追加してください。')))
-                : ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _report.quoteSnapshots.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 12),
-                    itemBuilder: (_, index) => _SnapshotCard(
-                      snapshot: _report.quoteSnapshots[index],
-                    ),
+      bottomNavigationBar:
+          banner != null && _bannerLoaded && !_adService.adFree.value
+              ? SafeArea(
+                  child: SizedBox(
+                    width: banner.size.width.toDouble(),
+                    height: banner.size.height.toDouble(),
+                    child: AdWidget(ad: banner),
                   ),
-          ),
-          const SizedBox(height: 16),
-          if (_detailsUnlocked) ...[
-            const Text('18カテゴリ比較', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            ..._report.categoryComparisons.map((value) => _CategoryCard(comparison: value)),
-            const SizedBox(height: 16),
+                )
+              : null,
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
             Text(
-              '確認質問テンプレート (${_report.clarificationQuestions.length}件)',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              _report.projectName,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
-            ..._report.clarificationQuestions.map((value) => _QuestionCard(question: value)),
-          ] else
-            _DetailUnlockCard(
-              loading: _unlocking,
-              onUnlock: _unlockDetails,
-              onRemoveAds: _purchaseRemoveAds,
+            const SizedBox(height: 4),
+            const Text(
+              '順位・総合点は付けず、条件差と不明点を確認します。下へ引っ張ると再読み込みできます。',
+              style: TextStyle(fontSize: 13),
             ),
-          const SizedBox(height: 24),
-        ],
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _addQuote,
+              icon: const Icon(Icons.add_a_photo_outlined),
+              label: const Text('PDF・写真から見積を追加'),
+            ),
+            const SizedBox(height: 16),
+            _SummaryCard(lines: _report.summaryLines),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 160,
+              child: _report.quoteSnapshots.isEmpty
+                  ? const Card(child: Center(child: Text('見積書を追加してください。')))
+                  : ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _report.quoteSnapshots.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 12),
+                      itemBuilder: (_, index) => _SnapshotCard(
+                        snapshot: _report.quoteSnapshots[index],
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 16),
+            const _BadgeLegend(),
+            const SizedBox(height: 16),
+            if (_detailsUnlocked) ...[
+              const Text(
+                '18カテゴリ比較',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                '表は左右にスクロールできます。',
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              _CategoryComparisonTable(report: _report),
+              const SizedBox(height: 16),
+              Text(
+                '確認質問テンプレート (${_report.clarificationQuestions.length}件)',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ..._report.clarificationQuestions.map(
+                (value) => _QuestionCard(question: value),
+              ),
+            ] else
+              _DetailUnlockCard(
+                loading: _unlocking,
+                onUnlock: _unlockDetails,
+                onRemoveAds: _purchaseRemoveAds,
+              ),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
@@ -271,7 +392,10 @@ class _DetailUnlockCard extends StatelessWidget {
           children: [
             const Icon(Icons.table_chart_outlined, size: 40),
             const SizedBox(height: 8),
-            const Text('詳細比較を表示', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text(
+              '詳細比較を表示',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 6),
             const Text('カテゴリ別の金額・仕様差と、業者への確認質問を表示します。'),
             const SizedBox(height: 12),
@@ -301,9 +425,14 @@ class _SummaryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('3行サマリー', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const Text(
+              '3行サマリー',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
-            ...lines.asMap().entries.map((entry) => Text('${entry.key + 1}. ${entry.value}')),
+            ...lines.asMap().entries.map(
+                  (entry) => Text('${entry.key + 1}. ${entry.value}'),
+                ),
           ],
         ),
       ),
@@ -317,7 +446,7 @@ class _SnapshotCard extends StatelessWidget {
   final QuoteSnapshot snapshot;
 
   String _format(int? value) =>
-      value != null ? NumberFormat('#,##0', 'ja_JP').format(value) : '不明';
+      value != null ? NumberFormat('#,##0', 'ja_JP').format(value) : '未入力';
 
   @override
   Widget build(BuildContext context) {
@@ -329,12 +458,22 @@ class _SnapshotCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(snapshot.contractorName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              Text(
+                snapshot.contractorName,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 6),
               Text('提示総額: ${_format(snapshot.totalAmountYen)}円'),
               Text('見積内: ${snapshot.includedCategoryCount}カテゴリ'),
-              Text('別途: ${snapshot.separateCategoryNames.isEmpty ? "なし" : snapshot.separateCategoryNames.join(", ")}'),
-              Text('任意: ${snapshot.optionalCategoryNames.isEmpty ? "なし" : snapshot.optionalCategoryNames.join(", ")}'),
+              Text(
+                '別途: ${snapshot.separateCategoryNames.isEmpty ? "なし" : snapshot.separateCategoryNames.join(", ")}',
+              ),
+              Text(
+                '任意: ${snapshot.optionalCategoryNames.isEmpty ? "なし" : snapshot.optionalCategoryNames.join(", ")}',
+              ),
               Text('含有不明: ${snapshot.unknownCategoryNames.length}カテゴリ'),
               Text('不確実点: ${snapshot.uncertaintyCount}件'),
             ],
@@ -345,59 +484,203 @@ class _SnapshotCard extends StatelessWidget {
   }
 }
 
-class _CategoryCard extends StatelessWidget {
-  const _CategoryCard({required this.comparison});
-
-  final CategoryComparison comparison;
-
-  String _format(int? value) =>
-      value != null ? NumberFormat('#,##0', 'ja_JP').format(value) : '不明';
-
-  String _formatQuantity(double? quantity, String? unit) {
-    if (quantity == null || unit == null) return '不明';
-    return quantity == quantity.roundToDouble() ? '${quantity.toInt()} $unit' : '$quantity $unit';
-  }
+class _BadgeLegend extends StatelessWidget {
+  const _BadgeLegend();
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(comparison.category.nameJa, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-            const Divider(),
-            ...comparison.cells.asMap().entries.map((entry) {
-              final cell = entry.value;
-              final isLast = entry.key == comparison.cells.length - 1;
-              return Padding(
-                padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(cell.contractorName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                        Chip(label: Text(cell.inclusionStatus.labelJa, style: const TextStyle(fontSize: 11))),
-                      ],
+          children: const [
+            Text(
+              '表示の見方',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 8),
+            _LegendRow(
+              label: '未入力',
+              description: '金額・数量・仕様が見積書に記載されていません。',
+            ),
+            _LegendRow(
+              label: '別途',
+              description: '提示総額には含まれず、追加費用になる可能性があります。',
+            ),
+            _LegendRow(
+              label: '不明',
+              description: '記載またはOCR結果だけでは判断できず、業者への確認が必要です。',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LegendRow extends StatelessWidget {
+  const _LegendRow({required this.label, required this.description});
+
+  final String label;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Chip(
+            visualDensity: VisualDensity.compact,
+            label: Text(label, style: const TextStyle(fontSize: 11)),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(description, style: const TextStyle(fontSize: 12)),
+          )),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryComparisonTable extends StatelessWidget {
+  const _CategoryComparisonTable({required this.report});
+
+  final ComparisonReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    if (report.quoteSnapshots.isEmpty) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text('比較する見積がありません。'),
+        ),
+      );
+    }
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Scrollbar(
+        scrollbarOrientation: ScrollbarOrientation.bottom,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            columnSpacing: 20,
+            headingRowHeight: 56,
+            dataRowMinHeight: 112,
+            dataRowMaxHeight: 136,
+            columns: [
+              const DataColumn(label: Text('カテゴリ')),
+              for (final snapshot in report.quoteSnapshots)
+                DataColumn(
+                  label: SizedBox(
+                    width: 170,
+                    child: Text(
+                      snapshot.contractorName,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    Text('金額: ${_format(cell.amountYen)}円'),
-                    Text('数量: ${_formatQuantity(cell.quantity, cell.unit)}'),
-                    Text('仕様: ${cell.specification ?? "不明"}'),
-                    if (cell.uncertaintyReasons.isNotEmpty)
-                      Text(
-                        '不明・確認: ${cell.uncertaintyReasons.join(" / ")}',
-                        style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12),
+                  ),
+                ),
+            ],
+            rows: [
+              for (final comparison in report.categoryComparisons)
+                DataRow(
+                  cells: [
+                    DataCell(
+                      SizedBox(
+                        width: 120,
+                        child: Text(
+                          comparison.category.nameJa,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                    for (final snapshot in report.quoteSnapshots)
+                      DataCell(
+                        _ComparisonCellView(
+                          cell: _findCell(
+                            comparison.cells,
+                            snapshot.quoteId,
+                          ),
+                        ),
                       ),
                   ],
                 ),
-              );
-            }),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  ComparisonCell? _findCell(List<ComparisonCell> cells, String quoteId) {
+    for (final cell in cells) {
+      if (cell.quoteId == quoteId) return cell;
+    }
+    return null;
+  }
+}
+
+class _ComparisonCellView extends StatelessWidget {
+  const _ComparisonCellView({required this.cell});
+
+  final ComparisonCell? cell;
+
+  String _formatAmount(int? value) => value == null
+      ? '未入力'
+      : '${NumberFormat('#,##0', 'ja_JP').format(value)}円';
+
+  String _formatQuantity(double? quantity, String? unit) {
+    if (quantity == null) return '未入力';
+    final value = quantity == quantity.roundToDouble()
+        ? quantity.toInt().toString()
+        : quantity.toString();
+    return '$value${unit ?? ''}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final value = cell;
+    if (value == null) {
+      return const SizedBox(width: 170, child: Text('未入力'));
+    }
+
+    return SizedBox(
+      width: 170,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Chip(
+            visualDensity: VisualDensity.compact,
+            label: Text(
+              value.inclusionStatus.labelJa,
+              style: const TextStyle(fontSize: 11),
+            ),
+          ),
+          Text('金額: ${_formatAmount(value.amountYen)}'),
+          Text('数量: ${_formatQuantity(value.quantity, value.unit)}'),
+          Text(
+            '仕様: ${value.specification ?? "未入力"}',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (value.uncertaintyReasons.isNotEmpty)
+            Text(
+              '確認: ${value.uncertaintyReasons.join(" / ")}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontSize: 11,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -417,7 +700,10 @@ class _QuestionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(question.templateKey, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(
+              question.templateKey,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
             const SizedBox(height: 4),
             Text(question.questionText),
           ],
