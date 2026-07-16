@@ -86,7 +86,12 @@ class _HomeScreenState extends State<HomeScreen> {
       body: RefreshIndicator(
         onRefresh: _loadProjects,
         child: _loading
-            ? const ListView(children: [SizedBox(height: 280), Center(child: CircularProgressIndicator())])
+            ? ListView(
+                children: const [
+                  SizedBox(height: 280),
+                  Center(child: CircularProgressIndicator()),
+                ],
+              )
             : ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
@@ -96,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 12),
                   FilledButton.icon(
-                    onPressed: () => _showCreateDialog(context),
+                    onPressed: _showCreateDialog,
                     icon: const Icon(Icons.add),
                     label: const Text('新しい案件を作成'),
                   ),
@@ -120,7 +125,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _showCreateDialog(BuildContext context) async {
+  Future<void> _showCreateDialog() async {
     final controller = TextEditingController();
     final name = await showDialog<String>(
       context: context,
