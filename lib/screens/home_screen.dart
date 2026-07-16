@@ -8,34 +8,61 @@ import 'package:flutter/material.dart';
 import '../models.dart';
 import '../repositories/project_repository.dart';
 import '../services/ad_service.dart';
+import '../services/haptic_service.dart';
 import 'comparison_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     this.repository,
     this.adService,
+    this.darkModeEnabled = false,
+    this.onDarkModeChanged,
   });
 
   final ProjectRepository? repository;
   final AdService? adService;
+  final bool darkModeEnabled;
+  final ValueChanged<bool>? onDarkModeChanged;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final TextEditingController _searchController = TextEditingController();
+
   List<Project> _projects = const [];
   bool _loading = true;
+  String _searchQuery = '';
   String? _error;
 
   ProjectRepository get _repository =>
       widget.repository ?? ProjectRepository.instance;
 
+  List<Project> get _filteredProjects {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return _projects;
+    return _projects.where((project) {
+      final matchesProject = project.name.toLowerCase().contains(query);
+      final matchesContractor = project.quotes.any(
+        (quote) => quote.contractorName.toLowerCase().contains(query),
+      );
+      return matchesProject || matchesContractor;
+    }).toList(growable: false);
+  }
+
   @override
   void initState() {
     super.initState();
     _loadProjects();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadProjects() async {
@@ -69,23 +96,124 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openProject(Project project) async {
+    await HapticService.lightImpact();
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
-        builder: (_) => ComparisonScreen(
-          project: project,
-          repository: _repository,
-          adService: widget.adService,
+        builder: (_) => _ComparisonHapticGate(
+          child: ComparisonScreen(
+            project: project,
+            repository: _repository,
+            adService: widget.adService,
+          ),
         ),
       ),
     );
     await _loadProjects();
   }
 
+  Future<void> _openSettings() async {
+    await HapticService.lightImpact();
+    if (!mounted) return;
+    final deleted = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SettingsScreen(
+          repository: _repository,
+          darkModeEnabled: widget.darkModeEnabled,
+          onDarkModeChanged: widget.onDarkModeChanged ?? (_) {},
+        ),
+      ),
+    );
+    if (deleted != true || !mounted) return;
+    await _loadProjects();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('すべての案件データを削除しました。')),
+    );
+  }
+
+  Future<bool> _confirmDeleteProject(Project project) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('案件を削除しますか？'),
+        content: Text('「${project.name}」の見積と比較結果も削除されます。'),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await HapticService.lightImpact();
+              if (dialogContext.mounted) Navigator.pop(dialogContext, false);
+            },
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              await HapticService.lightImpact();
+              if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+            },
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+
+    try {
+      await _repository.deleteProject(project.id);
+      return true;
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.toString())),
+        );
+      }
+      return false;
+    }
+  }
+
+  void _onProjectDismissed(Project project) {
+    setState(() {
+      _projects = _projects
+          .where((existing) => existing.id != project.id)
+          .toList(growable: false);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('「${project.name}」を削除しました。')),
+    );
+  }
+
+  void _clearSearch() {
+    HapticService.lightImpact();
+    _searchController.clear();
+    setState(() => _searchQuery = '');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final filteredProjects = _filteredProjects;
     return Scaffold(
-      appBar: AppBar(title: const Text('相見積もり比較')),
+      appBar: AppBar(
+        title: const Text('相見積もり比較'),
+        actions: [
+          PopupMenuButton<_HomeMenuAction>(
+            tooltip: 'メニュー',
+            onSelected: (action) {
+              if (action == _HomeMenuAction.settings) _openSettings();
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: _HomeMenuAction.settings,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.settings_outlined),
+                  title: Text('設定'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _loadProjects,
         child: _loading
@@ -106,9 +234,32 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 12),
                   FilledButton.icon(
-                    onPressed: _showCreateDialog,
+                    onPressed: () async {
+                      await HapticService.lightImpact();
+                      if (mounted) _showCreateDialog();
+                    },
                     icon: const Icon(Icons.add),
                     label: const Text('新しい案件を作成'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    key: const ValueKey('project-search-field'),
+                    controller: _searchController,
+                    onChanged: (value) => setState(() => _searchQuery = value),
+                    decoration: InputDecoration(
+                      labelText: '案件を検索',
+                      hintText: '案件名または業者名',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchQuery.isEmpty
+                          ? null
+                          : IconButton(
+                              key: const ValueKey('project-search-clear'),
+                              tooltip: '検索をクリア',
+                              onPressed: _clearSearch,
+                              icon: const Icon(Icons.clear),
+                            ),
+                      border: const OutlineInputBorder(),
+                    ),
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
@@ -145,26 +296,34 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                   const SizedBox(height: 16),
                   if (_projects.isEmpty)
-                    const Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Column(
-                          children: [
-                            Icon(Icons.folder_open_outlined, size: 40),
-                            SizedBox(height: 8),
-                            Text('案件はまだありません。'),
-                            SizedBox(height: 4),
-                            Text('案件を作成して、見積書を取り込んでください。'),
-                          ],
-                        ),
-                      ),
-                    )
+                    const _EmptyProjectsCard()
+                  else if (filteredProjects.isEmpty)
+                    _EmptySearchCard(query: _searchQuery.trim())
                   else
-                    ..._projects.map(
-                      (project) => _ProjectCard(
-                        key: ValueKey('project-card-${project.id}'),
-                        project: project,
-                        onTap: () => _openProject(project),
+                    ...filteredProjects.map(
+                      (project) => Dismissible(
+                        key: ValueKey('project-dismiss-${project.id}'),
+                        direction: DismissDirection.endToStart,
+                        confirmDismiss: (_) => _confirmDeleteProject(project),
+                        onDismissed: (_) => _onProjectDismissed(project),
+                        background: Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          alignment: Alignment.centerRight,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.errorContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.delete_outline,
+                            color: Theme.of(context).colorScheme.onErrorContainer,
+                          ),
+                        ),
+                        child: _ProjectCard(
+                          key: ValueKey('project-card-${project.id}'),
+                          project: project,
+                          onTap: () => _openProject(project),
+                        ),
                       ),
                     ),
                 ],
@@ -189,13 +348,19 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
+            onPressed: () async {
+              await HapticService.lightImpact();
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+            },
             child: const Text('キャンセル'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
+              await HapticService.lightImpact();
               final value = controller.text.trim();
-              if (value.isNotEmpty) Navigator.pop(dialogContext, value);
+              if (value.isNotEmpty && dialogContext.mounted) {
+                Navigator.pop(dialogContext, value);
+              }
             },
             child: const Text('作成'),
           ),
@@ -217,6 +382,64 @@ class _HomeScreenState extends State<HomeScreen> {
         SnackBar(content: Text(error.toString())),
       );
     }
+  }
+}
+
+enum _HomeMenuAction { settings }
+
+class _EmptyProjectsCard extends StatelessWidget {
+  const _EmptyProjectsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Card(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Icon(Icons.folder_open_outlined, size: 40),
+            SizedBox(height: 8),
+            Text(
+              '案件はまだありません。',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 4),
+            Text(
+              '「新しい案件を作成」から始めて、PDFまたは写真の見積書を追加してください。',
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptySearchCard extends StatelessWidget {
+  const _EmptySearchCard({required this.query});
+
+  final String query;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            const Icon(Icons.search_off_outlined, size: 40),
+            const SizedBox(height: 8),
+            Text(
+              '「$query」に一致する案件はありません。',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            const Text('検索語を短くするか、別の案件名・業者名をお試しください。'),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -266,4 +489,26 @@ class _ProjectCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ComparisonHapticGate extends StatefulWidget {
+  const _ComparisonHapticGate({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_ComparisonHapticGate> createState() => _ComparisonHapticGateState();
+}
+
+class _ComparisonHapticGateState extends State<_ComparisonHapticGate> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) HapticService.mediumImpact();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
