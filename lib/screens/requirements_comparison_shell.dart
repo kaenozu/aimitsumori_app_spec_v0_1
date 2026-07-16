@@ -1,4 +1,4 @@
-/// 既存の見積比較と要望差異を切り替えるプロジェクト比較シェル。
+/// 見積比較、要望差異、改訂履歴を切り替えるプロジェクト比較シェル。
 library;
 
 import 'package:flutter/material.dart';
@@ -8,6 +8,7 @@ import '../repositories/project_repository.dart';
 import '../repositories/project_requirement_repository.dart';
 import '../services/ad_service.dart';
 import 'comparison_screen.dart';
+import 'quote_revision_screen.dart';
 import 'requirements_comparison_screen.dart';
 
 class RequirementsComparisonShell extends StatefulWidget {
@@ -33,11 +34,13 @@ class _RequirementsComparisonShellState
     extends State<RequirementsComparisonShell> {
   int _selectedIndex = 0;
   int _requirementsRevision = 0;
+  int _historyRevision = 0;
 
   void _select(int index) {
     setState(() {
       _selectedIndex = index;
       if (index == 1) _requirementsRevision += 1;
+      if (index == 2) _historyRevision += 1;
     });
   }
 
@@ -58,6 +61,11 @@ class _RequirementsComparisonShellState
             projectRepository: widget.projectRepository,
             repository: widget.requirementRepository,
           ),
+          QuoteRevisionScreen(
+            key: ValueKey('quote-history-$_historyRevision'),
+            project: widget.project,
+            projectRepository: widget.projectRepository,
+          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -73,6 +81,11 @@ class _RequirementsComparisonShellState
             icon: Icon(Icons.rule_outlined),
             selectedIcon: Icon(Icons.rule),
             label: '要望差異',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.history_outlined),
+            selectedIcon: Icon(Icons.history),
+            label: '改訂履歴',
           ),
         ],
       ),

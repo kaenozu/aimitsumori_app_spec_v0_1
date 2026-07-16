@@ -6,14 +6,20 @@ import 'package:flutter/foundation.dart';
 
 import '../models.dart';
 import '../services/database_service.dart';
+import '../services/quote_revision_service.dart';
 
 class ProjectRepository {
-  ProjectRepository({DatabaseService? databaseService})
-      : _databaseService = databaseService ?? DatabaseService.instance;
+  ProjectRepository({
+    DatabaseService? databaseService,
+    QuoteRevisionService? revisionService,
+  })  : _databaseService = databaseService ?? DatabaseService.instance,
+        _revisionService = revisionService ??
+            (databaseService == null ? QuoteRevisionService.instance : null);
 
   static final ProjectRepository instance = ProjectRepository();
 
   final DatabaseService _databaseService;
+  final QuoteRevisionService? _revisionService;
 
   Future<List<Project>> getProjects() => _run(
         operation: '案件の読み込み',
@@ -52,7 +58,16 @@ class ProjectRepository {
 
   Future<void> saveQuote(String projectId, ContractorQuote quote) => _run(
         operation: '見積の保存',
-        action: () => _databaseService.saveQuote(projectId, quote),
+        action: () async {
+          await _databaseService.saveQuote(projectId, quote);
+          final revisionService = _revisionService;
+          if (revisionService != null) {
+            await revisionService.recordQuote(
+              projectId: projectId,
+              quote: quote,
+            );
+          }
+        },
       );
 
   Future<void> saveComparisonResult(ComparisonReport report) => _run(
