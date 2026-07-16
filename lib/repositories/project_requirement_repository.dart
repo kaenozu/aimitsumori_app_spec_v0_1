@@ -7,6 +7,7 @@ import 'package:sqflite/sqflite.dart';
 import '../data/category_master.dart';
 import '../requirements_models.dart';
 import '../services/database_service.dart';
+import '../services/value_normalizer.dart';
 
 class ProjectRequirementRepository {
   ProjectRequirementRepository({DatabaseService? databaseService})
@@ -68,7 +69,7 @@ class ProjectRequirementRepository {
               await transaction.insert(
                 'project_requirements',
                 _toRow(projectId, requirement),
-                conflictAlgorithm: ConflictAlgorithm.replace,
+                conflictAlgorithm: ConflictAlgorithm.abort,
               );
             }
           });
@@ -117,7 +118,28 @@ class ProjectRequirementRepository {
       if (byCategory.containsKey(requirement.categoryId)) {
         throw ArgumentError('同じカテゴリの要望が重複しています。');
       }
-      byCategory[requirement.categoryId] = requirement;
+      final quantity = requirement.expectedQuantity;
+      if (quantity != null && (!quantity.isFinite || quantity <= 0)) {
+        throw ArgumentError.value(
+          quantity,
+          'expectedQuantity',
+          'Quantity must be finite and greater than zero',
+        );
+      }
+      final unit = UnitNormalizer.normalize(requirement.expectedUnit);
+      final specification = _nullable(requirement.desiredSpecification);
+      final note = _nullable(requirement.note);
+      if ((specification?.length ?? 0) > 500 || (note?.length ?? 0) > 500) {
+        throw ArgumentError('希望仕様とメモは500文字以内で入力してください。');
+      }
+      byCategory[requirement.categoryId] = ProjectRequirement(
+        categoryId: requirement.categoryId,
+        priority: requirement.priority,
+        expectedQuantity: quantity,
+        expectedUnit: unit,
+        desiredSpecification: specification,
+        note: note,
+      );
     }
     return [
       for (final category in CategoryMaster.categories)
@@ -143,9 +165,9 @@ class ProjectRequirementRepository {
         'category_id': requirement.categoryId,
         'priority': requirement.priority.code,
         'expected_quantity': requirement.expectedQuantity,
-        'expected_unit': _nullable(requirement.expectedUnit),
-        'desired_specification': _nullable(requirement.desiredSpecification),
-        'note': _nullable(requirement.note),
+        'expected_unit': requirement.expectedUnit,
+        'desired_specification': requirement.desiredSpecification,
+        'note': requirement.note,
       };
 
   String? _nullable(String? value) {
