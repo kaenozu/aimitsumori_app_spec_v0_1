@@ -61,6 +61,7 @@ class QuoteRevisionService {
     required ContractorQuote quote,
     QuoteImportIntent intent = const QuoteImportIntent.newQuote(),
     String? sourceFileHash,
+    bool replaceCurrentQuote = false,
   }) async {
     final db = await _databaseService.database;
     await _ensureSchema(db);
@@ -71,6 +72,7 @@ class QuoteRevisionService {
         quote: quote,
         intent: intent,
         sourceFileHash: sourceFileHash,
+        replaceCurrentQuote: replaceCurrentQuote,
       ),
     );
   }
@@ -81,6 +83,7 @@ class QuoteRevisionService {
     required ContractorQuote quote,
     QuoteImportIntent intent = const QuoteImportIntent.newQuote(),
     String? sourceFileHash,
+    bool replaceCurrentQuote = false,
   }) async {
     final resolvedSourceHash = sourceFileHash ?? _quoteHash(quote);
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -111,6 +114,9 @@ class QuoteRevisionService {
     final latestRevisionId = previousRows.isEmpty
         ? null
         : previousRows.first['id'] as String;
+    final latestQuoteId = previousRows.isEmpty
+        ? null
+        : previousRows.first['quote_id'] as String;
     final revisionNumber = previousRows.isEmpty
         ? 1
         : (previousRows.first['revision_number'] as int) + 1;
@@ -128,6 +134,19 @@ class QuoteRevisionService {
       );
       if (parentRows.isEmpty) {
         throw StateError('指定された親版が同じ見積グループに存在しません。');
+      }
+    }
+
+    if (replaceCurrentQuote && intent.isRevision) {
+      if (latestQuoteId == null) {
+        throw StateError('置換対象の現在版が見つかりません。');
+      }
+      if (latestQuoteId != quote.id) {
+        await transaction.delete(
+          'contractor_quotes',
+          where: 'id = ? AND project_id = ?',
+          whereArgs: [latestQuoteId, projectId],
+        );
       }
     }
 
