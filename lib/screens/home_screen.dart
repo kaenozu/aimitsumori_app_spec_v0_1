@@ -97,6 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openProject(Project project) async {
     await HapticService.lightImpact();
+    if (!mounted) return;
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
