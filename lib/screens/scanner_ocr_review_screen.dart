@@ -51,6 +51,7 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
       issue.id: issue.initialStatus,
   };
 
+  bool _statusesLoaded = false;
   bool _saving = false;
   String? _error;
 
@@ -71,14 +72,19 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
     try {
       final persisted =
           await _reviewStore.load(widget.result.quote.sourcePath);
-      if (!mounted || persisted.isEmpty) return;
-      setState(() => _statuses = {..._statuses, ...persisted});
+      if (!mounted) return;
+      setState(() {
+        _statuses = {..._statuses, ...persisted};
+        _statusesLoaded = true;
+      });
     } catch (error) {
       debugPrint('OCR review state load failed: $error');
+      if (mounted) setState(() => _statusesLoaded = true);
     }
   }
 
   void _setStatus(String id, OcrReviewStatus status) {
+    if (!_statusesLoaded) return;
     setState(() => _statuses[id] = status);
     unawaited(
       _reviewStore.save(widget.result.quote.sourcePath, _statuses),
@@ -129,7 +135,7 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
   }
 
   Future<void> _save() async {
-    if (_saving || !await _confirmCriticalItems()) return;
+    if (!_statusesLoaded || _saving || !await _confirmCriticalItems()) return;
     final contractor = _contractorController.text.trim();
     if (contractor.isEmpty) {
       setState(() => _error = '業者名を入力してください。');
@@ -184,7 +190,7 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
         actions: [
           IconButton(
             tooltip: '確認して保存',
-            onPressed: _saving ? null : _save,
+            onPressed: _saving || !_statusesLoaded ? null : _save,
             icon: _saving
                 ? const SizedBox.square(
                     dimension: 18,
@@ -197,6 +203,12 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (!_statusesLoaded) ...[
+            const LinearProgressIndicator(),
+            const SizedBox(height: 12),
+            const Text('保存済みの確認状態を読み込んでいます…'),
+            const SizedBox(height: 12),
+          ],
           Card(
             color: Theme.of(context).colorScheme.tertiaryContainer,
             child: ListTile(
@@ -269,7 +281,7 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
           ],
           const SizedBox(height: 20),
           FilledButton.icon(
-            onPressed: _saving ? null : _save,
+            onPressed: _saving || !_statusesLoaded ? null : _save,
             icon: const Icon(Icons.save_outlined),
             label: Text(_saving ? '保存中…' : '確認して保存'),
           ),
