@@ -1,9 +1,10 @@
-/// ファイルパス: lib/domain/normalizer.dart
+/// ファイルパス: lib/normalizer.dart
 /// 見積明細を共通カテゴリへ正規化するロジック
 /// 関連ファイル: lib/models.dart, lib/data/category_master.dart
+library;
 
-import '../models.dart';
-import '../data/category_master.dart';
+import 'data/category_master.dart';
+import 'models.dart';
 
 class Normalizer {
   List<NormalizedQuote> normalize(Project project) {
@@ -34,12 +35,12 @@ class Normalizer {
       return NormalizedLine(
         category: category,
         inclusionStatus: InclusionStatus.unknown,
-        uncertaintyReasons: ['見積明細に記載がありません'],
+        uncertaintyReasons: const ['見積明細に記載がありません'],
       );
     }
 
     final reasons = <String>[];
-    final distinctStatuses = items.map((i) => i.inclusionStatus).toSet().toList();
+    final distinctStatuses = items.map((item) => item.inclusionStatus).toSet().toList();
     final status = distinctStatuses.length == 1
         ? distinctStatuses.first
         : (() {
@@ -48,17 +49,27 @@ class Normalizer {
           })();
 
     final int? amount;
-    if (items.every((i) => i.amountYen == null)) {
+    if (items.every((item) => item.amountYen == null)) {
       amount = null;
-    } else if (items.any((i) => i.amountYen == null)) {
+    } else if (items.any((item) => item.amountYen == null)) {
       reasons.add('金額未記載の明細を含みます');
-      amount = items.where((i) => i.amountYen != null).fold<int>(0, (sum, i) => sum + i.amountYen!);
+      amount = items
+          .where((item) => item.amountYen != null)
+          .fold<int>(0, (sum, item) => sum + item.amountYen!);
     } else {
-      amount = items.fold<int>(0, (sum, i) => sum + i.amountYen!);
+      amount = items.fold<int>(0, (sum, item) => sum + item.amountYen!);
     }
 
-    final quantityValues = items.where((i) => i.quantity != null).map((i) => i.quantity!).toSet().toList();
-    final unitValues = items.where((i) => i.unit?.trim().isNotEmpty == true).map((i) => i.unit!.trim()).toSet().toList();
+    final quantityValues = items
+        .where((item) => item.quantity != null)
+        .map((item) => item.quantity!)
+        .toSet()
+        .toList();
+    final unitValues = items
+        .where((item) => item.unit?.trim().isNotEmpty == true)
+        .map((item) => item.unit!.trim())
+        .toSet()
+        .toList();
     final quantity = quantityValues.length == 1 ? quantityValues.first : null;
     final unit = unitValues.length == 1 ? unitValues.first : null;
     if (category.quantityExpected && (quantity == null || unit == null)) {
@@ -69,8 +80,8 @@ class Normalizer {
     }
 
     final specificationValues = items
-        .where((i) => i.specification?.trim().isNotEmpty == true)
-        .map((i) => i.specification!.trim())
+        .where((item) => item.specification?.trim().isNotEmpty == true)
+        .map((item) => item.specification!.trim())
         .toSet()
         .toList();
     final specification = specificationValues.length == 1 ? specificationValues.first : null;
@@ -91,7 +102,7 @@ class Normalizer {
       quantity: quantity,
       unit: unit,
       specification: specification,
-      sourceLineItemIds: items.map((i) => i.id).toList(),
+      sourceLineItemIds: items.map((item) => item.id).toList(),
       uncertaintyReasons: reasons.toSet().toList(),
     );
   }
