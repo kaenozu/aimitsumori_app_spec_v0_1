@@ -1,0 +1,79 @@
+name: Apply export fixes
+
+on:
+  push:
+    branches:
+      - feature/export-and-sharing
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/export-and-sharing
+      - name: Apply targeted fixes
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str) -> None:
+              text = path.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}: {old[:80]!r}')
+              path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          screen = Path('lib/screens/comparison_screen.dart')
+          replace_once(
+              screen,
+              "import 'package:cross_file/cross_file.dart';\n",
+              '',
+          )
+          replace_once(
+              screen,
+              "      showDragHandle: true,\n      builder: (sheetContext) => SafeArea(\n        child: Column(\n          mainAxisSize: MainAxisSize.min,\n          children: [",
+              "      showDragHandle: true,\n      isScrollControlled: true,\n      builder: (sheetContext) => SafeArea(\n        child: ListView(\n          shrinkWrap: true,\n          children: [",
+          )
+          replace_once(
+              screen,
+              "  Future<_CapturedComparison> _captureComparison() async {\n    await WidgetsBinding.instance.endOfFrame;",
+              "  Future<_CapturedComparison> _captureComparison() async {\n    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);\n    await WidgetsBinding.instance.endOfFrame;",
+          )
+          replace_once(
+              screen,
+              "\n    final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;\n    const maxPixelDimension = 8192.0;",
+              "\n    const maxPixelDimension = 8192.0;",
+          )
+          replace_once(screen, '      height: 160,', '      height: 210,')
+          replace_once(
+              screen,
+              "          dataRowMinHeight: 112,\n          dataRowMaxHeight: 136,",
+              "          dataRowMinHeight: 168,\n          dataRowMaxHeight: 200,",
+          )
+
+          service = Path('lib/services/comparison_export_service.dart')
+          replace_once(
+              service,
+              "        .replaceAll(RegExp(r'\\s+'), '_');\n    return sanitized.isEmpty ? 'aimitsumori' : sanitized;",
+              "        .replaceAll(RegExp(r'\\s+'), '_')\n        .replaceAll(RegExp(r'_+'), '_')\n        .replaceAll(RegExp(r'^_+|_+$'), '');\n    return sanitized.isEmpty ? 'aimitsumori' : sanitized;",
+          )
+
+          pubspec = Path('pubspec.yaml')
+          replace_once(pubspec, '  cross_file: ^0.3.5+4\n', '')
+
+          Path('.github/workflows/apply-export-fixes.yml').unlink()
+          PY
+      - name: Commit fixes
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add pubspec.yaml lib/screens/comparison_screen.dart lib/services/comparison_export_service.dart .github/workflows/apply-export-fixes.yml
+          git commit -m "fix: resolve export analysis and layout issues"
+          git push origin HEAD:feature/export-and-sharing
