@@ -2,6 +2,7 @@ library;
 
 import '../models.dart';
 import '../ocr_models.dart';
+import 'value_normalizer.dart';
 
 class OcrLineInterpretation {
   const OcrLineInterpretation({
@@ -63,12 +64,13 @@ class OcrConfidenceEngine {
     ];
     final amountCandidates = extractAmountCandidates(text);
     final quantityMatch = RegExp(
-      r'(\d+(?:[.,]\d+)?)\s*(㎡|m2|m²|㎥|m3|m³|m|本|基|台|式|箇所|ヶ所|個)',
+      r'([0-9０-９]+(?:[.,，．][0-9０-９]+)*)\s*'
+      r'(㎡|m2|m²|㎥|m3|m³|mm|cm|m|本|基|台|式|一式|箇所|ヶ所|個)',
       caseSensitive: false,
     ).firstMatch(text);
-    final quantity = double.tryParse(
-      (quantityMatch?.group(1) ?? '').replaceAll(',', '.'),
-    );
+    final quantity = quantityMatch == null
+        ? null
+        : LocalizedNumberParser.tryParseDecimal(quantityMatch.group(1) ?? '');
     final amount = amountCandidates.isEmpty ? null : amountCandidates.last;
     final unitPrice = amountCandidates.length >= 2
         ? amountCandidates[amountCandidates.length - 2]
@@ -88,7 +90,7 @@ class OcrConfidenceEngine {
     if (amountCandidates.isNotEmpty && amountConfidence < 0.75) {
       reasons.add(OcrReviewReason.lowAmountConfidence);
     }
-    if (categoryCandidates.length > 1 || amountCandidates.length > 1) {
+    if (categoryCandidates.length > 1 || amountCandidates.length > 2) {
       reasons.add(OcrReviewReason.multipleCandidates);
     }
     if (hasQuantityUnitPriceMismatch(
@@ -120,7 +122,7 @@ class OcrConfidenceEngine {
       categoryId: categoryCandidates.isEmpty ? null : categoryCandidates.first,
       amountYen: amount,
       quantity: quantity,
-      unit: quantityMatch?.group(2),
+      unit: UnitNormalizer.normalize(quantityMatch?.group(2)),
       unitPriceYen: unitPrice,
       inclusionStatus: parseInclusionStatus(text, amount),
       specification: extractSpecification(text),
@@ -157,16 +159,24 @@ class OcrConfidenceEngine {
   static double calculateAmountConfidence(List<int> candidates) {
     if (candidates.isEmpty) return 0;
     if (candidates.length == 1) return 0.96;
-    return 0.68;
+    if (candidates.length == 2) return 0.82;
+    return 0.58;
   }
 
-  static List<int> extractAmountCandidates(String line) => RegExp(
-        r'(?:¥|￥)?\s*(-?\d{1,3}(?:,\d{3})+|-?\d{4,})\s*円?',
-      )
-          .allMatches(line)
-          .map((match) => int.tryParse((match.group(1) ?? '').replaceAll(',', '')))
-          .whereType<int>()
-          .toList(growable: false);
+  /// 円記号・円接尾辞がある場合は1桁から、記号がない場合は4桁以上を抽出する。
+  static List<int> extractAmountCandidates(String line) {
+    final normalized = LocalizedNumberParser.normalizeCharacters(line);
+    final matches = RegExp(
+      r'(?:(?:¥|￥)\s*([+-]?\d[\d,]*)|'
+      r'([+-]?\d[\d,]*)\s*円|'
+      r'([+-]?\d{1,3}(?:,\d{3})+|[+-]?\d{4,}))',
+    ).allMatches(normalized);
+    return matches
+        .map((match) => match.group(1) ?? match.group(2) ?? match.group(3) ?? '')
+        .map((value) => LocalizedNumberParser.tryParseYen(value, allowNegative: true))
+        .whereType<int>()
+        .toList(growable: false);
+  }
 
   static bool hasQuantityUnitPriceMismatch({
     required double? quantity,
@@ -221,8 +231,7 @@ class OcrConfidenceEngine {
 
   static String? extractSpecification(String line) {
     var value = line
-        .replaceAll(RegExp(r'(?:¥|￥)?\s*-?\d{1,3}(?:,\d{3})+\s*円?'), '')
-        .replaceAll(RegExp(r'(?:¥|￥)?\s*-?\d{4,}\s*円?'), '')
+        .replaceAll(RegExp(r'(?:¥|￥)?\s*[+-]?\d[\d,]*\s*円?'), '')
         .trim();
     if (value.length > 120) value = value.substring(0, 120);
     return value.isEmpty ? null : value;
