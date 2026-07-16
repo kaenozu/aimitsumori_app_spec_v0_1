@@ -7,6 +7,7 @@ import '../data/category_master.dart';
 import '../models.dart';
 import '../repositories/project_requirement_repository.dart';
 import '../requirements_models.dart';
+import '../services/value_normalizer.dart';
 
 class RequirementsChecklistScreen extends StatefulWidget {
   const RequirementsChecklistScreen({
@@ -256,6 +257,7 @@ class _RequirementCard extends StatelessWidget {
               const SizedBox(height: 8),
               TextField(
                 controller: editor.specificationController,
+                maxLength: 500,
                 decoration: const InputDecoration(
                   labelText: '希望仕様',
                   hintText: '製品名・型番・厚み・施工方法など',
@@ -266,6 +268,7 @@ class _RequirementCard extends StatelessWidget {
             const SizedBox(height: 8),
             TextField(
               controller: editor.noteController,
+              maxLength: 500,
               maxLines: 2,
               decoration: const InputDecoration(
                 labelText: 'メモ',
@@ -301,20 +304,34 @@ class _RequirementEditor {
   final TextEditingController noteController;
 
   ProjectRequirement toModel() {
-    final rawQuantity = quantityController.text.trim().replaceAll(',', '.');
-    final quantity = rawQuantity.isEmpty ? null : double.tryParse(rawQuantity);
-    if (rawQuantity.isNotEmpty && quantity == null) {
+    final rawQuantity = quantityController.text.trim();
+    final quantity = rawQuantity.isEmpty
+        ? null
+        : LocalizedNumberParser.tryParseDecimal(rawQuantity);
+    if (rawQuantity.isNotEmpty && (quantity == null || quantity <= 0)) {
       throw FormatException(
-        '${CategoryMaster.require(requirement.categoryId).nameJa}の希望数量は数値で入力してください。',
+        '${CategoryMaster.require(requirement.categoryId).nameJa}の希望数量は0より大きい数値で入力してください。',
+      );
+    }
+    final specification = _nullable(specificationController.text);
+    final note = _nullable(noteController.text);
+    if ((specification?.length ?? 0) > 500) {
+      throw FormatException(
+        '${CategoryMaster.require(requirement.categoryId).nameJa}の希望仕様は500文字以内で入力してください。',
+      );
+    }
+    if ((note?.length ?? 0) > 500) {
+      throw FormatException(
+        '${CategoryMaster.require(requirement.categoryId).nameJa}のメモは500文字以内で入力してください。',
       );
     }
     return ProjectRequirement(
       categoryId: requirement.categoryId,
       priority: priority,
       expectedQuantity: quantity,
-      expectedUnit: _nullable(unitController.text),
-      desiredSpecification: _nullable(specificationController.text),
-      note: _nullable(noteController.text),
+      expectedUnit: UnitNormalizer.normalize(unitController.text),
+      desiredSpecification: specification,
+      note: note,
     );
   }
 
