@@ -9,6 +9,12 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+enum RewardedAdOutcome {
+  rewarded,
+  unavailable,
+  dismissed,
+}
+
 class AdService {
   AdService._();
 
@@ -50,33 +56,50 @@ class AdService {
 
   ProductDetails? get removeAdsProduct => _removeAdsProduct;
 
-  String get bannerAdUnitId =>
-      defaultTargetPlatform == TargetPlatform.iOS ? _iosBannerId : _androidBannerId;
+  String get bannerAdUnitId => defaultTargetPlatform == TargetPlatform.iOS
+      ? _iosBannerId
+      : _androidBannerId;
 
-  String get rewardedAdUnitId =>
-      defaultTargetPlatform == TargetPlatform.iOS ? _iosRewardedId : _androidRewardedId;
+  String get rewardedAdUnitId => defaultTargetPlatform == TargetPlatform.iOS
+      ? _iosRewardedId
+      : _androidRewardedId;
 
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
 
-    final preferences = await SharedPreferences.getInstance();
-    adFree.value = preferences.getBool(_adFreePreferenceKey) ?? false;
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      adFree.value = preferences.getBool(_adFreePreferenceKey) ?? false;
+    } catch (error) {
+      debugPrint('Ad preference load failed: $error');
+    }
     if (!isSupportedPlatform) return;
 
-    await MobileAds.instance.initialize();
-    _purchaseSubscription = _inAppPurchase.purchaseStream.listen(
+    try {
+      await MobileAds.instance.initialize();
+    } catch (error) {
+      debugPrint('Mobile Ads initialization failed: $error');
+    }
+
+    _purchaseSubscription ??= _inAppPurchase.purchaseStream.listen(
       _handlePurchaseUpdates,
       onError: (Object error, StackTrace stackTrace) {
         debugPrint('Purchase stream error: $error');
       },
     );
-    await _loadRemoveAdsProduct();
+
+    try {
+      await _loadRemoveAdsProduct();
+    } catch (error) {
+      debugPrint('Remove ads product load failed: $error');
+    }
   }
 
   Future<void> _loadRemoveAdsProduct() async {
     if (!await _inAppPurchase.isAvailable()) return;
-    final response = await _inAppPurchase.queryProductDetails({removeAdsProductId});
+    final response =
+        await _inAppPurchase.queryProductDetails({removeAdsProductId});
     if (response.error != null) {
       debugPrint('Product query failed: ${response.error}');
       return;
@@ -106,66 +129,96 @@ class AdService {
     );
   }
 
-  Future<bool> showRewardedAd() async {
-    if (adFree.value) return true;
-    if (!isSupportedPlatform) return false;
+  Future<RewardedAdOutcome> showRewardedAd() async {
+    if (adFree.value) return RewardedAdOutcome.rewarded;
+    if (!isSupportedPlatform) return RewardedAdOutcome.unavailable;
 
-    final completer = Completer<bool>();
-    await RewardedAd.load(
-      adUnitId: rewardedAdUnitId,
-      request: const AdRequest(),
-      rewardedAdLoadCallback: RewardedAdLoadCallback(
-        onAdLoaded: (ad) {
-          var earnedReward = false;
-          ad.fullScreenContentCallback = FullScreenContentCallback(
-            onAdDismissedFullScreenContent: (dismissedAd) {
-              dismissedAd.dispose();
-              if (!completer.isCompleted) completer.complete(earnedReward);
-            },
-            onAdFailedToShowFullScreenContent: (failedAd, error) {
-              failedAd.dispose();
-              if (!completer.isCompleted) completer.complete(false);
-            },
-          );
-          ad.show(
-            onUserEarnedReward: (_, _) {
-              earnedReward = true;
-            },
-          );
-        },
-        onAdFailedToLoad: (error) {
-          debugPrint('Rewarded ad failed to load: $error');
-          if (!completer.isCompleted) completer.complete(false);
-        },
-      ),
-    );
+    final completer = Completer<RewardedAdOutcome>();
+    try {
+      await RewardedAd.load(
+        adUnitId: rewardedAdUnitId,
+        request: const AdRequest(),
+        rewardedAdLoadCallback: RewardedAdLoadCallback(
+          onAdLoaded: (ad) {
+            var earnedReward = false;
+            ad.fullScreenContentCallback = FullScreenContentCallback(
+              onAdDismissedFullScreenContent: (dismissedAd) {
+                dismissedAd.dispose();
+                if (!completer.isCompleted) {
+                  completer.complete(
+                    earnedReward
+                        ? RewardedAdOutcome.rewarded
+                        : RewardedAdOutcome.dismissed,
+                  );
+                }
+              },
+              onAdFailedToShowFullScreenContent: (failedAd, error) {
+                debugPrint('Rewarded ad failed to show: $error');
+                failedAd.dispose();
+                if (!completer.isCompleted) {
+                  completer.complete(RewardedAdOutcome.unavailable);
+                }
+              },
+            );
+            ad.show(
+              onUserEarnedReward: (_, _) {
+                earnedReward = true;
+              },
+            );
+          },
+          onAdFailedToLoad: (error) {
+            debugPrint('Rewarded ad failed to load: $error');
+            if (!completer.isCompleted) {
+              completer.complete(RewardedAdOutcome.unavailable);
+            }
+          },
+        ),
+      );
+    } catch (error) {
+      debugPrint('Rewarded ad request failed: $error');
+      if (!completer.isCompleted) {
+        completer.complete(RewardedAdOutcome.unavailable);
+      }
+    }
     return completer.future;
   }
 
   Future<bool> purchaseRemoveAds() async {
     if (!isSupportedPlatform) return false;
-    _removeAdsProduct ??= await _queryRemoveAdsProduct();
-    final product = _removeAdsProduct;
-    if (product == null) return false;
+    try {
+      _removeAdsProduct ??= await _queryRemoveAdsProduct();
+      final product = _removeAdsProduct;
+      if (product == null) return false;
 
-    return _inAppPurchase.buyNonConsumable(
-      purchaseParam: PurchaseParam(productDetails: product),
-    );
+      return _inAppPurchase.buyNonConsumable(
+        purchaseParam: PurchaseParam(productDetails: product),
+      );
+    } catch (error) {
+      debugPrint('Remove ads purchase start failed: $error');
+      return false;
+    }
   }
 
   Future<ProductDetails?> _queryRemoveAdsProduct() async {
     if (!await _inAppPurchase.isAvailable()) return null;
-    final response = await _inAppPurchase.queryProductDetails({removeAdsProductId});
+    final response =
+        await _inAppPurchase.queryProductDetails({removeAdsProductId});
     if (response.error != null || response.productDetails.isEmpty) return null;
     return response.productDetails.first;
   }
 
   Future<void> restorePurchases() async {
     if (!isSupportedPlatform) return;
-    await _inAppPurchase.restorePurchases();
+    try {
+      await _inAppPurchase.restorePurchases();
+    } catch (error) {
+      debugPrint('Purchase restore failed: $error');
+    }
   }
 
-  Future<void> _handlePurchaseUpdates(List<PurchaseDetails> purchases) async {
+  Future<void> _handlePurchaseUpdates(
+    List<PurchaseDetails> purchases,
+  ) async {
     for (final purchase in purchases) {
       if (purchase.productID != removeAdsProductId) continue;
 
@@ -183,8 +236,12 @@ class AdService {
   }
 
   Future<void> _setAdFree(bool value) async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setBool(_adFreePreferenceKey, value);
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setBool(_adFreePreferenceKey, value);
+    } catch (error) {
+      debugPrint('Ad preference save failed: $error');
+    }
     adFree.value = value;
   }
 
