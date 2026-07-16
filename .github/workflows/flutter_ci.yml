@@ -58,6 +58,7 @@ jobs:
             analyze.log
             test.log
             android-debug-build.log
+            pubspec.lock
 
   android-release-smoke:
     needs: analyze-test-build
