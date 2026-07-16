@@ -46,17 +46,17 @@ class QuestionGenerator {
       case InclusionStatus.unknown:
         rawQuestions.add((
           'UNKNOWN_INCLUSION',
-          '${contractorName}様：$categoryNameは見積金額に含まれていますか。含む・別途・対象外のいずれかをご回答ください。',
+          '$contractorName様：$categoryNameは見積金額に含まれていますか。含む・別途・対象外のいずれかをご回答ください。',
         ));
       case InclusionStatus.separate:
         rawQuestions.add((
           'SEPARATE_SCOPE',
-          '${contractorName}様：別途扱いの$categoryNameは工事に必須ですか。必要な場合の追加金額と発生条件をご提示ください。',
+          '$contractorName様：別途扱いの$categoryNameは工事に必須ですか。必要な場合の追加金額と発生条件をご提示ください。',
         ));
       case InclusionStatus.optional:
         rawQuestions.add((
           'OPTIONAL_SCOPE',
-          '${contractorName}様：オプション扱いの$categoryNameについて、採用時の追加金額と標準仕様との差をご提示ください。',
+          '$contractorName様：オプション扱いの$categoryNameについて、採用時の追加金額と標準仕様との差をご提示ください。',
         ));
       default:
         break;
@@ -68,7 +68,7 @@ class QuestionGenerator {
     if (line.amountYen == null && requiresDetail) {
       rawQuestions.add((
         'MISSING_AMOUNT',
-        '${contractorName}様：$categoryNameの金額が不明です。税込・税抜の別も含めて金額をご提示ください。',
+        '$contractorName様：$categoryNameの金額が不明です。税込・税抜の別も含めて金額をご提示ください。',
       ));
     }
 
@@ -77,7 +77,7 @@ class QuestionGenerator {
         (line.quantity == null || line.unit == null)) {
       rawQuestions.add((
         'MISSING_QUANTITY',
-        '${contractorName}様：$categoryNameの数量と単位、および算定根拠をご提示ください。',
+        '$contractorName様：$categoryNameの数量と単位、および算定根拠をご提示ください。',
       ));
     }
 
@@ -86,7 +86,7 @@ class QuestionGenerator {
         line.specification == null) {
       rawQuestions.add((
         'MISSING_SPECIFICATION',
-        '${contractorName}様：$categoryNameの製品名・型番・寸法・施工仕様をご提示ください。',
+        '$contractorName様：$categoryNameの製品名・型番・寸法・施工仕様をご提示ください。',
       ));
     }
 
