@@ -58,7 +58,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
 
   Future<void> _pickPdf() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: const ['pdf'],
         allowMultiple: false,
@@ -477,7 +477,7 @@ class _EditableLineCardState extends State<_EditableLineCard> {
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              value: item.categoryId,
+              initialValue: item.categoryId,
               decoration: const InputDecoration(
                 labelText: 'カテゴリ（自動判定・変更可）',
                 border: OutlineInputBorder(),
@@ -495,7 +495,7 @@ class _EditableLineCardState extends State<_EditableLineCard> {
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<InclusionStatus>(
-              value: item.inclusionStatus,
+              initialValue: item.inclusionStatus,
               decoration: const InputDecoration(
                 labelText: '見積への含まれ方',
                 border: OutlineInputBorder(),
