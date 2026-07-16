@@ -10,6 +10,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../models.dart';
+import 'value_normalizer.dart';
 
 class ComparisonExportService {
   ComparisonExportService._();
@@ -78,6 +79,7 @@ class ComparisonExportService {
   }
 
   /// ExcelやNumbersで文字化けしにくいUTF-8 BOM付きCSVを生成する。
+  /// 外部入力が数式として評価されないよう、危険な先頭文字を無害化する。
   static String toCsv(Project project) {
     final rows = <List<Object?>>[
       ['案件名', project.name],
@@ -150,7 +152,7 @@ class ComparisonExportService {
       Uint8List.fromList(utf8.encode(toCsv(project)));
 
   /// 比較画面のキャプチャ画像を、その縦横比を保った1ページPDFへ変換する。
-  /// 日本語フォントを外部取得せず、画面上の表示をそのままPDF化できる。
+  /// 呼び出し元は8192px以下へ縮小してから渡す。
   static Future<Uint8List> toPdfFromImage(
     Uint8List pngBytes, {
     required double imageWidth,
@@ -193,14 +195,16 @@ class ComparisonExportService {
         .replaceAll(RegExp(r'\s+'), '_')
         .replaceAll(RegExp(r'_+'), '_')
         .replaceAll(RegExp(r'^_+|_+$'), '');
-    return sanitized.isEmpty ? 'aimitsumori' : sanitized;
+    final value = sanitized.isEmpty ? 'aimitsumori' : sanitized;
+    return value.length <= 80 ? value : value.substring(0, 80);
   }
 
   static String _encodeCsvRow(List<Object?> values) =>
       values.map(_encodeCsvCell).join(',');
 
   static String _encodeCsvCell(Object? value) {
-    final text = value?.toString() ?? '';
+    final raw = value?.toString() ?? '';
+    final text = CsvCellSanitizer.protect(raw);
     if (!text.contains(RegExp(r'[,"\r\n]'))) return text;
     return '"${text.replaceAll('"', '""')}"';
   }
