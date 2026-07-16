@@ -81,6 +81,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
+                key: const ValueKey('quote-camera-option'),
                 leading: const Icon(Icons.photo_camera_outlined),
                 title: const Text('カメラで撮影'),
                 onTap: () => Navigator.pop(context, ImageSource.camera),
@@ -231,7 +232,22 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
   Widget build(BuildContext context) {
     final rawQuote = _rawQuote;
     return Scaffold(
-      appBar: AppBar(title: const Text('見積書を取り込む')),
+      appBar: AppBar(
+        title: const Text('見積書を取り込む'),
+        actions: [
+          IconButton(
+            key: const ValueKey('quote-save-button'),
+            tooltip: '確認して保存',
+            onPressed: rawQuote == null || _saving ? null : _save,
+            icon: _saving
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save_outlined),
+          ),
+        ],
+      ),
       body: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
@@ -247,6 +263,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
             children: [
               Expanded(
                 child: FilledButton.icon(
+                  key: const ValueKey('quote-pdf-button'),
                   onPressed: _processing ? null : _pickPdf,
                   icon: const Icon(Icons.picture_as_pdf_outlined),
                   label: const Text('PDFを読み込み'),
@@ -255,6 +272,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
+                  key: const ValueKey('quote-photo-button'),
                   onPressed: _processing ? null : _pickPhoto,
                   icon: const Icon(Icons.add_a_photo_outlined),
                   label: const Text('写真を読み込み'),
