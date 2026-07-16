@@ -112,6 +112,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
+    await tester.scrollUntilVisible(
+      find.text('業者別カード形式'),
+      600,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
     expect(find.text('業者別カード形式'), findsOneWidget);
     expect(find.textContaining('文字を大きく表示しているため'), findsOneWidget);
   });
