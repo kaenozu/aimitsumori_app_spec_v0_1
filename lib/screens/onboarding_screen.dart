@@ -7,12 +7,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/sample_data.dart';
 import '../repositories/project_repository.dart';
+import '../services/ad_service.dart';
 import 'home_screen.dart';
 
 class FirstRunGate extends StatefulWidget {
-  const FirstRunGate({super.key, this.repository});
+  const FirstRunGate({
+    super.key,
+    this.repository,
+    this.adService,
+  });
 
   final ProjectRepository? repository;
+  final AdService? adService;
 
   @override
   State<FirstRunGate> createState() => _FirstRunGateState();
@@ -79,7 +85,10 @@ class _FirstRunGateState extends State<FirstRunGate> {
       );
     }
     if (completed) {
-      return HomeScreen(repository: _repository);
+      return HomeScreen(
+        repository: _repository,
+        adService: widget.adService,
+      );
     }
     return OnboardingScreen(
       loading: _saving,
