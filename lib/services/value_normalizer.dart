@@ -10,7 +10,6 @@ class LocalizedNumberParser {
     var result = value
         .replaceAll('−', '-')
         .replaceAll('―', '-')
-        .replaceAll('ー', '-')
         .replaceAll('＋', '+')
         .replaceAll('．', '.')
         .replaceAll('，', ',')
@@ -30,7 +29,7 @@ class LocalizedNumberParser {
   static double? tryParseDecimal(String input) {
     var value = normalizeCharacters(input).trim();
     if (value.isEmpty) return null;
-    value = value.replaceAll(RegExp(r'[\s\u2007\u202f\']'), '');
+    value = value.replaceAll(RegExp(r"[\s\u2007\u202f']"), '');
     if (!RegExp(r'^[+-]?[0-9.,]+$').hasMatch(value)) return null;
 
     final commaCount = ','.allMatches(value).length;
