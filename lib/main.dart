@@ -1,11 +1,11 @@
 /// ファイルパス: lib/main.dart
 /// エントリポイント、広告・課金初期化、アプリテーマ
-/// 関連ファイル: lib/screens/home_screen.dart, lib/services/ad_service.dart
+/// 関連ファイル: lib/screens/onboarding_screen.dart, lib/services/ad_service.dart
 library;
 
 import 'package:flutter/material.dart';
 
-import 'screens/home_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'services/ad_service.dart';
 
 Future<void> main() async {
@@ -31,7 +31,7 @@ class AimitsumoriApp extends StatelessWidget {
         useMaterial3: true,
         brightness: Brightness.light,
       ),
-      home: const HomeScreen(),
+      home: const FirstRunGate(),
     );
   }
 }
