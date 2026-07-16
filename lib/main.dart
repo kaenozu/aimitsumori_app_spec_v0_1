@@ -5,6 +5,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import 'repositories/project_repository.dart';
 import 'screens/onboarding_screen.dart';
 import 'services/ad_service.dart';
 
@@ -19,7 +20,14 @@ Future<void> main() async {
 }
 
 class AimitsumoriApp extends StatelessWidget {
-  const AimitsumoriApp({super.key});
+  const AimitsumoriApp({
+    super.key,
+    this.repository,
+    this.adService,
+  });
+
+  final ProjectRepository? repository;
+  final AdService? adService;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +39,10 @@ class AimitsumoriApp extends StatelessWidget {
         useMaterial3: true,
         brightness: Brightness.light,
       ),
-      home: const FirstRunGate(),
+      home: FirstRunGate(
+        repository: repository,
+        adService: adService,
+      ),
     );
   }
 }

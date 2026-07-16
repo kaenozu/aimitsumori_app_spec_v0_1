@@ -3,15 +3,16 @@
 library;
 
 import 'package:aimitsumori_app/comparison_engine.dart';
-import 'package:aimitsumori_app/data/sample_data.dart';
 import 'package:aimitsumori_app/normalizer.dart';
 import 'package:aimitsumori_app/question_generator.dart';
 import 'package:aimitsumori_app/services/comparison_export_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'helpers/test_helpers.dart';
+
 void main() {
   test('exports summary, contractors, category statuses and questions', () {
-    final project = SampleData.project();
+    final project = createSampleComparisonProject();
     final normalized = Normalizer().normalize(project);
     final questions = QuestionGenerator().generate(
       project: project,

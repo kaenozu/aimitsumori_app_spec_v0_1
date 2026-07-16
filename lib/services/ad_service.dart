@@ -18,6 +18,12 @@ enum RewardedAdOutcome {
 class AdService {
   AdService._();
 
+  @visibleForTesting
+  AdService.testing({bool adFree = true}) {
+    this.adFree.value = adFree;
+    _initialized = true;
+  }
+
   static final AdService instance = AdService._();
 
   static const String removeAdsProductId = String.fromEnvironment(

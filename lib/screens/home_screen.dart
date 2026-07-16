@@ -7,12 +7,18 @@ import 'package:flutter/material.dart';
 
 import '../models.dart';
 import '../repositories/project_repository.dart';
+import '../services/ad_service.dart';
 import 'comparison_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.repository});
+  const HomeScreen({
+    super.key,
+    this.repository,
+    this.adService,
+  });
 
   final ProjectRepository? repository;
+  final AdService? adService;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -69,6 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => ComparisonScreen(
           project: project,
           repository: _repository,
+          adService: widget.adService,
         ),
       ),
     );
@@ -155,6 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   else
                     ..._projects.map(
                       (project) => _ProjectCard(
+                        key: ValueKey('project-card-${project.id}'),
                         project: project,
                         onTap: () => _openProject(project),
                       ),
@@ -213,7 +221,11 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _ProjectCard extends StatelessWidget {
-  const _ProjectCard({required this.project, required this.onTap});
+  const _ProjectCard({
+    super.key,
+    required this.project,
+    required this.onTap,
+  });
 
   final Project project;
   final VoidCallback onTap;
