@@ -50,7 +50,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
   }
 
   Future<void> _pickPdf() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf'],
       allowMultiple: false,
@@ -213,8 +213,10 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            Text('抽出明細 (${rawQuote.lineItems.length}件)',
-                style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              '抽出明細 (${rawQuote.lineItems.length}件)',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
             if (rawQuote.lineItems.isEmpty)
               const Text('カテゴリ明細を自動判定できませんでした。保存後に手動確認してください。')
