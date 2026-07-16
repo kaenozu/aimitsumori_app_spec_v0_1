@@ -1,5 +1,9 @@
 library;
 
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
 enum OcrReviewStatus {
   pending('pending', '未確認'),
   confirmed('confirmed', '確認済み'),
@@ -105,11 +109,7 @@ class OcrRecognizedLine {
       boundingRect.bottom.round(),
       rawText,
     ].join('|');
-    var hash = 0x811C9DC5;
-    for (final codeUnit in stableValue.codeUnits) {
-      hash = ((hash ^ codeUnit) * 0x01000193) & 0xFFFFFFFF;
-    }
-    return hash.toUnsigned(32).toRadixString(16).padLeft(8, '0');
+    return sha256.convert(utf8.encode(stableValue)).toString();
   }
 
   bool get needsReview => reviewReasons.isNotEmpty;
