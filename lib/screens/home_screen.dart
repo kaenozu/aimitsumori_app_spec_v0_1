@@ -5,7 +5,6 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../data/sample_data.dart';
 import '../models.dart';
 import '../repositories/project_repository.dart';
 import 'comparison_screen.dart';
@@ -24,7 +23,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _loading = true;
   String? _error;
 
-  ProjectRepository get _repository => widget.repository ?? ProjectRepository.instance;
+  ProjectRepository get _repository =>
+      widget.repository ?? ProjectRepository.instance;
 
   @override
   void initState() {
@@ -38,16 +38,12 @@ class _HomeScreenState extends State<HomeScreen> {
       _error = null;
     });
     try {
-      var projects = await _repository.getProjects();
-      if (projects.isEmpty) {
-        await _repository.saveProject(SampleData.project());
-        projects = await _repository.getProjects();
-      }
+      final projects = await _repository.getProjects();
       if (!mounted) return;
       setState(() => _projects = projects);
     } catch (error) {
       if (!mounted) return;
-      setState(() => _error = '案件の読み込みに失敗しました: $error');
+      setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -87,12 +83,14 @@ class _HomeScreenState extends State<HomeScreen> {
         onRefresh: _loadProjects,
         child: _loading
             ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 children: const [
                   SizedBox(height: 280),
                   Center(child: CircularProgressIndicator()),
                 ],
               )
             : ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 children: [
                   const Text(
@@ -107,11 +105,53 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
-                    Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                    Card(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              color: Theme.of(context).colorScheme.onErrorContainer,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _error!,
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onErrorContainer,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: '再読み込み',
+                              onPressed: _loadProjects,
+                              icon: const Icon(Icons.refresh),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 16),
                   if (_projects.isEmpty)
-                    const Text('案件はまだありません。')
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Column(
+                          children: [
+                            Icon(Icons.folder_open_outlined, size: 40),
+                            SizedBox(height: 8),
+                            Text('案件はまだありません。'),
+                            SizedBox(height: 4),
+                            Text('案件を作成して、見積書を取り込んでください。'),
+                          ],
+                        ),
+                      ),
+                    )
                   else
                     ..._projects.map(
                       (project) => _ProjectCard(
@@ -159,10 +199,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       await _createProject(name);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('案件を作成しました。')),
+      );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('案件を作成できませんでした: $error')),
+        SnackBar(content: Text(error.toString())),
       );
     }
   }
@@ -191,10 +235,15 @@ class _ProjectCard extends StatelessWidget {
                   children: [
                     Text(
                       project.name,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 4),
-                    Text('状態: ${project.status.labelJa}　見積: ${project.quotes.length}社'),
+                    Text(
+                      '状態: ${project.status.labelJa}　見積: ${project.quotes.length}社',
+                    ),
                   ],
                 ),
               ),
