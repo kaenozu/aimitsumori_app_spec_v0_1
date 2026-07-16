@@ -8,6 +8,7 @@ import '../repositories/project_repository.dart';
 import '../repositories/project_requirement_repository.dart';
 import '../services/ad_service.dart';
 import 'comparison_screen.dart';
+import 'document_scanner_screen.dart';
 import 'quote_revision_screen.dart';
 import 'requirements_comparison_screen.dart';
 
@@ -35,6 +36,11 @@ class _RequirementsComparisonShellState
   int _selectedIndex = 0;
   int _requirementsRevision = 0;
   int _historyRevision = 0;
+  int _comparisonRevision = 0;
+  late Project _project = widget.project;
+
+  ProjectRepository get _projectRepository =>
+      widget.projectRepository ?? ProjectRepository.instance;
 
   void _select(int index) {
     setState(() {
@@ -44,6 +50,30 @@ class _RequirementsComparisonShellState
     });
   }
 
+  Future<void> _openScanner() async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DocumentScannerScreen(
+          project: _project,
+          repository: _projectRepository,
+        ),
+      ),
+    );
+    if (saved != true || !mounted) return;
+    final refreshed = await _projectRepository.getProject(_project.id);
+    if (!mounted || refreshed == null) return;
+    setState(() {
+      _project = refreshed;
+      _comparisonRevision += 1;
+      _historyRevision += 1;
+      _selectedIndex = 0;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('撮影した見積を保存しました。')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -51,22 +81,29 @@ class _RequirementsComparisonShellState
         index: _selectedIndex,
         children: [
           ComparisonScreen(
-            project: widget.project,
-            repository: widget.projectRepository,
+            key: ValueKey('comparison-$_comparisonRevision'),
+            project: _project,
+            repository: _projectRepository,
             adService: widget.adService,
           ),
           RequirementsComparisonScreen(
             key: ValueKey('requirements-$_requirementsRevision'),
-            project: widget.project,
-            projectRepository: widget.projectRepository,
+            project: _project,
+            projectRepository: _projectRepository,
             repository: widget.requirementRepository,
           ),
           QuoteRevisionScreen(
             key: ValueKey('quote-history-$_historyRevision'),
-            project: widget.project,
-            projectRepository: widget.projectRepository,
+            project: _project,
+            projectRepository: _projectRepository,
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'guided-document-scanner',
+        onPressed: _openScanner,
+        icon: const Icon(Icons.document_scanner_outlined),
+        label: const Text('見積を撮影'),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
