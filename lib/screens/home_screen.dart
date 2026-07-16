@@ -1,22 +1,30 @@
 /// ファイルパス: lib/screens/home_screen.dart
-/// ホーム画面 - 案件一覧と新規作成ボタン
+/// ホーム画面 - SQLiteに保存された案件一覧と新規作成
 /// 関連ファイル: lib/main.dart, lib/screens/comparison_screen.dart
+library;
 
 import 'package:flutter/material.dart';
-import '../models.dart';
+
 import '../data/sample_data.dart';
+import '../models.dart';
+import '../repositories/project_repository.dart';
 import 'comparison_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.repository});
+
+  final ProjectRepository? repository;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final List<Project> _projects = [];
-  bool _loaded = false;
+  List<Project> _projects = const [];
+  bool _loading = true;
+  String? _error;
+
+  ProjectRepository get _repository => widget.repository ?? ProjectRepository.instance;
 
   @override
   void initState() {
@@ -25,14 +33,27 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadProjects() async {
-    final sample = SampleData.project();
     setState(() {
-      _projects.add(sample);
-      _loaded = true;
+      _loading = true;
+      _error = null;
     });
+    try {
+      var projects = await _repository.getProjects();
+      if (projects.isEmpty) {
+        await _repository.saveProject(SampleData.project());
+        projects = await _repository.getProjects();
+      }
+      if (!mounted) return;
+      setState(() => _projects = projects);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = '案件の読み込みに失敗しました: $error');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
-  void _createProject(String name) {
+  Future<void> _createProject(String name) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final project = Project(
       id: 'project-$now',
@@ -41,52 +62,69 @@ class _HomeScreenState extends State<HomeScreen> {
       createdAtEpochMillis: now,
       updatedAtEpochMillis: now,
     );
-    setState(() => _projects.insert(0, project));
+    await _repository.saveProject(project);
+    await _loadProjects();
+  }
+
+  Future<void> _openProject(Project project) async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ComparisonScreen(
+          project: project,
+          repository: _repository,
+        ),
+      ),
+    );
+    await _loadProjects();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('相見積もり比較')),
-      body: !_loaded
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                const Text(
-                  '総合点や順位ではなく、価格・範囲・不明点を並べて確認します。',
-                  style: TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: () => _showCreateDialog(context),
-                  child: const Text('新しい案件を作成'),
-                ),
-                const SizedBox(height: 16),
-                if (_projects.isEmpty)
-                  const Text('案件はまだありません。')
-                else
-                  ..._projects.map((p) => _ProjectCard(
-                        project: p,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ComparisonScreen(project: p),
-                            ),
-                          );
-                        },
-                      )),
-              ],
-            ),
+      body: RefreshIndicator(
+        onRefresh: _loadProjects,
+        child: _loading
+            ? const ListView(children: [SizedBox(height: 280), Center(child: CircularProgressIndicator())])
+            : ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const Text(
+                    '総合点や順位ではなく、価格・範囲・不明点を並べて確認します。',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () => _showCreateDialog(context),
+                    icon: const Icon(Icons.add),
+                    label: const Text('新しい案件を作成'),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  ],
+                  const SizedBox(height: 16),
+                  if (_projects.isEmpty)
+                    const Text('案件はまだありません。')
+                  else
+                    ..._projects.map(
+                      (project) => _ProjectCard(
+                        project: project,
+                        onTap: () => _openProject(project),
+                      ),
+                    ),
+                ],
+              ),
+      ),
     );
   }
 
-  void _showCreateDialog(BuildContext context) {
+  Future<void> _showCreateDialog(BuildContext context) async {
     final controller = TextEditingController();
-    showDialog(
+    final name = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('案件作成'),
         content: TextField(
           controller: controller,
@@ -97,14 +135,14 @@ class _HomeScreenState extends State<HomeScreen> {
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('キャンセル'),
+          ),
           TextButton(
             onPressed: () {
-              final name = controller.text.trim();
-              if (name.isNotEmpty) {
-                _createProject(name);
-                Navigator.pop(ctx);
-              }
+              final value = controller.text.trim();
+              if (value.isNotEmpty) Navigator.pop(dialogContext, value);
             },
             child: const Text('作成'),
           ),
@@ -112,14 +150,24 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     controller.dispose();
+    if (name == null || !mounted) return;
+
+    try {
+      await _createProject(name);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('案件を作成できませんでした: $error')),
+      );
+    }
   }
 }
 
 class _ProjectCard extends StatelessWidget {
+  const _ProjectCard({required this.project, required this.onTap});
+
   final Project project;
   final VoidCallback onTap;
-
-  const _ProjectCard({required this.project, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -136,7 +184,10 @@ class _ProjectCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(project.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text(
+                      project.name,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
                     const SizedBox(height: 4),
                     Text('状態: ${project.status.labelJa}　見積: ${project.quotes.length}社'),
                   ],
