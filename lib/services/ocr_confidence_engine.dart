@@ -50,6 +50,9 @@ class OcrConfidenceEngine {
     'tax': ['消費税', '税額'],
   };
 
+  static const _quantityUnitPattern =
+      r'(?:㎡|m2|m²|㎥|m3|m³|mm|cm|m|本|基|台|式|一式|箇所|ヶ所|個)';
+
   OcrLineInterpretation analyze({
     required String rawText,
     required int pageNumber,
@@ -65,7 +68,7 @@ class OcrConfidenceEngine {
     final amountCandidates = extractAmountCandidates(text);
     final quantityMatch = RegExp(
       r'([0-9０-９]+(?:[.,，．][0-9０-９]+)*)\s*'
-      r'(㎡|m2|m²|㎥|m3|m³|mm|cm|m|本|基|台|式|一式|箇所|ヶ所|個)',
+      '$_quantityUnitPattern',
       caseSensitive: false,
     ).firstMatch(text);
     final quantity = quantityMatch == null
@@ -141,7 +144,9 @@ class OcrConfidenceEngine {
     var score = 0.96;
     final replacementCount = '�'.allMatches(text).length;
     score -= replacementCount * 0.22;
-    if (RegExp(r'[|]{2,}|[_]{3,}|[?]{3,}').hasMatch(text)) score -= 0.18;
+    if (RegExp(r'[|]{2,}|[_]{3,}|[?]{3,}').hasMatch(text)) {
+      score -= 0.18;
+    }
     final nonWord = RegExp(
       r'[^0-9A-Za-zぁ-んァ-ヶ一-龠々ー㎡㎥m²³¥￥,，.．:：/()（）\-\s]',
     ).allMatches(text).length;
@@ -164,16 +169,28 @@ class OcrConfidenceEngine {
   }
 
   /// 円記号・円接尾辞がある場合は1桁から、記号がない場合は4桁以上を抽出する。
+  /// 数量単位が直後にある値は金額候補から除外する。
   static List<int> extractAmountCandidates(String line) {
     final normalized = LocalizedNumberParser.normalizeCharacters(line);
     final matches = RegExp(
       r'(?:(?:¥|￥)\s*([+-]?\d[\d,]*)|'
       r'([+-]?\d[\d,]*)\s*円|'
-      r'([+-]?\d{1,3}(?:,\d{3})+|[+-]?\d{4,}))',
+      r'([+-]?\d{1,3}(?:,\d{3})+|[+-]?\d{4,})'
+      r'(?![\d,])'
+      r'(?!\s*(?:㎡|m2|m²|㎥|m3|m³|mm|cm|m|本|基|台|式|一式|箇所|ヶ所|個)))',
+      caseSensitive: false,
     ).allMatches(normalized);
     return matches
-        .map((match) => match.group(1) ?? match.group(2) ?? match.group(3) ?? '')
-        .map((value) => LocalizedNumberParser.tryParseYen(value, allowNegative: true))
+        .map(
+          (match) =>
+              match.group(1) ?? match.group(2) ?? match.group(3) ?? '',
+        )
+        .map(
+          (value) => LocalizedNumberParser.tryParseYen(
+            value,
+            allowNegative: true,
+          ),
+        )
         .whereType<int>()
         .toList(growable: false);
   }
@@ -198,7 +215,8 @@ class OcrConfidenceEngine {
     final amounts = includedItemAmounts.toList(growable: false);
     if (totalAmountYen == null || amounts.isEmpty) return const [];
     final sum = amounts.fold<int>(0, (value, amount) => value + amount);
-    final tolerance = (totalAmountYen.abs() * 0.02).clamp(1000, 200000).toInt();
+    final tolerance =
+        (totalAmountYen.abs() * 0.02).clamp(1000, 200000).toInt();
     if ((sum - totalAmountYen).abs() <= tolerance) return const [];
     return [
       OcrReviewIssue(
