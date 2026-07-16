@@ -15,7 +15,8 @@ enum InclusionStatus {
   final String labelJa;
   const InclusionStatus(this.code, this.labelJa);
 
-  static InclusionStatus fromCode(String code) => InclusionStatus.values.firstWhere(
+  static InclusionStatus fromCode(String code) =>
+      InclusionStatus.values.firstWhere(
         (e) => e.code == code,
         orElse: () => InclusionStatus.unknown,
       );
@@ -47,7 +48,8 @@ enum QuestionStatus {
   final String code;
   const QuestionStatus(this.code);
 
-  static QuestionStatus fromCode(String code) => QuestionStatus.values.firstWhere(
+  static QuestionStatus fromCode(String code) =>
+      QuestionStatus.values.firstWhere(
         (e) => e.code == code,
         orElse: () => QuestionStatus.open,
       );
@@ -126,18 +128,17 @@ class RawQuoteData {
     );
   }
 
-  ContractorQuote toContractorQuote({String? id}) {
-    final quoteId = id ?? 'quote-$createdAtEpochMillis';
+  ContractorQuote toContractorQuote({required String id}) {
     return ContractorQuote(
-      id: quoteId,
+      id: id,
       contractorName: contractorName,
       totalAmountYen: totalAmountYen,
-      note: 'OCR取込: $sourcePath',
+      note: 'OCR取込',
       createdAtEpochMillis: createdAtEpochMillis,
       lineItems: [
         for (var index = 0; index < lineItems.length; index++)
           QuoteLineItem(
-            id: '$quoteId-line-${index + 1}',
+            id: '$id-line-${index + 1}',
             categoryId: lineItems[index].categoryId,
             rawLabel: lineItems[index].rawLabel,
             amountYen: lineItems[index].amountYen,
@@ -183,7 +184,9 @@ class QuoteLineItem {
         categoryId: json['categoryId'] as String,
         rawLabel: json['rawLabel'] as String,
         amountYen: json['amountYen'] as int?,
-        inclusionStatus: InclusionStatus.fromCode(json['inclusionStatus'] as String? ?? 'unknown'),
+        inclusionStatus: InclusionStatus.fromCode(
+          json['inclusionStatus'] as String? ?? 'unknown',
+        ),
         quantity: (json['quantity'] as num?)?.toDouble(),
         unit: json['unit'] as String?,
         specification: json['specification'] as String?,
@@ -209,14 +212,17 @@ class ContractorQuote {
     this.lineItems = const [],
   });
 
-  factory ContractorQuote.fromJson(Map<String, dynamic> json) => ContractorQuote(
+  factory ContractorQuote.fromJson(Map<String, dynamic> json) =>
+      ContractorQuote(
         id: json['id'] as String,
         contractorName: json['contractorName'] as String,
         totalAmountYen: json['totalAmountYen'] as int?,
         note: json['note'] as String?,
         createdAtEpochMillis: json['createdAtEpochMillis'] as int,
         lineItems: (json['lineItems'] as List<dynamic>?)
-                ?.map((e) => QuoteLineItem.fromJson(e as Map<String, dynamic>))
+                ?.map(
+                  (e) => QuoteLineItem.fromJson(e as Map<String, dynamic>),
+                )
                 .toList() ??
             [],
       );
@@ -246,7 +252,9 @@ class Project {
         createdAtEpochMillis: json['createdAtEpochMillis'] as int,
         updatedAtEpochMillis: json['updatedAtEpochMillis'] as int,
         quotes: (json['quotes'] as List<dynamic>?)
-                ?.map((e) => ContractorQuote.fromJson(e as Map<String, dynamic>))
+                ?.map(
+                  (e) => ContractorQuote.fromJson(e as Map<String, dynamic>),
+                )
                 .toList() ??
             [],
       );
