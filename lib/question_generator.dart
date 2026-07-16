@@ -1,16 +1,18 @@
-/// ファイルパス: lib/question_generator.dart
-/// 不明事項から質問文を生成する
-/// 関連ファイル: lib/models.dart
+/// 不明事項とユーザー要望との差から質問文を生成する。
 library;
 
 import 'dart:convert';
 
+import 'data/category_master.dart';
 import 'models.dart';
+import 'requirements_models.dart';
+import 'services/requirements_engine.dart';
 
 class QuestionGenerator {
   List<ClarificationQuestion> generate({
     required Project project,
     required List<NormalizedQuote> normalizedQuotes,
+    List<ProjectRequirement> requirements = const [],
     int? nowEpochMillis,
   }) {
     final now = nowEpochMillis ?? DateTime.now().millisecondsSinceEpoch;
@@ -29,7 +31,27 @@ class QuestionGenerator {
       }
     }
 
-    return questions;
+    if (requirements.isNotEmpty) {
+      final assessments = const RequirementsEngine().evaluate(
+        requirements: requirements,
+        quotes: normalizedQuotes,
+      );
+      for (final assessment in assessments) {
+        questions.addAll(
+          _questionsForRequirement(
+            projectId: project.id,
+            assessment: assessment,
+            nowEpochMillis: now,
+          ),
+        );
+      }
+    }
+
+    final byId = <String, ClarificationQuestion>{};
+    for (final question in questions) {
+      byId[question.id] = question;
+    }
+    return byId.values.toList(growable: false);
   }
 
   List<ClarificationQuestion> _questionsForLine({
@@ -92,19 +114,97 @@ class QuestionGenerator {
 
     final seen = <String>{};
     return rawQuestions.where((question) => seen.add(question.$1)).map((question) {
-      final idSource = '$projectId|${quote.quoteId}|${line.category.id}|${question.$1}';
-      final id = _uuidFromBytes(utf8.encode(idSource));
-      return ClarificationQuestion(
-        id: id,
+      return _question(
         projectId: projectId,
         quoteId: quote.quoteId,
         contractorName: contractorName,
         categoryId: line.category.id,
         templateKey: question.$1,
         questionText: question.$2,
-        createdAtEpochMillis: nowEpochMillis,
+        nowEpochMillis: nowEpochMillis,
       );
     }).toList();
+  }
+
+  List<ClarificationQuestion> _questionsForRequirement({
+    required String projectId,
+    required RequirementAssessment assessment,
+    required int nowEpochMillis,
+  }) {
+    final category = CategoryMaster.require(assessment.requirement.categoryId);
+    final contractor = assessment.contractorName;
+    final rawQuestions = <(String, String)>[];
+
+    switch (assessment.status) {
+      case RequirementCoverageStatus.requiredSeparate:
+        rawQuestions.add((
+          'REQUIREMENT_REQUIRED_SEPARATE',
+          '$contractor様：必須として希望している${category.nameJa}は総額に含まれていますか。別途の場合は追加金額と施工条件をご提示ください。',
+        ));
+      case RequirementCoverageStatus.requiredMissing:
+        rawQuestions.add((
+          'REQUIREMENT_REQUIRED_MISSING',
+          '$contractor様：必須として希望している${category.nameJa}の記載が確認できません。見積内・別途・対象外のいずれかをご回答ください。',
+        ));
+      case RequirementCoverageStatus.unnecessaryIncluded:
+        rawQuestions.add((
+          'REQUIREMENT_UNNECESSARY_INCLUDED',
+          '$contractor様：${category.nameJa}は不要としていますが見積に計上されています。削除可否と減額金額をご提示ください。',
+        ));
+      default:
+        break;
+    }
+
+    for (final mismatch in assessment.mismatches) {
+      switch (mismatch.type) {
+        case RequirementMismatchType.quantity:
+        case RequirementMismatchType.unit:
+          rawQuestions.add((
+            'REQUIREMENT_QUANTITY_MISMATCH',
+            '$contractor様：${category.nameJa}の希望数量・単位との差を確認したいです。${mismatch.message}。差が生じた理由と算定根拠をご提示ください。',
+          ));
+        case RequirementMismatchType.specification:
+          rawQuestions.add((
+            'REQUIREMENT_SPECIFICATION_MISMATCH',
+            '$contractor様：${category.nameJa}の希望仕様との差を確認したいです。${mismatch.message}。同等仕様か、変更が必要かをご回答ください。',
+          ));
+      }
+    }
+
+    final seen = <String>{};
+    return rawQuestions.where((question) => seen.add(question.$1)).map((question) {
+      return _question(
+        projectId: projectId,
+        quoteId: assessment.quoteId,
+        contractorName: contractor,
+        categoryId: category.id,
+        templateKey: question.$1,
+        questionText: question.$2,
+        nowEpochMillis: nowEpochMillis,
+      );
+    }).toList();
+  }
+
+  ClarificationQuestion _question({
+    required String projectId,
+    required String quoteId,
+    required String contractorName,
+    required String categoryId,
+    required String templateKey,
+    required String questionText,
+    required int nowEpochMillis,
+  }) {
+    final idSource = '$projectId|$quoteId|$categoryId|$templateKey';
+    return ClarificationQuestion(
+      id: _uuidFromBytes(utf8.encode(idSource)),
+      projectId: projectId,
+      quoteId: quoteId,
+      contractorName: contractorName,
+      categoryId: categoryId,
+      templateKey: templateKey,
+      questionText: questionText,
+      createdAtEpochMillis: nowEpochMillis,
+    );
   }
 
   static String _uuidFromBytes(List<int> bytes) {
@@ -116,7 +216,10 @@ class QuestionGenerator {
     }
     final first = hashA.toRadixString(16).padLeft(8, '0');
     final second = (hashB & 0xFFFF).toRadixString(16).padLeft(4, '0');
-    final tail = ((hashA << 16) ^ hashB).toUnsigned(48).toRadixString(16).padLeft(12, '0');
+    final tail = ((hashA << 16) ^ hashB)
+        .toUnsigned(48)
+        .toRadixString(16)
+        .padLeft(12, '0');
     return '$first-$second-5000-8000-$tail';
   }
 }

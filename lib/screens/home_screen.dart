@@ -1,27 +1,29 @@
-/// ファイルパス: lib/screens/home_screen.dart
-/// ホーム画面 - SQLiteに保存された案件一覧と新規作成
-/// 関連ファイル: lib/main.dart, lib/screens/comparison_screen.dart
+/// ホーム画面 - 案件一覧、新規作成、検索、削除。
 library;
 
 import 'package:flutter/material.dart';
 
 import '../models.dart';
 import '../repositories/project_repository.dart';
+import '../repositories/project_requirement_repository.dart';
 import '../services/ad_service.dart';
 import '../services/haptic_service.dart';
-import 'comparison_screen.dart';
+import 'requirements_checklist_screen.dart';
+import 'requirements_comparison_shell.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     this.repository,
+    this.requirementRepository,
     this.adService,
     this.darkModeEnabled = false,
     this.onDarkModeChanged,
   });
 
   final ProjectRepository? repository;
+  final ProjectRequirementRepository? requirementRepository;
   final AdService? adService;
   final bool darkModeEnabled;
   final ValueChanged<bool>? onDarkModeChanged;
@@ -40,6 +42,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   ProjectRepository get _repository =>
       widget.repository ?? ProjectRepository.instance;
+  ProjectRequirementRepository get _requirementRepository =>
+      widget.requirementRepository ?? ProjectRequirementRepository.instance;
 
   List<Project> get _filteredProjects {
     final query = _searchQuery.trim().toLowerCase();
@@ -82,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _createProject(String name) async {
+  Future<Project> _createProject(String name) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final project = Project(
       id: 'project-$now',
@@ -92,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
       updatedAtEpochMillis: now,
     );
     await _repository.saveProject(project);
-    await _loadProjects();
+    return project;
   }
 
   Future<void> _openProject(Project project) async {
@@ -102,9 +106,10 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => _ComparisonHapticGate(
-          child: ComparisonScreen(
+          child: RequirementsComparisonShell(
             project: project,
-            repository: _repository,
+            projectRepository: _repository,
+            requirementRepository: _requirementRepository,
             adService: widget.adService,
           ),
         ),
@@ -159,7 +164,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (confirmed != true) return false;
-
     try {
       await _repository.deleteProject(project.id);
       return true;
@@ -230,14 +234,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.all(16),
                 children: [
                   const Text(
-                    '総合点や順位ではなく、価格・範囲・不明点を並べて確認します。',
+                    '総合点や順位ではなく、価格・範囲・要望との差・不明点を並べて確認します。',
                     style: TextStyle(fontSize: 14),
                   ),
                   const SizedBox(height: 12),
                   FilledButton.icon(
+                    key: const ValueKey('create-project-button'),
                     onPressed: () async {
                       await HapticService.lightImpact();
-                      if (mounted) _showCreateDialog();
+                      if (mounted) await _showCreateDialog();
                     },
                     icon: const Icon(Icons.add),
                     label: const Text('新しい案件を作成'),
@@ -266,31 +271,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 12),
                     Card(
                       color: Theme.of(context).colorScheme.errorContainer,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              color: Theme.of(context).colorScheme.onErrorContainer,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _error!,
-                                style: TextStyle(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onErrorContainer,
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: '再読み込み',
-                              onPressed: _loadProjects,
-                              icon: const Icon(Icons.refresh),
-                            ),
-                          ],
+                      child: ListTile(
+                        leading: const Icon(Icons.error_outline),
+                        title: Text(_error!),
+                        trailing: IconButton(
+                          tooltip: '再読み込み',
+                          onPressed: _loadProjects,
+                          icon: const Icon(Icons.refresh),
                         ),
                       ),
                     ),
@@ -301,8 +288,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   else if (filteredProjects.isEmpty)
                     _EmptySearchCard(query: _searchQuery.trim())
                   else
-                    ...filteredProjects.map(
-                      (project) => Dismissible(
+                    for (final project in filteredProjects)
+                      Dismissible(
                         key: ValueKey('project-dismiss-${project.id}'),
                         direction: DismissDirection.endToStart,
                         confirmDismiss: (_) => _confirmDeleteProject(project),
@@ -326,7 +313,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           onTap: () => _openProject(project),
                         ),
                       ),
-                    ),
                 ],
               ),
       ),
@@ -340,12 +326,18 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('案件作成'),
         content: TextField(
+          key: const ValueKey('project-name-field'),
           controller: controller,
           decoration: const InputDecoration(
             labelText: '案件名',
             hintText: '例: 新築外構工事',
           ),
           autofocus: true,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (value) {
+            final trimmed = value.trim();
+            if (trimmed.isNotEmpty) Navigator.pop(dialogContext, trimmed);
+          },
         ),
         actions: [
           TextButton(
@@ -355,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             child: const Text('キャンセル'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () async {
               await HapticService.lightImpact();
               final value = controller.text.trim();
@@ -363,7 +355,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.pop(dialogContext, value);
               }
             },
-            child: const Text('作成'),
+            child: const Text('次へ'),
           ),
         ],
       ),
@@ -372,7 +364,20 @@ class _HomeScreenState extends State<HomeScreen> {
     if (name == null || !mounted) return;
 
     try {
-      await _createProject(name);
+      final project = await _createProject(name);
+      if (!mounted) return;
+      await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RequirementsChecklistScreen(
+            project: project,
+            repository: _requirementRepository,
+            creationFlow: true,
+          ),
+        ),
+      );
+      if (!mounted) return;
+      await _loadProjects();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('案件を作成しました。')),
@@ -406,7 +411,7 @@ class _EmptyProjectsCard extends StatelessWidget {
             ),
             SizedBox(height: 4),
             Text(
-              '「新しい案件を作成」から始めて、PDFまたは写真の見積書を追加してください。',
+              '「新しい案件を作成」から要望を整理し、PDFまたは写真の見積書を追加してください。',
               textAlign: TextAlign.center,
             ),
           ],
@@ -433,10 +438,7 @@ class _EmptySearchCard extends StatelessWidget {
             Text(
               '「$query」に一致する案件はありません。',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 4),
-            const Text('検索語を短くするか、別の案件名・業者名をお試しください。'),
           ],
         ),
       ),
@@ -458,35 +460,19 @@ class _ProjectCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
+      child: ListTile(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      project.name,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '状態: ${project.status.labelJa}　見積: ${project.quotes.length}社',
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.chevron_right),
-            ],
-          ),
+        leading: const CircleAvatar(child: Icon(Icons.folder_outlined)),
+        title: Text(
+          project.name,
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
+        subtitle: Text(
+          '${project.status.labelJa}・見積 ${project.quotes.length}社\n'
+          '要望差異と不明点を確認',
+        ),
+        isThreeLine: true,
+        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }

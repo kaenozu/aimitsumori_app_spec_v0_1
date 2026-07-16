@@ -1,0 +1,179 @@
+/// 案件要望をSQLiteへ保存する専用リポジトリ。
+library;
+
+import 'package:flutter/foundation.dart';
+import 'package:sqflite/sqflite.dart';
+
+import '../data/category_master.dart';
+import '../requirements_models.dart';
+import '../services/database_service.dart';
+
+class ProjectRequirementRepository {
+  ProjectRequirementRepository({DatabaseService? databaseService})
+      : _databaseService = databaseService ?? DatabaseService.instance;
+
+  static final ProjectRequirementRepository instance =
+      ProjectRequirementRepository();
+
+  final DatabaseService _databaseService;
+  Future<void>? _schemaFuture;
+
+  Future<List<ProjectRequirement>> getRequirements(String projectId) => _run(
+        operation: '要望チェックリストの読み込み',
+        action: () async {
+          final db = await _database();
+          final rows = await db.query(
+            'project_requirements',
+            where: 'project_id = ?',
+            whereArgs: [projectId],
+          );
+          final byCategory = <String, ProjectRequirement>{
+            for (final row in rows)
+              row['category_id'] as String: _fromRow(row),
+          };
+          return [
+            for (final category in CategoryMaster.categories)
+              byCategory[category.id] ??
+                  ProjectRequirement(categoryId: category.id),
+          ];
+        },
+      );
+
+  Future<void> saveRequirements(
+    String projectId,
+    List<ProjectRequirement> requirements,
+  ) =>
+      _run(
+        operation: '要望チェックリストの保存',
+        action: () async {
+          final normalized = _normalize(requirements);
+          final db = await _database();
+          await db.transaction((transaction) async {
+            final project = await transaction.query(
+              'projects',
+              columns: ['id'],
+              where: 'id = ?',
+              whereArgs: [projectId],
+              limit: 1,
+            );
+            if (project.isEmpty) {
+              throw StateError('保存先の案件が見つかりません: $projectId');
+            }
+            await transaction.delete(
+              'project_requirements',
+              where: 'project_id = ?',
+              whereArgs: [projectId],
+            );
+            for (final requirement in normalized) {
+              await transaction.insert(
+                'project_requirements',
+                _toRow(projectId, requirement),
+                conflictAlgorithm: ConflictAlgorithm.replace,
+              );
+            }
+          });
+        },
+      );
+
+  Future<Database> _database() async {
+    final db = await _databaseService.database;
+    final schema = _schemaFuture ??= _ensureSchema(db);
+    await schema;
+    return db;
+  }
+
+  Future<void> _ensureSchema(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS project_requirements (
+        project_id TEXT NOT NULL,
+        category_id TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        expected_quantity REAL,
+        expected_unit TEXT,
+        desired_specification TEXT,
+        note TEXT,
+        PRIMARY KEY(project_id, category_id),
+        FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_requirements_project '
+      'ON project_requirements(project_id)',
+    );
+  }
+
+  List<ProjectRequirement> _normalize(
+    List<ProjectRequirement> requirements,
+  ) {
+    final byCategory = <String, ProjectRequirement>{};
+    for (final requirement in requirements) {
+      if (CategoryMaster.find(requirement.categoryId) == null) {
+        throw ArgumentError.value(
+          requirement.categoryId,
+          'categoryId',
+          'Unknown category',
+        );
+      }
+      if (byCategory.containsKey(requirement.categoryId)) {
+        throw ArgumentError('同じカテゴリの要望が重複しています。');
+      }
+      byCategory[requirement.categoryId] = requirement;
+    }
+    return [
+      for (final category in CategoryMaster.categories)
+        byCategory[category.id] ?? ProjectRequirement(categoryId: category.id),
+    ];
+  }
+
+  ProjectRequirement _fromRow(Map<String, Object?> row) => ProjectRequirement(
+        categoryId: row['category_id'] as String,
+        priority: RequirementPriority.fromCode(row['priority'] as String),
+        expectedQuantity: (row['expected_quantity'] as num?)?.toDouble(),
+        expectedUnit: row['expected_unit'] as String?,
+        desiredSpecification: row['desired_specification'] as String?,
+        note: row['note'] as String?,
+      );
+
+  Map<String, Object?> _toRow(
+    String projectId,
+    ProjectRequirement requirement,
+  ) =>
+      {
+        'project_id': projectId,
+        'category_id': requirement.categoryId,
+        'priority': requirement.priority.code,
+        'expected_quantity': requirement.expectedQuantity,
+        'expected_unit': _nullable(requirement.expectedUnit),
+        'desired_specification': _nullable(requirement.desiredSpecification),
+        'note': _nullable(requirement.note),
+      };
+
+  String? _nullable(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
+  }
+
+  Future<T> _run<T>({
+    required String operation,
+    required Future<T> Function() action,
+  }) async {
+    try {
+      return await action();
+    } on ProjectRequirementRepositoryException {
+      rethrow;
+    } catch (error, stackTrace) {
+      debugPrint('$operation failed: $error\n$stackTrace');
+      throw ProjectRequirementRepositoryException(operation, error);
+    }
+  }
+}
+
+class ProjectRequirementRepositoryException implements Exception {
+  const ProjectRequirementRepositoryException(this.operation, this.cause);
+
+  final String operation;
+  final Object cause;
+
+  @override
+  String toString() => '$operationに失敗しました。もう一度お試しください。';
+}
