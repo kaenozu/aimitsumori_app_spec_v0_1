@@ -28,6 +28,9 @@ class MockDatabaseService implements DatabaseService {
       );
 
   @override
+  Future<void> initializeSchemaForTesting() async {}
+
+  @override
   Future<List<Project>> getProjects() async {
     getProjectsCallCount += 1;
     return List<Project>.unmodifiable(_projects);
@@ -66,7 +69,22 @@ class MockDatabaseService implements DatabaseService {
   }
 
   @override
-  Future<void> saveQuote(String projectId, ContractorQuote quote) async {
+  Future<void> deleteAllData() async {
+    _projects.clear();
+    _reports.clear();
+  }
+
+  @override
+  Future<void> saveQuote(
+    String projectId,
+    ContractorQuote quote, {
+    DatabaseTransactionCallback? afterQuoteSaved,
+  }) async {
+    if (afterQuoteSaved != null) {
+      throw UnsupportedError(
+        'MockDatabaseService does not provide transaction callbacks.',
+      );
+    }
     final projectIndex =
         _projects.indexWhere((project) => project.id == projectId);
     if (projectIndex == -1) {
@@ -89,6 +107,14 @@ class MockDatabaseService implements DatabaseService {
     );
     _reports.remove(projectId);
   }
+
+  @override
+  Future<void> saveQuoteInTransaction(
+    DatabaseExecutor transaction,
+    String projectId,
+    ContractorQuote quote,
+  ) =>
+      saveQuote(projectId, quote);
 
   @override
   Future<void> saveComparisonResult(ComparisonReport report) async {
