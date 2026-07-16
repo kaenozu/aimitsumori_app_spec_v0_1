@@ -1,9 +1,8 @@
 /// ファイルパス: lib/screens/comparison_screen.dart
-/// 比較画面 - サマリー、カテゴリ比較、質問テンプレート、共有、バナー広告
+/// 比較画面 - 更新、共有、カテゴリ比較、質問テンプレート、広告
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
@@ -76,15 +75,13 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
     );
   }
 
-  Future<void> _saveReport({bool showError = false}) async {
+  Future<void> _saveReport({bool notifyOnError = false}) async {
     try {
       await _repository.saveComparisonResult(_report);
     } catch (error, stackTrace) {
       debugPrint('Comparison result save failed: $error\n$stackTrace');
-      if (showError && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString())),
-        );
+      if (notifyOnError && mounted) {
+        _showMessage(error.toString());
       }
     }
   }
@@ -112,9 +109,8 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
         },
         onFailed: (error) {
           debugPrint('Banner ad failed to load: $error');
-          if (!mounted) return;
           _bannerAd = null;
-          setState(() => _bannerLoaded = false);
+          if (mounted) setState(() => _bannerLoaded = false);
         },
       );
       _bannerAd = ad;
@@ -141,13 +137,10 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
         _report = _generateReport();
         if (_adService.adFree.value) _detailsUnlocked = true;
       });
-      await _saveReport(showError: true);
+      await _saveReport(notifyOnError: true);
     } catch (error, stackTrace) {
       debugPrint('Comparison refresh failed: $error\n$stackTrace');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      if (mounted) _showMessage(error.toString());
     }
   }
 
@@ -165,10 +158,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
       if (saved == true) await _refresh();
     } catch (error, stackTrace) {
       debugPrint('Quote input navigation failed: $error\n$stackTrace');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('見積の追加画面を開けませんでした。もう一度お試しください。')),
-      );
+      if (mounted) _showMessage('見積の追加画面を開けませんでした。もう一度お試しください。');
     }
   }
 
@@ -192,40 +182,26 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
     });
 
     if (outcome == RewardedAdOutcome.unavailable) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('広告を読み込めなかったため、詳細比較をそのまま表示します。'),
-        ),
-      );
+      _showMessage('広告を読み込めなかったため、詳細比較をそのまま表示します。');
     } else if (!unlocked) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('広告を最後まで視聴すると詳細比較を表示できます。')),
-      );
+      _showMessage('広告を最後まで視聴すると詳細比較を表示できます。');
     }
   }
 
   Future<void> _purchaseRemoveAds() async {
     final started = await _adService.purchaseRemoveAds();
-    if (!mounted) return;
-    if (!started) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('購入商品を取得できませんでした。通信状態とストア設定を確認してください。')),
-      );
+    if (mounted && !started) {
+      _showMessage('購入商品を取得できませんでした。通信状態とストア設定を確認してください。');
     }
   }
 
   Future<void> _restorePurchases() async {
     try {
       await _adService.restorePurchases();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('購入履歴の復元を開始しました。')),
-      );
+      if (mounted) _showMessage('購入履歴の復元を開始しました。');
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('購入履歴を復元できませんでした。通信状態を確認してください。')),
-      );
+      debugPrint('Purchase restore failed: $error');
+      if (mounted) _showMessage('購入履歴を復元できませんでした。通信状態を確認してください。');
     }
   }
 
@@ -245,11 +221,14 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
       );
     } catch (error, stackTrace) {
       debugPrint('Comparison share failed: $error\n$stackTrace');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('比較結果を共有できませんでした。もう一度お試しください。')),
-      );
+      if (mounted) _showMessage('比較結果を共有できませんでした。もう一度お試しください。');
     }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
@@ -318,19 +297,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
             const SizedBox(height: 16),
             _SummaryCard(lines: _report.summaryLines),
             const SizedBox(height: 16),
-            SizedBox(
-              height: 160,
-              child: _report.quoteSnapshots.isEmpty
-                  ? const Card(child: Center(child: Text('見積書を追加してください。')))
-                  : ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _report.quoteSnapshots.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 12),
-                      itemBuilder: (_, index) => _SnapshotCard(
-                        snapshot: _report.quoteSnapshots[index],
-                      ),
-                    ),
-            ),
+            _SnapshotList(snapshots: _report.quoteSnapshots),
             const SizedBox(height: 16),
             const _BadgeLegend(),
             const SizedBox(height: 16),
@@ -340,23 +307,17 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
-              const Text(
-                '表は左右にスクロールできます。',
-                style: TextStyle(fontSize: 12),
-              ),
+              const Text('表は左右にスクロールできます。', style: TextStyle(fontSize: 12)),
               const SizedBox(height: 8),
               _CategoryComparisonTable(report: _report),
               const SizedBox(height: 16),
               Text(
                 '確認質問テンプレート (${_report.clarificationQuestions.length}件)',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               ..._report.clarificationQuestions.map(
-                (value) => _QuestionCard(question: value),
+                (question) => _QuestionCard(question: question),
               ),
             ] else
               _DetailUnlockCard(
@@ -365,46 +326,6 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
                 onRemoveAds: _purchaseRemoveAds,
               ),
             const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DetailUnlockCard extends StatelessWidget {
-  const _DetailUnlockCard({
-    required this.loading,
-    required this.onUnlock,
-    required this.onRemoveAds,
-  });
-
-  final bool loading;
-  final VoidCallback onUnlock;
-  final VoidCallback onRemoveAds;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            const Icon(Icons.table_chart_outlined, size: 40),
-            const SizedBox(height: 8),
-            const Text(
-              '詳細比較を表示',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 6),
-            const Text('カテゴリ別の金額・仕様差と、業者への確認質問を表示します。'),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: loading ? null : onUnlock,
-              icon: const Icon(Icons.ondemand_video_outlined),
-              label: Text(loading ? '広告を準備中…' : '広告を見て詳細を表示'),
-            ),
-            TextButton(onPressed: onRemoveAds, child: const Text('広告を削除')),
           ],
         ),
       ),
@@ -425,10 +346,7 @@ class _SummaryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '3行サマリー',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
+            const Text('3行サマリー', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             ...lines.asMap().entries.map(
                   (entry) => Text('${entry.key + 1}. ${entry.value}'),
@@ -440,13 +358,34 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
+class _SnapshotList extends StatelessWidget {
+  const _SnapshotList({required this.snapshots});
+
+  final List<QuoteSnapshot> snapshots;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 160,
+      child: snapshots.isEmpty
+          ? const Card(child: Center(child: Text('見積書を追加してください。')))
+          : ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: snapshots.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
+              itemBuilder: (_, index) => _SnapshotCard(snapshot: snapshots[index]),
+            ),
+    );
+  }
+}
+
 class _SnapshotCard extends StatelessWidget {
   const _SnapshotCard({required this.snapshot});
 
   final QuoteSnapshot snapshot;
 
-  String _format(int? value) =>
-      value != null ? NumberFormat('#,##0', 'ja_JP').format(value) : '未入力';
+  String _yen(int? value) =>
+      value == null ? '未入力' : NumberFormat('#,##0', 'ja_JP').format(value);
 
   @override
   Widget build(BuildContext context) {
@@ -458,22 +397,12 @@ class _SnapshotCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                snapshot.contractorName,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              Text(snapshot.contractorName, style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
-              Text('提示総額: ${_format(snapshot.totalAmountYen)}円'),
+              Text('提示総額: ${_yen(snapshot.totalAmountYen)}円'),
               Text('見積内: ${snapshot.includedCategoryCount}カテゴリ'),
-              Text(
-                '別途: ${snapshot.separateCategoryNames.isEmpty ? "なし" : snapshot.separateCategoryNames.join(", ")}',
-              ),
-              Text(
-                '任意: ${snapshot.optionalCategoryNames.isEmpty ? "なし" : snapshot.optionalCategoryNames.join(", ")}',
-              ),
+              Text('別途: ${snapshot.separateCategoryNames.isEmpty ? "なし" : snapshot.separateCategoryNames.join(", ")}'),
+              Text('任意: ${snapshot.optionalCategoryNames.isEmpty ? "なし" : snapshot.optionalCategoryNames.join(", ")}'),
               Text('含有不明: ${snapshot.unknownCategoryNames.length}カテゴリ'),
               Text('不確実点: ${snapshot.uncertaintyCount}件'),
             ],
@@ -489,29 +418,17 @@ class _BadgeLegend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return const Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              '表示の見方',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+          children: [
+            Text('表示の見方', style: TextStyle(fontWeight: FontWeight.bold)),
             SizedBox(height: 8),
-            _LegendRow(
-              label: '未入力',
-              description: '金額・数量・仕様が見積書に記載されていません。',
-            ),
-            _LegendRow(
-              label: '別途',
-              description: '提示総額には含まれず、追加費用になる可能性があります。',
-            ),
-            _LegendRow(
-              label: '不明',
-              description: '記載またはOCR結果だけでは判断できず、業者への確認が必要です。',
-            ),
+            _LegendRow(label: '未入力', description: '金額・数量・仕様が見積書に記載されていません。'),
+            _LegendRow(label: '別途', description: '提示総額には含まれず、追加費用になる可能性があります。'),
+            _LegendRow(label: '不明', description: '記載またはOCR結果だけでは判断できず、業者への確認が必要です。'),
           ],
         ),
       ),
@@ -537,10 +454,12 @@ class _LegendRow extends StatelessWidget {
             label: Text(label, style: const TextStyle(fontSize: 11)),
           ),
           const SizedBox(width: 8),
-          Expanded(child: Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(description, style: const TextStyle(fontSize: 12)),
-          )),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(description, style: const TextStyle(fontSize: 12)),
+            ),
+          ),
         ],
       ),
     );
@@ -565,54 +484,42 @@ class _CategoryComparisonTable extends StatelessWidget {
 
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: Scrollbar(
-        scrollbarOrientation: ScrollbarOrientation.bottom,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columnSpacing: 20,
-            headingRowHeight: 56,
-            dataRowMinHeight: 112,
-            dataRowMaxHeight: 136,
-            columns: [
-              const DataColumn(label: Text('カテゴリ')),
-              for (final snapshot in report.quoteSnapshots)
-                DataColumn(
-                  label: SizedBox(
-                    width: 170,
-                    child: Text(
-                      snapshot.contractorName,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          columnSpacing: 20,
+          headingRowHeight: 56,
+          dataRowMinHeight: 112,
+          dataRowMaxHeight: 136,
+          columns: [
+            const DataColumn(label: Text('カテゴリ')),
+            for (final snapshot in report.quoteSnapshots)
+              DataColumn(
+                label: SizedBox(
+                  width: 170,
+                  child: Text(snapshot.contractorName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+          ],
+          rows: [
+            for (final comparison in report.categoryComparisons)
+              DataRow(
+                cells: [
+                  DataCell(
+                    SizedBox(
+                      width: 120,
+                      child: Text(comparison.category.nameJa, style: const TextStyle(fontWeight: FontWeight.w600)),
                     ),
                   ),
-                ),
-            ],
-            rows: [
-              for (final comparison in report.categoryComparisons)
-                DataRow(
-                  cells: [
+                  for (final snapshot in report.quoteSnapshots)
                     DataCell(
-                      SizedBox(
-                        width: 120,
-                        child: Text(
-                          comparison.category.nameJa,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
+                      _ComparisonCellView(
+                        cell: _findCell(comparison.cells, snapshot.quoteId),
                       ),
                     ),
-                    for (final snapshot in report.quoteSnapshots)
-                      DataCell(
-                        _ComparisonCellView(
-                          cell: _findCell(
-                            comparison.cells,
-                            snapshot.quoteId,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-            ],
-          ),
+                ],
+              ),
+          ],
         ),
       ),
     );
@@ -631,24 +538,22 @@ class _ComparisonCellView extends StatelessWidget {
 
   final ComparisonCell? cell;
 
-  String _formatAmount(int? value) => value == null
+  String _amount(int? value) => value == null
       ? '未入力'
       : '${NumberFormat('#,##0', 'ja_JP').format(value)}円';
 
-  String _formatQuantity(double? quantity, String? unit) {
+  String _quantity(double? quantity, String? unit) {
     if (quantity == null) return '未入力';
-    final value = quantity == quantity.roundToDouble()
+    final text = quantity == quantity.roundToDouble()
         ? quantity.toInt().toString()
         : quantity.toString();
-    return '$value${unit ?? ''}';
+    return '$text${unit ?? ''}';
   }
 
   @override
   Widget build(BuildContext context) {
     final value = cell;
-    if (value == null) {
-      return const SizedBox(width: 170, child: Text('未入力'));
-    }
+    if (value == null) return const SizedBox(width: 170, child: Text('未入力'));
 
     return SizedBox(
       width: 170,
@@ -658,29 +563,56 @@ class _ComparisonCellView extends StatelessWidget {
         children: [
           Chip(
             visualDensity: VisualDensity.compact,
-            label: Text(
-              value.inclusionStatus.labelJa,
-              style: const TextStyle(fontSize: 11),
-            ),
+            label: Text(value.inclusionStatus.labelJa, style: const TextStyle(fontSize: 11)),
           ),
-          Text('金額: ${_formatAmount(value.amountYen)}'),
-          Text('数量: ${_formatQuantity(value.quantity, value.unit)}'),
-          Text(
-            '仕様: ${value.specification ?? "未入力"}',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
+          Text('金額: ${_amount(value.amountYen)}'),
+          Text('数量: ${_quantity(value.quantity, value.unit)}'),
+          Text('仕様: ${value.specification ?? "未入力"}', maxLines: 2, overflow: TextOverflow.ellipsis),
           if (value.uncertaintyReasons.isNotEmpty)
             Text(
               '確認: ${value.uncertaintyReasons.join(" / ")}',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.error,
-                fontSize: 11,
-              ),
+              style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 11),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _DetailUnlockCard extends StatelessWidget {
+  const _DetailUnlockCard({
+    required this.loading,
+    required this.onUnlock,
+    required this.onRemoveAds,
+  });
+
+  final bool loading;
+  final VoidCallback onUnlock;
+  final VoidCallback onRemoveAds;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            const Icon(Icons.table_chart_outlined, size: 40),
+            const SizedBox(height: 8),
+            const Text('詳細比較を表示', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            const Text('カテゴリ別の金額・仕様差と、業者への確認質問を表示します。'),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: loading ? null : onUnlock,
+              icon: const Icon(Icons.ondemand_video_outlined),
+              label: Text(loading ? '広告を準備中…' : '広告を見て詳細を表示'),
+            ),
+            TextButton(onPressed: onRemoveAds, child: const Text('広告を削除')),
+          ],
+        ),
       ),
     );
   }
@@ -700,10 +632,7 @@ class _QuestionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              question.templateKey,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
+            Text(question.templateKey, style: const TextStyle(fontSize: 12, color: Colors.grey)),
             const SizedBox(height: 4),
             Text(question.questionText),
           ],
