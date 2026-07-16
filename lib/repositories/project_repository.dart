@@ -71,7 +71,8 @@ class ProjectRepository {
                       transaction,
                       projectId: projectId,
                       quote: quote,
-                      intent: revisionIntent,
+                      intent: revisionIntent ??
+                          const QuoteImportIntent.newQuote(),
                       sourceFileHash: sourceFileHash,
                     ),
           );
