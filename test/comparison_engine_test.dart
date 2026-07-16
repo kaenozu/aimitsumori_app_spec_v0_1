@@ -2,12 +2,13 @@
 /// 比較ロジックのユニットテスト
 library;
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:aimitsumori_app/data/sample_data.dart';
+import 'package:aimitsumori_app/comparison_engine.dart';
 import 'package:aimitsumori_app/models.dart';
 import 'package:aimitsumori_app/normalizer.dart';
-import 'package:aimitsumori_app/comparison_engine.dart';
 import 'package:aimitsumori_app/question_generator.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'helpers/test_helpers.dart';
 
 void main() {
   final normalizer = Normalizer();
@@ -15,7 +16,7 @@ void main() {
   final engine = ComparisonEngine();
 
   test('compare keeps input company order and creates exactly three summary lines', () {
-    final project = SampleData.project();
+    final project = createSampleComparisonProject();
     final normalized = normalizer.normalize(project);
     final questions = questionGenerator.generate(
       project: project,
@@ -37,7 +38,7 @@ void main() {
   });
 
   test('compare does not hide separate items behind low total', () {
-    final project = SampleData.project();
+    final project = createSampleComparisonProject();
     final normalized = normalizer.normalize(project);
     final questions = questionGenerator.generate(
       project: project,
@@ -64,7 +65,7 @@ void main() {
   });
 
   test('normalization preserves unknown values without guessing', () {
-    final project = SampleData.project();
+    final project = createSampleComparisonProject();
     final companyC = normalizer.normalize(project).firstWhere((q) => q.contractorName == 'C社');
     final concrete = companyC.lines.firstWhere((l) => l.category.id == 'concrete');
     final drainage = companyC.lines.firstWhere((l) => l.category.id == 'drainage');
@@ -80,7 +81,7 @@ void main() {
   });
 
   test('report contains all 18 categories and no synthetic score or ranking', () {
-    final project = SampleData.project();
+    final project = createSampleComparisonProject();
     final normalized = normalizer.normalize(project);
     final questions = questionGenerator.generate(
       project: project,
