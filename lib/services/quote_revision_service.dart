@@ -1,4 +1,4 @@
-/// 見積改訂セッションとSQLite永続化を管理する。
+/// 見積改訂履歴のSQLite永続化を管理する。
 library;
 
 import 'dart:convert';
@@ -10,42 +10,6 @@ import '../models.dart';
 import '../quote_revision_models.dart';
 import 'database_service.dart';
 import 'id_generator.dart';
-
-/// 旧画面との互換用。新しい呼び出しでは意図とハッシュを明示的に渡す。
-class QuoteRevisionSession {
-  QuoteRevisionSession._();
-
-  static final QuoteRevisionSession instance = QuoteRevisionSession._();
-
-  QuoteImportIntent _intent = const QuoteImportIntent.newQuote();
-  String? _sourceFileHash;
-
-  QuoteImportIntent consume() {
-    final current = _intent;
-    _intent = const QuoteImportIntent.newQuote();
-    return current;
-  }
-
-  String? consumeSourceFileHash() {
-    final current = _sourceFileHash;
-    _sourceFileHash = null;
-    return current;
-  }
-
-  void begin(QuoteImportIntent intent) {
-    _intent = intent;
-    _sourceFileHash = null;
-  }
-
-  void setSourceFileHash(String sourceFileHash) {
-    _sourceFileHash = sourceFileHash;
-  }
-
-  void clear() {
-    _intent = const QuoteImportIntent.newQuote();
-    _sourceFileHash = null;
-  }
-}
 
 class QuoteRevisionService {
   QuoteRevisionService({DatabaseService? databaseService})
@@ -95,7 +59,7 @@ class QuoteRevisionService {
   Future<QuoteRevision> recordQuote({
     required String projectId,
     required ContractorQuote quote,
-    QuoteImportIntent? intent,
+    QuoteImportIntent intent = const QuoteImportIntent.newQuote(),
     String? sourceFileHash,
   }) async {
     final db = await _databaseService.database;
@@ -115,20 +79,16 @@ class QuoteRevisionService {
     DatabaseExecutor transaction, {
     required String projectId,
     required ContractorQuote quote,
-    QuoteImportIntent? intent,
+    QuoteImportIntent intent = const QuoteImportIntent.newQuote(),
     String? sourceFileHash,
   }) async {
-    final session = QuoteRevisionSession.instance;
-    final currentIntent = intent ?? session.consume();
-    final resolvedSourceHash = sourceFileHash ??
-        (intent == null ? session.consumeSourceFileHash() : null) ??
-        _quoteHash(quote);
+    final resolvedSourceHash = sourceFileHash ?? _quoteHash(quote);
     final now = DateTime.now().millisecondsSinceEpoch;
-    final groupId = currentIntent.isRevision
-        ? currentIntent.quoteGroupId!
+    final groupId = intent.isRevision
+        ? intent.quoteGroupId!
         : IdGenerator.prefixed('group');
 
-    if (currentIntent.isRevision) {
+    if (intent.isRevision) {
       final groupRows = await transaction.query(
         'quote_revisions',
         columns: ['id'],
@@ -153,8 +113,8 @@ class QuoteRevisionService {
     final revisionNumber = previousRows.isEmpty
         ? 1
         : (previousRows.first['revision_number'] as int) + 1;
-    final parentRevisionId = currentIntent.isRevision
-        ? currentIntent.parentRevisionId ?? latestRevisionId
+    final parentRevisionId = intent.isRevision
+        ? intent.parentRevisionId ?? latestRevisionId
         : null;
 
     if (parentRevisionId != null) {
@@ -180,7 +140,7 @@ class QuoteRevisionService {
       parentRevisionId: parentRevisionId,
       sourceFileHash: resolvedSourceHash,
       importedAt: now,
-      changeReason: currentIntent.changeReason,
+      changeReason: intent.changeReason,
       quoteSnapshot: quote,
     );
     await transaction.insert(
@@ -214,7 +174,6 @@ class QuoteRevisionService {
           transaction,
           projectId: projectId,
           quote: quote,
-          intent: const QuoteImportIntent.newQuote(),
           sourceFileHash: _quoteHash(quote),
         );
       }
