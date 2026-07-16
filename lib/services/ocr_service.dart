@@ -13,7 +13,6 @@ import 'package:pdf_image_renderer/pdf_image_renderer.dart';
 import '../models.dart';
 import '../ocr_models.dart';
 import 'ocr_confidence_engine.dart';
-import 'quote_revision_service.dart';
 
 class OcrService {
   OcrService({
@@ -27,15 +26,22 @@ class OcrService {
   final List<String> _temporaryReviewImagePaths = [];
 
   OcrReviewBundle? lastReviewBundle;
+  String? lastSourceFileHash;
 
   Future<RawQuoteData> extractQuote(String filePath) async {
     await _clearTemporaryReviewImages();
     lastReviewBundle = null;
+    lastSourceFileHash = null;
 
-    final sourceBytes = await File(filePath).readAsBytes();
-    QuoteRevisionSession.instance.setSourceFileHash(
-      sha256.convert(sourceBytes).toString(),
-    );
+    final sourceFile = File(filePath);
+    if (!await sourceFile.exists()) {
+      throw const OcrException('選択したファイルが見つかりません。もう一度選択してください。');
+    }
+    final sourceBytes = await sourceFile.readAsBytes();
+    if (sourceBytes.isEmpty) {
+      throw const OcrException('選択したファイルが空です。別のファイルを選択してください。');
+    }
+    lastSourceFileHash = sha256.convert(sourceBytes).toString();
 
     final extension = p.extension(filePath).toLowerCase();
     final document = extension == '.pdf'
@@ -87,24 +93,32 @@ class OcrService {
     await renderer.open();
     try {
       final pageCount = await renderer.getPageCount();
+      if (pageCount <= 0) {
+        throw const OcrException('PDFに読み取れるページがありません。');
+      }
+      if (pageCount > 100) {
+        throw const OcrException('PDFのページ数が多すぎます。100ページ以下に分割してください。');
+      }
       for (var pageIndex = 0; pageIndex < pageCount; pageIndex++) {
         await renderer.openPage(pageIndex: pageIndex);
         try {
           final size = await renderer.getPageSize(pageIndex: pageIndex);
+          final scale = _renderScale(size.width, size.height);
           final bytes = await renderer.renderPage(
             pageIndex: pageIndex,
             x: 0,
             y: 0,
             width: size.width,
             height: size.height,
-            scale: 2,
+            scale: scale,
           );
           if (bytes == null || bytes.isEmpty) continue;
 
           final renderedFile = File(
             p.join(
               temporaryDirectory.path,
-              'aimitsumori-review-${DateTime.now().microsecondsSinceEpoch}-$pageIndex.png',
+              'aimitsumori-review-'
+              '${DateTime.now().microsecondsSinceEpoch}-$pageIndex.png',
             ),
           );
           await renderedFile.writeAsBytes(bytes, flush: true);
@@ -131,6 +145,14 @@ class OcrService {
       text: textBuffer.toString().trim(),
       lines: lines,
     );
+  }
+
+  double _renderScale(double width, double height) {
+    const targetScale = 2.0;
+    const maxDimension = 6000.0;
+    final longest = width > height ? width : height;
+    if (longest <= 0) return 1;
+    return (maxDimension / longest).clamp(1.0, targetScale).toDouble();
   }
 
   RawQuoteData _parse({
