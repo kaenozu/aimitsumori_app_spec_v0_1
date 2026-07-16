@@ -11,8 +11,8 @@ import '../repositories/project_repository.dart';
 import '../repositories/quote_revision_repository.dart';
 import '../services/quote_revision_diff_engine.dart';
 import '../services/quote_revision_import_coordinator.dart';
-import 'comparison_screen.dart';
 import 'quote_input_screen.dart';
+import 'revision_comparison_screen.dart';
 
 class QuoteRevisionScreen extends StatefulWidget {
   const QuoteRevisionScreen({
@@ -102,23 +102,18 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
     }
     final comparisonProject = widget.project.copyWith(
       quotes: [for (final revision in selected) revision.quoteSnapshot],
-      updatedAtEpochMillis: DateTime.now().millisecondsSinceEpoch,
+      updatedAtEpochMillis: widget.project.updatedAtEpochMillis,
     );
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
-        builder: (_) => ComparisonScreen(
-          project: comparisonProject,
-          repository: widget.projectRepository,
-        ),
+        builder: (_) => RevisionComparisonScreen(project: comparisonProject),
       ),
     );
   }
 
-  Future<void> _registerNewContractor() async {
-    _importCoordinator.beginNewQuote();
-    await _openQuoteInput();
-  }
+  Future<void> _registerNewContractor() =>
+      _openQuoteInput(_importCoordinator.newQuote());
 
   Future<void> _registerExistingRevision() async {
     if (_revisions.isEmpty) return;
@@ -193,14 +188,14 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
     controller.dispose();
     if (reason == null || !mounted) return;
 
-    _importCoordinator.beginRevisionFromHistory(
+    final intent = _importCoordinator.revisionFromHistory(
       parentRevision: parent,
       changeReason: reason,
     );
-    await _openQuoteInput();
+    await _openQuoteInput(intent);
   }
 
-  Future<void> _openQuoteInput() async {
+  Future<void> _openQuoteInput(QuoteImportIntent intent) async {
     try {
       final saved = await Navigator.push<bool>(
         context,
@@ -208,16 +203,12 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
           builder: (_) => QuoteInputScreen(
             project: widget.project,
             repository: widget.projectRepository,
+            revisionIntent: intent,
           ),
         ),
       );
-      if (saved == true) {
-        await _load();
-      } else {
-        _importCoordinator.cancel();
-      }
+      if (saved == true) await _load();
     } catch (error, stackTrace) {
-      _importCoordinator.cancel();
       debugPrint('Quote revision import failed: $error\n$stackTrace');
       if (mounted) {
         _showMessage('見積書の取り込み画面を開けませんでした。');
