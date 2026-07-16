@@ -59,6 +59,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
   bool _awaitingDocumentChange = false;
   bool _flashEnabled = false;
   bool _committed = false;
+  int _initializationToken = 0;
   int? _retakeIndex;
   String? _error;
   String? _notice;
@@ -85,6 +86,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
   }
 
   Future<void> _initializeCamera() async {
+    final token = ++_initializationToken;
     if (mounted) {
       setState(() {
         _initializing = true;
@@ -100,7 +102,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
         (item) => item.lensDirection == CameraLensDirection.back,
         orElse: () => cameras.first,
       );
-      await _disposeController();
+      await _disposeController(invalidateInitialization: false);
       final controller = CameraController(
         camera,
         ResolutionPreset.high,
@@ -108,9 +110,17 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
       await controller.initialize();
+      if (!mounted || token != _initializationToken) {
+        await controller.dispose();
+        return;
+      }
       await controller.setFlashMode(
         _flashEnabled ? FlashMode.torch : FlashMode.off,
       );
+      if (!mounted || token != _initializationToken) {
+        await controller.dispose();
+        return;
+      }
       _controller = controller;
       await controller.startImageStream(_analyzeFrame);
       if (mounted) setState(() => _initializing = false);
@@ -132,7 +142,10 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
     }
   }
 
-  Future<void> _disposeController() async {
+  Future<void> _disposeController({
+    bool invalidateInitialization = true,
+  }) async {
+    if (invalidateInitialization) _initializationToken++;
     final controller = _controller;
     _controller = null;
     if (controller == null) return;
