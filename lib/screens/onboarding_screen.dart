@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/sample_data.dart';
 import '../repositories/project_repository.dart';
 import '../services/ad_service.dart';
+import '../services/haptic_service.dart';
 import 'home_screen.dart';
 
 class FirstRunGate extends StatefulWidget {
@@ -15,10 +16,14 @@ class FirstRunGate extends StatefulWidget {
     super.key,
     this.repository,
     this.adService,
+    this.darkModeEnabled = false,
+    this.onDarkModeChanged,
   });
 
   final ProjectRepository? repository;
   final AdService? adService;
+  final bool darkModeEnabled;
+  final ValueChanged<bool>? onDarkModeChanged;
 
   @override
   State<FirstRunGate> createState() => _FirstRunGateState();
@@ -88,6 +93,8 @@ class _FirstRunGateState extends State<FirstRunGate> {
       return HomeScreen(
         repository: _repository,
         adService: widget.adService,
+        darkModeEnabled: widget.darkModeEnabled,
+        onDarkModeChanged: widget.onDarkModeChanged,
       );
     }
     return OnboardingScreen(
@@ -112,6 +119,11 @@ class OnboardingScreen extends StatelessWidget {
   final String? error;
   final VoidCallback onStart;
   final VoidCallback onTrySample;
+
+  Future<void> _handleTap(VoidCallback callback) async {
+    await HapticService.lightImpact();
+    callback();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -167,7 +179,7 @@ class OnboardingScreen extends StatelessWidget {
             ],
             const SizedBox(height: 24),
             FilledButton.icon(
-              onPressed: loading ? null : onTrySample,
+              onPressed: loading ? null : () => _handleTap(onTrySample),
               icon: loading
                   ? const SizedBox.square(
                       dimension: 18,
@@ -178,7 +190,7 @@ class OnboardingScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             TextButton(
-              onPressed: loading ? null : onStart,
+              onPressed: loading ? null : () => _handleTap(onStart),
               child: const Text('空の状態から始める'),
             ),
           ],
