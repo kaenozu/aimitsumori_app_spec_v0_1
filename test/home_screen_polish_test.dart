@@ -76,7 +76,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('案件を削除しますか？'), findsOneWidget);
-    expect(find.textContaining('削除対象案件'), findsOneWidget);
+    expect(
+      find.text('「削除対象案件」の見積と比較結果も削除されます。'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.widgetWithText(FilledButton, '削除'));
     await tester.pumpAndSettle();
