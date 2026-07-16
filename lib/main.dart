@@ -1,11 +1,20 @@
 /// ファイルパス: lib/main.dart
-/// エントリポイント & ナビゲーション
-/// 関連ファイル: lib/screens/home_screen.dart
+/// エントリポイント、広告・課金初期化、アプリテーマ
+/// 関連ファイル: lib/screens/home_screen.dart, lib/services/ad_service.dart
+library;
 
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
 
-void main() {
+import 'screens/home_screen.dart';
+import 'services/ad_service.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await AdService.instance.initialize();
+  } catch (error) {
+    debugPrint('Ad service initialization failed: $error');
+  }
   runApp(const AimitsumoriApp());
 }
 
