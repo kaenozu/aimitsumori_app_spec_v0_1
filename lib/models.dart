@@ -1,6 +1,7 @@
 /// ファイルパス: lib/models.dart
 /// 相見積もりアプリの全ドメインモデル定義
 /// 関連ファイル: data/category_master.dart, data/sample_data.dart
+library;
 
 enum InclusionStatus {
   included('included', '見積内'),
@@ -14,8 +15,7 @@ enum InclusionStatus {
   final String labelJa;
   const InclusionStatus(this.code, this.labelJa);
 
-  static InclusionStatus fromCode(String code) =>
-      InclusionStatus.values.firstWhere(
+  static InclusionStatus fromCode(String code) => InclusionStatus.values.firstWhere(
         (e) => e.code == code,
         orElse: () => InclusionStatus.unknown,
       );
@@ -34,8 +34,7 @@ enum ProjectStatus {
   final String labelJa;
   const ProjectStatus(this.code, this.labelJa);
 
-  static ProjectStatus fromCode(String code) =>
-      ProjectStatus.values.firstWhere(
+  static ProjectStatus fromCode(String code) => ProjectStatus.values.firstWhere(
         (e) => e.code == code,
         orElse: () => ProjectStatus.draft,
       );
@@ -68,6 +67,90 @@ class CategoryDefinition {
     this.quantityExpected,
     this.specificationExpected,
   );
+}
+
+class RawQuoteLineItem {
+  final String rawLabel;
+  final String categoryId;
+  final int? amountYen;
+  final InclusionStatus inclusionStatus;
+  final double? quantity;
+  final String? unit;
+  final String? specification;
+  final String? note;
+
+  const RawQuoteLineItem({
+    required this.rawLabel,
+    required this.categoryId,
+    this.amountYen,
+    this.inclusionStatus = InclusionStatus.unknown,
+    this.quantity,
+    this.unit,
+    this.specification,
+    this.note,
+  });
+}
+
+class RawQuoteData {
+  final String contractorName;
+  final int? totalAmountYen;
+  final List<RawQuoteLineItem> lineItems;
+  final String extractedText;
+  final String sourcePath;
+  final int createdAtEpochMillis;
+
+  const RawQuoteData({
+    required this.contractorName,
+    this.totalAmountYen,
+    this.lineItems = const [],
+    required this.extractedText,
+    required this.sourcePath,
+    required this.createdAtEpochMillis,
+  });
+
+  RawQuoteData copyWith({
+    String? contractorName,
+    int? totalAmountYen,
+    List<RawQuoteLineItem>? lineItems,
+    String? extractedText,
+    String? sourcePath,
+    int? createdAtEpochMillis,
+  }) {
+    return RawQuoteData(
+      contractorName: contractorName ?? this.contractorName,
+      totalAmountYen: totalAmountYen ?? this.totalAmountYen,
+      lineItems: lineItems ?? this.lineItems,
+      extractedText: extractedText ?? this.extractedText,
+      sourcePath: sourcePath ?? this.sourcePath,
+      createdAtEpochMillis: createdAtEpochMillis ?? this.createdAtEpochMillis,
+    );
+  }
+
+  ContractorQuote toContractorQuote({String? id}) {
+    final quoteId = id ?? 'quote-$createdAtEpochMillis';
+    return ContractorQuote(
+      id: quoteId,
+      contractorName: contractorName,
+      totalAmountYen: totalAmountYen,
+      note: 'OCR取込: $sourcePath',
+      createdAtEpochMillis: createdAtEpochMillis,
+      lineItems: [
+        for (var index = 0; index < lineItems.length; index++)
+          QuoteLineItem(
+            id: '$quoteId-line-${index + 1}',
+            categoryId: lineItems[index].categoryId,
+            rawLabel: lineItems[index].rawLabel,
+            amountYen: lineItems[index].amountYen,
+            inclusionStatus: lineItems[index].inclusionStatus,
+            quantity: lineItems[index].quantity,
+            unit: lineItems[index].unit,
+            specification: lineItems[index].specification,
+            note: lineItems[index].note,
+            sortOrder: index + 1,
+          ),
+      ],
+    );
+  }
 }
 
 class QuoteLineItem {
@@ -167,6 +250,22 @@ class Project {
                 .toList() ??
             [],
       );
+
+  Project copyWith({
+    String? name,
+    ProjectStatus? status,
+    int? updatedAtEpochMillis,
+    List<ContractorQuote>? quotes,
+  }) {
+    return Project(
+      id: id,
+      name: name ?? this.name,
+      status: status ?? this.status,
+      createdAtEpochMillis: createdAtEpochMillis,
+      updatedAtEpochMillis: updatedAtEpochMillis ?? this.updatedAtEpochMillis,
+      quotes: quotes ?? this.quotes,
+    );
+  }
 }
 
 class NormalizedLine {
