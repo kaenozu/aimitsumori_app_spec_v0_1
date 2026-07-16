@@ -4,18 +4,26 @@ library;
 
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import '../data/category_master.dart';
 import '../models.dart';
 
+typedef DatabaseTransactionCallback = Future<void> Function(
+  DatabaseExecutor transaction,
+);
+
 class DatabaseService {
   DatabaseService._();
 
+  @visibleForTesting
+  DatabaseService.testing(Database database) : _database = database;
+
   static final DatabaseService instance = DatabaseService._();
   static const _databaseName = 'aimitsumori.db';
-  static const _databaseVersion = 1;
+  static const _databaseVersion = 3;
 
   Database? _database;
 
@@ -29,14 +37,36 @@ class DatabaseService {
       version: _databaseVersion,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: _createSchema,
+      onUpgrade: _upgradeSchema,
     );
     _database = opened;
     return opened;
   }
 
+  @visibleForTesting
+  Future<void> initializeSchemaForTesting() async {
+    final db = await database;
+    await _createSchema(db, _databaseVersion);
+  }
+
   Future<void> _createSchema(Database db, int version) async {
+    await _createCoreSchema(db);
+    await _createRequirementsSchema(db);
+    await _createRevisionSchema(db);
+  }
+
+  Future<void> _upgradeSchema(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
+    if (oldVersion < 2) await _createRequirementsSchema(db);
+    if (oldVersion < 3) await _createRevisionSchema(db);
+  }
+
+  Future<void> _createCoreSchema(DatabaseExecutor db) async {
     await db.execute('''
-      CREATE TABLE projects (
+      CREATE TABLE IF NOT EXISTS projects (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         status TEXT NOT NULL,
@@ -45,7 +75,7 @@ class DatabaseService {
       )
     ''');
     await db.execute('''
-      CREATE TABLE contractor_quotes (
+      CREATE TABLE IF NOT EXISTS contractor_quotes (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
         contractor_name TEXT NOT NULL,
@@ -56,7 +86,7 @@ class DatabaseService {
       )
     ''');
     await db.execute('''
-      CREATE TABLE line_items (
+      CREATE TABLE IF NOT EXISTS line_items (
         id TEXT PRIMARY KEY,
         quote_id TEXT NOT NULL,
         category_id TEXT NOT NULL,
@@ -72,26 +102,107 @@ class DatabaseService {
       )
     ''');
     await db.execute('''
-      CREATE TABLE comparison_results (
+      CREATE TABLE IF NOT EXISTS comparison_results (
         project_id TEXT PRIMARY KEY,
         payload_json TEXT NOT NULL,
         saved_at INTEGER NOT NULL,
         FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
       )
     ''');
-    await db.execute('CREATE INDEX idx_quotes_project ON contractor_quotes(project_id)');
-    await db.execute('CREATE INDEX idx_items_quote ON line_items(quote_id)');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_quotes_project '
+      'ON contractor_quotes(project_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_items_quote ON line_items(quote_id)',
+    );
+  }
+
+  Future<void> _createRequirementsSchema(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS project_requirements (
+        project_id TEXT NOT NULL,
+        category_id TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        expected_quantity REAL,
+        expected_unit TEXT,
+        desired_specification TEXT,
+        note TEXT,
+        PRIMARY KEY(project_id, category_id),
+        FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_requirements_project '
+      'ON project_requirements(project_id)',
+    );
+  }
+
+  Future<void> _createRevisionSchema(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS quote_revisions (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        quote_id TEXT NOT NULL,
+        contractor_name TEXT NOT NULL,
+        quote_group_id TEXT NOT NULL,
+        revision_number INTEGER NOT NULL,
+        parent_revision_id TEXT,
+        source_file_hash TEXT NOT NULL,
+        imported_at INTEGER NOT NULL,
+        change_reason TEXT,
+        quote_snapshot_json TEXT NOT NULL,
+        FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_quote_revisions_group_number '
+      'ON quote_revisions(quote_group_id, revision_number)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_quote_revisions_project '
+      'ON quote_revisions(project_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_quote_revisions_quote '
+      'ON quote_revisions(quote_id)',
+    );
   }
 
   Future<List<Project>> getProjects() async {
     final db = await database;
-    final rows = await db.query('projects', orderBy: 'updated_at DESC');
-    final projects = <Project>[];
-    for (final row in rows) {
-      final project = await _loadProject(db, row['id'] as String);
-      if (project != null) projects.add(project);
+    final projectRows = await db.query('projects', orderBy: 'updated_at DESC');
+    if (projectRows.isEmpty) return const [];
+
+    final quoteRows = await db.query('contractor_quotes', orderBy: 'created_at ASC');
+    final itemRows = await db.query('line_items', orderBy: 'sort_order ASC');
+    final itemsByQuote = <String, List<QuoteLineItem>>{};
+    for (final row in itemRows) {
+      final quoteId = row['quote_id'] as String;
+      itemsByQuote.putIfAbsent(quoteId, () => []).add(_lineItemFromRow(row));
     }
-    return projects;
+    final quotesByProject = <String, List<ContractorQuote>>{};
+    for (final row in quoteRows) {
+      final quoteId = row['id'] as String;
+      final projectId = row['project_id'] as String;
+      quotesByProject.putIfAbsent(projectId, () => []).add(
+            ContractorQuote(
+              id: quoteId,
+              contractorName: row['contractor_name'] as String,
+              totalAmountYen: row['total_amount_yen'] as int?,
+              note: row['note'] as String?,
+              createdAtEpochMillis: row['created_at'] as int,
+              lineItems: itemsByQuote[quoteId] ?? const [],
+            ),
+          );
+    }
+    return [
+      for (final row in projectRows)
+        _projectFromRow(
+          row,
+          quotesByProject[row['id'] as String] ?? const [],
+        ),
+    ];
   }
 
   Future<Project?> getProject(String projectId) async {
@@ -130,21 +241,25 @@ class DatabaseService {
           totalAmountYen: quoteRow['total_amount_yen'] as int?,
           note: quoteRow['note'] as String?,
           createdAtEpochMillis: quoteRow['created_at'] as int,
-          lineItems: itemRows.map(_lineItemFromRow).toList(),
+          lineItems: itemRows.map(_lineItemFromRow).toList(growable: false),
         ),
       );
     }
-
-    final row = projectRows.first;
-    return Project(
-      id: row['id'] as String,
-      name: row['name'] as String,
-      status: ProjectStatus.fromCode(row['status'] as String),
-      createdAtEpochMillis: row['created_at'] as int,
-      updatedAtEpochMillis: row['updated_at'] as int,
-      quotes: quotes,
-    );
+    return _projectFromRow(projectRows.first, quotes);
   }
+
+  Project _projectFromRow(
+    Map<String, Object?> row,
+    List<ContractorQuote> quotes,
+  ) =>
+      Project(
+        id: row['id'] as String,
+        name: row['name'] as String,
+        status: ProjectStatus.fromCode(row['status'] as String),
+        createdAtEpochMillis: row['created_at'] as int,
+        updatedAtEpochMillis: row['updated_at'] as int,
+        quotes: quotes,
+      );
 
   QuoteLineItem _lineItemFromRow(Map<String, Object?> row) {
     return QuoteLineItem(
@@ -163,74 +278,137 @@ class DatabaseService {
 
   Future<void> saveProject(Project project) async {
     final db = await database;
-    await db.transaction((txn) async {
-      await txn.insert(
-        'projects',
-        _projectToRow(project),
-        conflictAlgorithm: ConflictAlgorithm.replace,
+    await db.transaction((transaction) async {
+      await _upsertProject(transaction, project);
+      await transaction.delete(
+        'contractor_quotes',
+        where: 'project_id = ?',
+        whereArgs: [project.id],
       );
-      await txn.delete('contractor_quotes', where: 'project_id = ?', whereArgs: [project.id]);
       for (final quote in project.quotes) {
-        await _insertQuote(txn, project.id, quote);
+        await _upsertQuote(transaction, project.id, quote);
       }
-      await txn.delete('comparison_results', where: 'project_id = ?', whereArgs: [project.id]);
+      await transaction.delete(
+        'comparison_results',
+        where: 'project_id = ?',
+        whereArgs: [project.id],
+      );
     });
   }
 
   Future<void> updateProject(Project project) async => saveProject(project);
+
+  Future<void> _upsertProject(
+    DatabaseExecutor db,
+    Project project,
+  ) async {
+    final row = _projectToRow(project);
+    final updated = await db.update(
+      'projects',
+      row,
+      where: 'id = ?',
+      whereArgs: [project.id],
+    );
+    if (updated == 0) {
+      await db.insert(
+        'projects',
+        row,
+        conflictAlgorithm: ConflictAlgorithm.abort,
+      );
+    }
+  }
 
   Future<void> deleteProject(String projectId) async {
     final db = await database;
     await db.delete('projects', where: 'id = ?', whereArgs: [projectId]);
   }
 
-  Future<void> saveQuote(String projectId, ContractorQuote quote) async {
+  Future<void> deleteAllData() async {
     final db = await database;
-    await db.transaction((txn) async {
-      final existing = await txn.query(
-        'projects',
-        columns: ['id'],
-        where: 'id = ?',
-        whereArgs: [projectId],
-        limit: 1,
-      );
-      if (existing.isEmpty) {
-        throw StateError('保存先の案件が見つかりません: $projectId');
-      }
-
-      await _insertQuote(txn, projectId, quote);
-      await txn.update(
-        'projects',
-        {
-          'status': ProjectStatus.needsReview.code,
-          'updated_at': DateTime.now().millisecondsSinceEpoch,
-        },
-        where: 'id = ?',
-        whereArgs: [projectId],
-      );
-      await txn.delete('comparison_results', where: 'project_id = ?', whereArgs: [projectId]);
+    await db.transaction((transaction) async {
+      await transaction.delete('projects');
     });
   }
 
-  Future<void> _insertQuote(
+  Future<void> saveQuote(
+    String projectId,
+    ContractorQuote quote, {
+    DatabaseTransactionCallback? afterQuoteSaved,
+  }) async {
+    final db = await database;
+    await db.transaction((transaction) async {
+      await saveQuoteInTransaction(transaction, projectId, quote);
+      await afterQuoteSaved?.call(transaction);
+    });
+  }
+
+  @visibleForTesting
+  Future<void> saveQuoteInTransaction(
+    DatabaseExecutor transaction,
+    String projectId,
+    ContractorQuote quote,
+  ) async {
+    final existing = await transaction.query(
+      'projects',
+      columns: ['id'],
+      where: 'id = ?',
+      whereArgs: [projectId],
+      limit: 1,
+    );
+    if (existing.isEmpty) {
+      throw StateError('保存先の案件が見つかりません: $projectId');
+    }
+
+    await _upsertQuote(transaction, projectId, quote);
+    await transaction.update(
+      'projects',
+      {
+        'status': ProjectStatus.needsReview.code,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'id = ?',
+      whereArgs: [projectId],
+    );
+    await transaction.delete(
+      'comparison_results',
+      where: 'project_id = ?',
+      whereArgs: [projectId],
+    );
+  }
+
+  Future<void> _upsertQuote(
     DatabaseExecutor db,
     String projectId,
     ContractorQuote quote,
   ) async {
-    await db.insert(
+    final row = <String, Object?>{
+      'id': quote.id,
+      'project_id': projectId,
+      'contractor_name': quote.contractorName,
+      'total_amount_yen': quote.totalAmountYen,
+      'note': quote.note,
+      'created_at': quote.createdAtEpochMillis,
+    };
+    final updated = await db.update(
       'contractor_quotes',
-      {
-        'id': quote.id,
-        'project_id': projectId,
-        'contractor_name': quote.contractorName,
-        'total_amount_yen': quote.totalAmountYen,
-        'note': quote.note,
-        'created_at': quote.createdAtEpochMillis,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
+      row,
+      where: 'id = ?',
+      whereArgs: [quote.id],
     );
+    if (updated == 0) {
+      await db.insert(
+        'contractor_quotes',
+        row,
+        conflictAlgorithm: ConflictAlgorithm.abort,
+      );
+    }
+
     await db.delete('line_items', where: 'quote_id = ?', whereArgs: [quote.id]);
+    final ids = <String>{};
     for (final item in quote.lineItems) {
+      if (!ids.add(item.id)) {
+        throw StateError('同じ明細IDが重複しています: ${item.id}');
+      }
       await db.insert(
         'line_items',
         {
@@ -246,7 +424,7 @@ class DatabaseService {
           'note': item.note,
           'sort_order': item.sortOrder,
         },
-        conflictAlgorithm: ConflictAlgorithm.replace,
+        conflictAlgorithm: ConflictAlgorithm.abort,
       );
     }
   }
@@ -261,15 +439,24 @@ class DatabaseService {
 
   Future<void> saveComparisonResult(ComparisonReport report) async {
     final db = await database;
-    await db.insert(
+    final row = <String, Object?>{
+      'project_id': report.projectId,
+      'payload_json': jsonEncode(_reportToJson(report)),
+      'saved_at': DateTime.now().millisecondsSinceEpoch,
+    };
+    final updated = await db.update(
       'comparison_results',
-      {
-        'project_id': report.projectId,
-        'payload_json': jsonEncode(_reportToJson(report)),
-        'saved_at': DateTime.now().millisecondsSinceEpoch,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
+      row,
+      where: 'project_id = ?',
+      whereArgs: [report.projectId],
     );
+    if (updated == 0) {
+      await db.insert(
+        'comparison_results',
+        row,
+        conflictAlgorithm: ConflictAlgorithm.abort,
+      );
+    }
   }
 
   Future<ComparisonReport?> loadComparisonResult(String projectId) async {
@@ -283,7 +470,8 @@ class DatabaseService {
     );
     if (rows.isEmpty) return null;
 
-    final payload = jsonDecode(rows.first['payload_json'] as String) as Map<String, dynamic>;
+    final payload =
+        jsonDecode(rows.first['payload_json'] as String) as Map<String, dynamic>;
     return _reportFromJson(payload);
   }
 
@@ -350,7 +538,9 @@ class DatabaseService {
           category: category,
           cells: [
             for (final cellRaw in value['cells'] as List<dynamic>? ?? const [])
-              _comparisonCellFromJson(Map<String, dynamic>.from(cellRaw as Map)),
+              _comparisonCellFromJson(
+                Map<String, dynamic>.from(cellRaw as Map),
+              ),
           ],
         ),
       );
@@ -359,42 +549,57 @@ class DatabaseService {
     return ComparisonReport(
       projectId: json['projectId'] as String,
       projectName: json['projectName'] as String,
-      summaryLines: List<String>.from(json['summaryLines'] as List<dynamic>? ?? const []),
+      summaryLines: List<String>.from(
+        json['summaryLines'] as List<dynamic>? ?? const [],
+      ),
       quoteSnapshots: [
         for (final raw in json['quoteSnapshots'] as List<dynamic>? ?? const [])
           _quoteSnapshotFromJson(Map<String, dynamic>.from(raw as Map)),
       ],
       categoryComparisons: comparisons,
       clarificationQuestions: [
-        for (final raw in json['clarificationQuestions'] as List<dynamic>? ?? const [])
+        for (final raw
+            in json['clarificationQuestions'] as List<dynamic>? ?? const [])
           _questionFromJson(Map<String, dynamic>.from(raw as Map)),
       ],
     );
   }
 
-  QuoteSnapshot _quoteSnapshotFromJson(Map<String, dynamic> json) => QuoteSnapshot(
+  QuoteSnapshot _quoteSnapshotFromJson(Map<String, dynamic> json) =>
+      QuoteSnapshot(
         quoteId: json['quoteId'] as String,
         contractorName: json['contractorName'] as String,
         totalAmountYen: json['totalAmountYen'] as int?,
         includedCategoryCount: json['includedCategoryCount'] as int,
-        separateCategoryNames: List<String>.from(json['separateCategoryNames'] as List<dynamic>? ?? const []),
-        optionalCategoryNames: List<String>.from(json['optionalCategoryNames'] as List<dynamic>? ?? const []),
-        unknownCategoryNames: List<String>.from(json['unknownCategoryNames'] as List<dynamic>? ?? const []),
+        separateCategoryNames: List<String>.from(
+          json['separateCategoryNames'] as List<dynamic>? ?? const [],
+        ),
+        optionalCategoryNames: List<String>.from(
+          json['optionalCategoryNames'] as List<dynamic>? ?? const [],
+        ),
+        unknownCategoryNames: List<String>.from(
+          json['unknownCategoryNames'] as List<dynamic>? ?? const [],
+        ),
         uncertaintyCount: json['uncertaintyCount'] as int,
       );
 
-  ComparisonCell _comparisonCellFromJson(Map<String, dynamic> json) => ComparisonCell(
+  ComparisonCell _comparisonCellFromJson(Map<String, dynamic> json) =>
+      ComparisonCell(
         quoteId: json['quoteId'] as String,
         contractorName: json['contractorName'] as String,
-        inclusionStatus: InclusionStatus.fromCode(json['inclusionStatus'] as String),
+        inclusionStatus:
+            InclusionStatus.fromCode(json['inclusionStatus'] as String),
         amountYen: json['amountYen'] as int?,
         quantity: (json['quantity'] as num?)?.toDouble(),
         unit: json['unit'] as String?,
         specification: json['specification'] as String?,
-        uncertaintyReasons: List<String>.from(json['uncertaintyReasons'] as List<dynamic>? ?? const []),
+        uncertaintyReasons: List<String>.from(
+          json['uncertaintyReasons'] as List<dynamic>? ?? const [],
+        ),
       );
 
-  ClarificationQuestion _questionFromJson(Map<String, dynamic> json) => ClarificationQuestion(
+  ClarificationQuestion _questionFromJson(Map<String, dynamic> json) =>
+      ClarificationQuestion(
         id: json['id'] as String,
         projectId: json['projectId'] as String,
         quoteId: json['quoteId'] as String?,
