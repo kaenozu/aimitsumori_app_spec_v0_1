@@ -1,5 +1,6 @@
 /// ファイルパス: test/comparison_engine_test.dart
 /// 比較ロジックのユニットテスト
+library;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aimitsumori_app/data/sample_data.dart';
