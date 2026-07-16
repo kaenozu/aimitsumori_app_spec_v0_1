@@ -3,12 +3,15 @@ library;
 
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models.dart';
 import '../quote_revision_models.dart';
 import 'database_service.dart';
+import 'id_generator.dart';
 
+/// 旧画面との互換用。新しい呼び出しでは意図とハッシュを明示的に渡す。
 class QuoteRevisionSession {
   QuoteRevisionSession._();
 
@@ -83,26 +86,62 @@ class QuoteRevisionService {
       'CREATE INDEX IF NOT EXISTS idx_quote_revisions_project '
       'ON quote_revisions(project_id)',
     );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_quote_revisions_quote '
+      'ON quote_revisions(quote_id)',
+    );
   }
 
   Future<QuoteRevision> recordQuote({
     required String projectId,
     required ContractorQuote quote,
     QuoteImportIntent? intent,
+    String? sourceFileHash,
+  }) async {
+    final db = await _databaseService.database;
+    await _ensureSchema(db);
+    return db.transaction(
+      (transaction) => recordQuoteInTransaction(
+        transaction,
+        projectId: projectId,
+        quote: quote,
+        intent: intent,
+        sourceFileHash: sourceFileHash,
+      ),
+    );
+  }
+
+  Future<QuoteRevision> recordQuoteInTransaction(
+    DatabaseExecutor transaction, {
+    required String projectId,
+    required ContractorQuote quote,
+    QuoteImportIntent? intent,
+    String? sourceFileHash,
   }) async {
     final session = QuoteRevisionSession.instance;
     final currentIntent = intent ?? session.consume();
-    final sourceFileHash = intent == null
-        ? session.consumeSourceFileHash() ?? _quoteHash(quote)
-        : _quoteHash(quote);
-    final db = await _databaseService.database;
-    await _ensureSchema(db);
+    final resolvedSourceHash = sourceFileHash ??
+        (intent == null ? session.consumeSourceFileHash() : null) ??
+        _quoteHash(quote);
     final now = DateTime.now().millisecondsSinceEpoch;
     final groupId = currentIntent.isRevision
         ? currentIntent.quoteGroupId!
-        : 'group-$projectId-'
-            '${_stableHash('${quote.id}|${quote.contractorName}|$now')}';
-    final previousRows = await db.query(
+        : IdGenerator.prefixed('group');
+
+    if (currentIntent.isRevision) {
+      final groupRows = await transaction.query(
+        'quote_revisions',
+        columns: ['id'],
+        where: 'quote_group_id = ? AND project_id = ?',
+        whereArgs: [groupId, projectId],
+        limit: 1,
+      );
+      if (groupRows.isEmpty) {
+        throw StateError('改訂元の見積グループが見つかりません。');
+      }
+    }
+
+    final previousRows = await transaction.query(
       'quote_revisions',
       where: 'quote_group_id = ?',
       whereArgs: [groupId],
@@ -117,20 +156,34 @@ class QuoteRevisionService {
     final parentRevisionId = currentIntent.isRevision
         ? currentIntent.parentRevisionId ?? latestRevisionId
         : null;
+
+    if (parentRevisionId != null) {
+      final parentRows = await transaction.query(
+        'quote_revisions',
+        columns: ['id'],
+        where: 'id = ? AND quote_group_id = ?',
+        whereArgs: [parentRevisionId, groupId],
+        limit: 1,
+      );
+      if (parentRows.isEmpty) {
+        throw StateError('指定された親版が同じ見積グループに存在しません。');
+      }
+    }
+
     final revision = QuoteRevision(
-      id: 'revision-$groupId-$revisionNumber',
+      id: IdGenerator.prefixed('revision'),
       projectId: projectId,
       quoteId: quote.id,
       contractorName: quote.contractorName,
       quoteGroupId: groupId,
       revisionNumber: revisionNumber,
       parentRevisionId: parentRevisionId,
-      sourceFileHash: sourceFileHash,
+      sourceFileHash: resolvedSourceHash,
       importedAt: now,
       changeReason: currentIntent.changeReason,
       quoteSnapshot: quote,
     );
-    await db.insert(
+    await transaction.insert(
       'quote_revisions',
       _toRow(revision),
       conflictAlgorithm: ConflictAlgorithm.abort,
@@ -145,23 +198,27 @@ class QuoteRevisionService {
     if (quotes.isEmpty) return;
     final db = await _databaseService.database;
     await _ensureSchema(db);
-    final rows = await db.query(
-      'quote_revisions',
-      columns: ['quote_id'],
-      where: 'project_id = ?',
-      whereArgs: [projectId],
-    );
-    final existingQuoteIds = {
-      for (final row in rows) row['quote_id'] as String,
-    };
-    for (final quote in quotes) {
-      if (existingQuoteIds.contains(quote.id)) continue;
-      await recordQuote(
-        projectId: projectId,
-        quote: quote,
-        intent: const QuoteImportIntent.newQuote(),
+    await db.transaction((transaction) async {
+      final rows = await transaction.query(
+        'quote_revisions',
+        columns: ['quote_id'],
+        where: 'project_id = ?',
+        whereArgs: [projectId],
       );
-    }
+      final existingQuoteIds = {
+        for (final row in rows) row['quote_id'] as String,
+      };
+      for (final quote in quotes) {
+        if (existingQuoteIds.contains(quote.id)) continue;
+        await recordQuoteInTransaction(
+          transaction,
+          projectId: projectId,
+          quote: quote,
+          intent: const QuoteImportIntent.newQuote(),
+          sourceFileHash: _quoteHash(quote),
+        );
+      }
+    });
   }
 
   Future<List<QuoteRevision>> getProjectRevisions(String projectId) async {
@@ -272,18 +329,6 @@ class QuoteRevisionService {
         ],
       );
 
-  String _quoteHash(ContractorQuote quote) {
-    return _stableHash(jsonEncode(_quoteToJson(quote)));
-  }
-
-  String _stableHash(String value) {
-    var a = 0x811C9DC5;
-    var b = 0x9E3779B9;
-    for (final unit in value.codeUnits) {
-      a = ((a ^ unit) * 0x01000193) & 0xFFFFFFFF;
-      b = ((b + unit) * 31) & 0xFFFFFFFF;
-    }
-    return '${a.toUnsigned(32).toRadixString(16).padLeft(8, '0')}'
-        '${b.toUnsigned(32).toRadixString(16).padLeft(8, '0')}';
-  }
+  String _quoteHash(ContractorQuote quote) =>
+      sha256.convert(utf8.encode(jsonEncode(_quoteToJson(quote)))).toString();
 }
