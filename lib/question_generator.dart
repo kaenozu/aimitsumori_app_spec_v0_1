@@ -3,6 +3,8 @@ library;
 
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
+
 import 'data/category_master.dart';
 import 'models.dart';
 import 'requirements_models.dart';
@@ -112,8 +114,7 @@ class QuestionGenerator {
       ));
     }
 
-    final seen = <String>{};
-    return rawQuestions.where((question) => seen.add(question.$1)).map((question) {
+    return _deduplicate(rawQuestions).map((question) {
       return _question(
         projectId: projectId,
         quoteId: quote.quoteId,
@@ -155,24 +156,42 @@ class QuestionGenerator {
         break;
     }
 
-    for (final mismatch in assessment.mismatches) {
-      switch (mismatch.type) {
-        case RequirementMismatchType.quantity:
-        case RequirementMismatchType.unit:
-          rawQuestions.add((
-            'REQUIREMENT_QUANTITY_MISMATCH',
-            '$contractor様：${category.nameJa}の希望数量・単位との差を確認したいです。${mismatch.message}。差が生じた理由と算定根拠をご提示ください。',
-          ));
-        case RequirementMismatchType.specification:
-          rawQuestions.add((
-            'REQUIREMENT_SPECIFICATION_MISMATCH',
-            '$contractor様：${category.nameJa}の希望仕様との差を確認したいです。${mismatch.message}。同等仕様か、変更が必要かをご回答ください。',
-          ));
-      }
+    final quantityMessages = assessment.mismatches
+        .where((value) => value.type == RequirementMismatchType.quantity)
+        .map((value) => value.message)
+        .toList(growable: false);
+    final unitMessages = assessment.mismatches
+        .where((value) => value.type == RequirementMismatchType.unit)
+        .map((value) => value.message)
+        .toList(growable: false);
+    final specificationMessages = assessment.mismatches
+        .where((value) => value.type == RequirementMismatchType.specification)
+        .map((value) => value.message)
+        .toList(growable: false);
+
+    if (quantityMessages.isNotEmpty) {
+      rawQuestions.add((
+        'REQUIREMENT_QUANTITY_MISMATCH',
+        '$contractor様：${category.nameJa}の希望数量との差を確認したいです。'
+            '${quantityMessages.join(' ')} 差が生じた理由と算定根拠をご提示ください。',
+      ));
+    }
+    if (unitMessages.isNotEmpty) {
+      rawQuestions.add((
+        'REQUIREMENT_UNIT_MISMATCH',
+        '$contractor様：${category.nameJa}の希望単位との差を確認したいです。'
+            '${unitMessages.join(' ')} 正しい数量と単位をご提示ください。',
+      ));
+    }
+    if (specificationMessages.isNotEmpty) {
+      rawQuestions.add((
+        'REQUIREMENT_SPECIFICATION_MISMATCH',
+        '$contractor様：${category.nameJa}の希望仕様との差を確認したいです。'
+            '${specificationMessages.join(' ')} 同等仕様か、変更が必要かをご回答ください。',
+      ));
     }
 
-    final seen = <String>{};
-    return rawQuestions.where((question) => seen.add(question.$1)).map((question) {
+    return _deduplicate(rawQuestions).map((question) {
       return _question(
         projectId: projectId,
         quoteId: assessment.quoteId,
@@ -183,6 +202,11 @@ class QuestionGenerator {
         nowEpochMillis: nowEpochMillis,
       );
     }).toList();
+  }
+
+  Iterable<(String, String)> _deduplicate(List<(String, String)> values) {
+    final seen = <String>{};
+    return values.where((value) => seen.add(value.$1));
   }
 
   ClarificationQuestion _question({
@@ -196,7 +220,7 @@ class QuestionGenerator {
   }) {
     final idSource = '$projectId|$quoteId|$categoryId|$templateKey';
     return ClarificationQuestion(
-      id: _uuidFromBytes(utf8.encode(idSource)),
+      id: _uuidFromDigest(sha256.convert(utf8.encode(idSource)).bytes),
       projectId: projectId,
       quoteId: quoteId,
       contractorName: contractorName,
@@ -207,19 +231,15 @@ class QuestionGenerator {
     );
   }
 
-  static String _uuidFromBytes(List<int> bytes) {
-    var hashA = 0x811C9DC5;
-    var hashB = 0x9E3779B9;
-    for (final byte in bytes) {
-      hashA = ((hashA ^ byte) * 0x01000193) & 0xFFFFFFFF;
-      hashB = ((hashB + byte) * 31) & 0xFFFFFFFF;
-    }
-    final first = hashA.toRadixString(16).padLeft(8, '0');
-    final second = (hashB & 0xFFFF).toRadixString(16).padLeft(4, '0');
-    final tail = ((hashA << 16) ^ hashB)
-        .toUnsigned(48)
-        .toRadixString(16)
-        .padLeft(12, '0');
-    return '$first-$second-5000-8000-$tail';
+  static String _uuidFromDigest(List<int> digest) {
+    final bytes = List<int>.from(digest.take(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x50;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-'
+        '${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-'
+        '${hex.substring(16, 20)}-'
+        '${hex.substring(20)}';
   }
 }
