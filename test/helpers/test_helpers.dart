@@ -99,10 +99,13 @@ class MockDatabaseService implements DatabaseService {
   @override
   Future<ComparisonReport?> loadComparisonResult(String projectId) async =>
       _reports[projectId];
+
+  @override
+  Future<void> close() async {}
 }
 
 class MockAdMobService extends AdService {
-  MockAdMobService({bool adFree = true}) : super.testing(adFree: adFree);
+  MockAdMobService({super.adFree = true}) : super.testing();
 
   int bannerRequestCount = 0;
   int rewardedRequestCount = 0;
