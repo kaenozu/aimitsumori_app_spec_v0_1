@@ -9,6 +9,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 concurrency:
   group: flutter-ci-${{ github.ref }}
   cancel-in-progress: true
@@ -17,6 +20,34 @@ env:
   FLUTTER_VERSION: '3.44.0'
 
 jobs:
+  format-agent-branch:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/agent/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Resolve and format
+        run: |
+          flutter pub get
+          dart format lib test integration_test
+      - name: Commit generated formatting and lockfile
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib test integration_test pubspec.lock
+          git commit -m "style: apply Dart formatting and resolve lockfile"
+          git push origin HEAD:${{ github.ref_name }}
+
   analyze-test-build:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
