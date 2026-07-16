@@ -1,7 +1,9 @@
+import 'package:aimitsumori_app/main.dart';
 import 'package:aimitsumori_app/repositories/project_repository.dart';
 import 'package:aimitsumori_app/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'helpers/test_helpers.dart';
 
@@ -49,5 +51,77 @@ void main() {
 
     expect(find.text('庭まわり改修'), findsNothing);
     expect(find.text('駐車場拡張'), findsOneWidget);
+  });
+
+  testWidgets('swipe-to-delete confirms and removes the project', (
+    tester,
+  ) async {
+    final project = createTestProject(id: 'delete-me', name: '削除対象案件');
+    final database = MockDatabaseService(initialProjects: [project]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HomeScreen(
+          repository: ProjectRepository(databaseService: database),
+          adService: MockAdMobService(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.drag(
+      find.byKey(const ValueKey('project-dismiss-delete-me')),
+      const Offset(-500, 0),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('案件を削除しますか？'), findsOneWidget);
+    expect(find.textContaining('削除対象案件'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, '削除'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('project-card-delete-me')),
+      findsNothing,
+    );
+    expect(await database.getProject(project.id), isNull);
+  });
+
+  testWidgets('dark mode toggle updates the theme and persists the setting', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'onboarding_completed': true,
+      'dark_mode_enabled': false,
+    });
+    final database = MockDatabaseService();
+
+    await tester.pumpWidget(
+      AimitsumoriApp(
+        repository: ProjectRepository(databaseService: database),
+        adService: MockAdMobService(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('メニュー'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('設定'));
+    await tester.pumpAndSettle();
+
+    final switchTile = tester.widget<SwitchListTile>(
+      find.byKey(const ValueKey('dark-mode-switch')),
+    );
+    expect(switchTile.value, isFalse);
+
+    await tester.tap(find.byKey(const ValueKey('dark-mode-switch')));
+    await tester.pumpAndSettle();
+
+    final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+    expect(app.themeMode, ThemeMode.dark);
+
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.getBool('dark_mode_enabled'), isTrue);
   });
 }
