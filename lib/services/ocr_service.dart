@@ -4,6 +4,7 @@ library;
 
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -12,6 +13,7 @@ import 'package:pdf_image_renderer/pdf_image_renderer.dart';
 import '../models.dart';
 import '../ocr_models.dart';
 import 'ocr_confidence_engine.dart';
+import 'quote_revision_service.dart';
 
 class OcrService {
   OcrService({
@@ -29,6 +31,11 @@ class OcrService {
   Future<RawQuoteData> extractQuote(String filePath) async {
     await _clearTemporaryReviewImages();
     lastReviewBundle = null;
+
+    final sourceBytes = await File(filePath).readAsBytes();
+    QuoteRevisionSession.instance.setSourceFileHash(
+      sha256.convert(sourceBytes).toString(),
+    );
 
     final extension = p.extension(filePath).toLowerCase();
     final document = extension == '.pdf'
