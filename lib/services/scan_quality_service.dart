@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 
 import '../scanner_models.dart';
@@ -13,40 +14,7 @@ class ScanQualityService {
 
   Future<ScanQualityResult> evaluateFile(String path) async {
     final bytes = await File(path).readAsBytes();
-    final decoded = img.decodeImage(bytes);
-    if (decoded == null) {
-      return const ScanQualityResult(
-        score: 0,
-        brightness: 0,
-        contrast: 0,
-        sharpness: 0,
-        shadowRatio: 1,
-        edgeBalance: 0,
-        documentCoverage: 0,
-        issues: [ScanQualityIssue.blurred],
-      );
-    }
-
-    final oriented = img.bakeOrientation(decoded);
-    final resized = oriented.width > 480
-        ? img.copyResize(oriented, width: 480)
-        : oriented;
-    final luma = Uint8List(resized.width * resized.height);
-    var index = 0;
-    for (final pixel in resized) {
-      luma[index++] = ((pixel.r * 0.299) +
-              (pixel.g * 0.587) +
-              (pixel.b * 0.114))
-          .round()
-          .clamp(0, 255);
-    }
-    return evaluateLuma(
-      width: resized.width,
-      height: resized.height,
-      bytesPerRow: resized.width,
-      luma: luma,
-      detectRotation: true,
-    );
+    return compute(_evaluateFileBytes, bytes);
   }
 
   ScanQualityResult evaluateLuma({
@@ -236,4 +204,41 @@ class ScanQualityService {
     }
     return count == 0 ? 0 : bright / count;
   }
+}
+
+ScanQualityResult _evaluateFileBytes(Uint8List bytes) {
+  final decoded = img.decodeImage(bytes);
+  if (decoded == null) {
+    return const ScanQualityResult(
+      score: 0,
+      brightness: 0,
+      contrast: 0,
+      sharpness: 0,
+      shadowRatio: 1,
+      edgeBalance: 0,
+      documentCoverage: 0,
+      issues: [ScanQualityIssue.blurred],
+    );
+  }
+
+  final oriented = img.bakeOrientation(decoded);
+  final resized = oriented.width > 480
+      ? img.copyResize(oriented, width: 480)
+      : oriented;
+  final luma = Uint8List(resized.width * resized.height);
+  var index = 0;
+  for (final pixel in resized) {
+    luma[index++] = ((pixel.r * 0.299) +
+            (pixel.g * 0.587) +
+            (pixel.b * 0.114))
+        .round()
+        .clamp(0, 255);
+  }
+  return const ScanQualityService().evaluateLuma(
+    width: resized.width,
+    height: resized.height,
+    bytesPerRow: resized.width,
+    luma: luma,
+    detectRotation: true,
+  );
 }
