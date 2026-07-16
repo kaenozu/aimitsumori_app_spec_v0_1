@@ -190,7 +190,9 @@ class ComparisonExportService {
     final sanitized = projectName
         .trim()
         .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
-        .replaceAll(RegExp(r'\s+'), '_');
+        .replaceAll(RegExp(r'\s+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_+|_+$'), '');
     return sanitized.isEmpty ? 'aimitsumori' : sanitized;
   }
 

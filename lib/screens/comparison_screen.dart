@@ -6,7 +6,6 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:cross_file/cross_file.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -222,9 +221,10 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
     final format = await showModalBottomSheet<_ShareFormat>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: ListView(
+          shrinkWrap: true,
           children: [
             const ListTile(
               title: Text(
@@ -342,13 +342,13 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
   }
 
   Future<_CapturedComparison> _captureComparison() async {
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     await WidgetsBinding.instance.endOfFrame;
     final renderObject = _captureKey.currentContext?.findRenderObject();
     if (renderObject is! RenderRepaintBoundary) {
       throw StateError('比較画面のキャプチャ領域を取得できませんでした。');
     }
 
-    final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
     const maxPixelDimension = 8192.0;
     final maxRatioForSize = math.min(
       maxPixelDimension / renderObject.size.width,
@@ -562,7 +562,7 @@ class _SnapshotList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 160,
+      height: 210,
       child: snapshots.isEmpty
           ? const Card(child: Center(child: Text('見積書を追加してください。')))
           : ListView.separated(
@@ -692,8 +692,8 @@ class _CategoryComparisonTable extends StatelessWidget {
         child: DataTable(
           columnSpacing: 20,
           headingRowHeight: 56,
-          dataRowMinHeight: 112,
-          dataRowMaxHeight: 136,
+          dataRowMinHeight: 168,
+          dataRowMaxHeight: 200,
           columns: [
             const DataColumn(label: Text('カテゴリ')),
             for (final snapshot in report.quoteSnapshots)
