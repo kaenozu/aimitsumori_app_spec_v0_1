@@ -3,6 +3,7 @@ library;
 
 import '../models.dart';
 import '../requirements_models.dart';
+import 'value_normalizer.dart';
 
 class RequirementsEngine {
   const RequirementsEngine();
@@ -78,41 +79,63 @@ class RequirementsEngine {
 
     final mismatches = <RequirementMismatch>[];
     final expectedQuantity = requirement.expectedQuantity;
+    final expectedUnit = UnitNormalizer.normalize(requirement.expectedUnit);
+    final actualUnit = UnitNormalizer.normalize(line.unit);
+    final actualQuantity = line.quantity;
+
     if (expectedQuantity != null) {
-      final actualQuantity = line.quantity;
       if (actualQuantity == null) {
         mismatches.add(
           RequirementMismatch(
             type: RequirementMismatchType.quantity,
             message: '希望数量 ${_formatNumber(expectedQuantity)}'
-                '${_text(requirement.expectedUnit)}に対し、見積数量の記載がありません。',
+                '${_text(expectedUnit)}に対し、見積数量の記載がありません。',
           ),
         );
-      } else if ((actualQuantity - expectedQuantity).abs() > 0.01) {
+      } else if (expectedUnit == null) {
+        if (!_sameQuantity(expectedQuantity, actualQuantity)) {
+          mismatches.add(
+            RequirementMismatch(
+              type: RequirementMismatchType.quantity,
+              message: '希望数量 ${_formatNumber(expectedQuantity)} / '
+                  '見積 ${_formatNumber(actualQuantity)}${_text(actualUnit)}',
+            ),
+          );
+        }
+      } else if (actualUnit != null &&
+          UnitNormalizer.equivalent(expectedUnit, actualUnit) &&
+          !UnitNormalizer.quantitiesEquivalent(
+            expected: expectedQuantity,
+            expectedUnit: expectedUnit,
+            actual: actualQuantity,
+            actualUnit: actualUnit,
+          )) {
         mismatches.add(
           RequirementMismatch(
             type: RequirementMismatchType.quantity,
-            message: '希望数量 ${_formatNumber(expectedQuantity)}'
-                '${_text(requirement.expectedUnit)} / 見積 ${_formatNumber(actualQuantity)}'
-                '${_text(line.unit)}',
+            message: '希望数量 ${_formatNumber(expectedQuantity)}$expectedUnit / '
+                '見積 ${_formatNumber(actualQuantity)}$actualUnit',
           ),
         );
       }
     }
 
-    final expectedUnit = requirement.expectedUnit?.trim();
-    final actualUnit = line.unit?.trim();
-    if (expectedUnit != null &&
-        expectedUnit.isNotEmpty &&
-        actualUnit != null &&
-        actualUnit.isNotEmpty &&
-        expectedUnit != actualUnit) {
-      mismatches.add(
-        RequirementMismatch(
-          type: RequirementMismatchType.unit,
-          message: '希望単位 $expectedUnit / 見積単位 $actualUnit',
-        ),
-      );
+    if (expectedUnit != null) {
+      if (actualUnit == null) {
+        mismatches.add(
+          RequirementMismatch(
+            type: RequirementMismatchType.unit,
+            message: '希望単位 $expectedUnit に対し、見積単位の記載がありません。',
+          ),
+        );
+      } else if (!UnitNormalizer.equivalent(expectedUnit, actualUnit)) {
+        mismatches.add(
+          RequirementMismatch(
+            type: RequirementMismatchType.unit,
+            message: '希望単位 $expectedUnit / 見積単位 $actualUnit',
+          ),
+        );
+      }
     }
 
     final desired = requirement.desiredSpecification?.trim();
@@ -137,8 +160,14 @@ class RequirementsEngine {
     return mismatches;
   }
 
-  String _normalize(String value) =>
-      value.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+  bool _sameQuantity(double expected, double actual) {
+    final tolerance = (expected.abs() * 0.001).clamp(0.01, 1000.0);
+    return (actual - expected).abs() <= tolerance;
+  }
+
+  String _normalize(String value) => LocalizedNumberParser.normalizeCharacters(
+        value.toLowerCase(),
+      ).replaceAll(RegExp(r'\s+'), '');
 
   static String _text(String? value) => value?.trim() ?? '';
 
