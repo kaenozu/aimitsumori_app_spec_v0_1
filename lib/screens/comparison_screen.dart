@@ -1,5 +1,5 @@
 /// ファイルパス: lib/screens/comparison_screen.dart
-/// 比較画面 - 更新、共有、カテゴリ比較、質問テンプレート、広告
+/// 比較画面 - アクセシブルな表・業者別カード表示
 library;
 
 import 'package:flutter/material.dart';
@@ -14,6 +14,7 @@ import '../question_generator.dart';
 import '../repositories/project_repository.dart';
 import '../services/ad_service.dart';
 import '../services/comparison_export_service.dart';
+import '../widgets/accessibility_widgets.dart';
 import 'quote_input_screen.dart';
 
 class ComparisonScreen extends StatefulWidget {
@@ -39,6 +40,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
   bool _bannerLoaded = false;
   bool _detailsUnlocked = false;
   bool _unlocking = false;
+  ComparisonViewMode _viewMode = ComparisonViewMode.table;
 
   ProjectRepository get _repository =>
       widget.repository ?? ProjectRepository.instance;
@@ -80,9 +82,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
       await _repository.saveComparisonResult(_report);
     } catch (error, stackTrace) {
       debugPrint('Comparison result save failed: $error\n$stackTrace');
-      if (notifyOnError && mounted) {
-        _showMessage(error.toString());
-      }
+      if (notifyOnError && mounted) _showMessage(error.toString());
     }
   }
 
@@ -234,24 +234,29 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
   @override
   Widget build(BuildContext context) {
     final banner = _bannerAd;
+    final largeText = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
+    final effectiveViewMode = largeText && _viewMode == ComparisonViewMode.table
+        ? ComparisonViewMode.contractorCards
+        : _viewMode;
     return Scaffold(
       appBar: AppBar(
         title: const Text('比較'),
         actions: [
           Builder(
-            builder: (shareContext) => IconButton(
-              tooltip: '比較結果を共有',
+            builder: (shareContext) => AccessibleIconButton(
+              label: '比較結果を共有',
               onPressed: () => _shareComparison(shareContext),
               icon: const Icon(Icons.share_outlined),
             ),
           ),
-          IconButton(
-            tooltip: '見積を追加',
+          AccessibleIconButton(
+            label: '見積を追加',
             onPressed: _addQuote,
             icon: const Icon(Icons.document_scanner_outlined),
           ),
           if (!_adService.adFree.value)
             PopupMenuButton<String>(
+              tooltip: '広告と購入のメニュー',
               onSelected: (value) {
                 if (value == 'purchase') _purchaseRemoveAds();
                 if (value == 'restore') _restorePurchases();
@@ -266,10 +271,14 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
       bottomNavigationBar:
           banner != null && _bannerLoaded && !_adService.adFree.value
               ? SafeArea(
-                  child: SizedBox(
-                    width: banner.size.width.toDouble(),
-                    height: banner.size.height.toDouble(),
-                    child: AdWidget(ad: banner),
+                  child: Semantics(
+                    label: '広告',
+                    container: true,
+                    child: SizedBox(
+                      width: banner.size.width.toDouble(),
+                      height: banner.size.height.toDouble(),
+                      child: AdWidget(ad: banner),
+                    ),
                   ),
                 )
               : null,
@@ -279,20 +288,27 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
-            Text(
-              _report.projectName,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            Semantics(
+              header: true,
+              child: Text(
+                _report.projectName,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
             ),
             const SizedBox(height: 4),
             const Text(
               '順位・総合点は付けず、条件差と不明点を確認します。下へ引っ張ると再読み込みできます。',
-              style: TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: _addQuote,
-              icon: const Icon(Icons.add_a_photo_outlined),
-              label: const Text('PDF・写真から見積を追加'),
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: OutlinedButton.icon(
+                onPressed: _addQuote,
+                icon: const Icon(Icons.add_a_photo_outlined),
+                label: const Text('PDF・写真から見積を追加'),
+              ),
             ),
             const SizedBox(height: 16),
             _SummaryCard(lines: _report.summaryLines),
@@ -302,18 +318,38 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
             const _BadgeLegend(),
             const SizedBox(height: 16),
             if (_detailsUnlocked) ...[
-              const Text(
-                '18カテゴリ比較',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Semantics(
+                header: true,
+                child: Text(
+                  '18カテゴリ比較',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
               ),
-              const SizedBox(height: 4),
-              const Text('表は左右にスクロールできます。', style: TextStyle(fontSize: 12)),
               const SizedBox(height: 8),
-              _CategoryComparisonTable(report: _report),
-              const SizedBox(height: 16),
-              Text(
-                '確認質問テンプレート (${_report.clarificationQuestions.length}件)',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ComparisonViewModeSwitcher(
+                value: effectiveViewMode,
+                onChanged: (value) => setState(() => _viewMode = value),
+              ),
+              if (largeText && _viewMode == ComparisonViewMode.table) ...[
+                const SizedBox(height: 8),
+                const Text('文字を大きく表示しているため、業者別カード形式で表示しています。'),
+              ],
+              const SizedBox(height: 12),
+              if (effectiveViewMode == ComparisonViewMode.table)
+                _AccessibleComparisonTable(report: _report)
+              else
+                _ContractorCardComparison(report: _report),
+              const SizedBox(height: 20),
+              Semantics(
+                header: true,
+                child: Text(
+                  '確認質問テンプレート (${_report.clarificationQuestions.length}件)',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
               ),
               const SizedBox(height: 8),
               ..._report.clarificationQuestions.map(
@@ -340,18 +376,30 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('3行サマリー', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            ...lines.asMap().entries.map(
-                  (entry) => Text('${entry.key + 1}. ${entry.value}'),
-                ),
-          ],
+    return Semantics(
+      container: true,
+      label: '3行サマリー、${lines.join('、')}',
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '3行サマリー',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              ...lines.asMap().entries.map(
+                    (entry) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text('${entry.key + 1}. ${entry.value}'),
+                    ),
+                  ),
+            ],
+          ),
         ),
       ),
     );
@@ -365,16 +413,29 @@ class _SnapshotList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 160,
-      child: snapshots.isEmpty
-          ? const Card(child: Center(child: Text('見積書を追加してください。')))
-          : ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: snapshots.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 12),
-              itemBuilder: (_, index) => _SnapshotCard(snapshot: snapshots[index]),
-            ),
+    if (snapshots.isEmpty) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Center(child: Text('見積書を追加してください。')),
+        ),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 720;
+        final width = wide
+            ? (constraints.maxWidth - 12) / 2
+            : constraints.maxWidth;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            for (final snapshot in snapshots)
+              SizedBox(width: width, child: _SnapshotCard(snapshot: snapshot)),
+          ],
+        );
+      },
     );
   }
 }
@@ -384,25 +445,45 @@ class _SnapshotCard extends StatelessWidget {
 
   final QuoteSnapshot snapshot;
 
-  String _yen(int? value) =>
-      value == null ? '未入力' : NumberFormat('#,##0', 'ja_JP').format(value);
+  String _yen(int? value) => value == null
+      ? '未入力'
+      : '${NumberFormat('#,##0', 'ja_JP').format(value)}円';
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 260,
+    final label = [
+      snapshot.contractorName,
+      '提示総額 ${_yen(snapshot.totalAmountYen)}',
+      '見積内 ${snapshot.includedCategoryCount}カテゴリ',
+      '別途 ${snapshot.separateCategoryNames.length}カテゴリ',
+      '任意 ${snapshot.optionalCategoryNames.length}カテゴリ',
+      '含有不明 ${snapshot.unknownCategoryNames.length}カテゴリ',
+      '不確実点 ${snapshot.uncertaintyCount}件',
+    ].join('、');
+    return Semantics(
+      container: true,
+      label: label,
       child: Card(
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(snapshot.contractorName, style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 6),
-              Text('提示総額: ${_yen(snapshot.totalAmountYen)}円'),
+              Text(
+                snapshot.contractorName,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text('提示総額: ${_yen(snapshot.totalAmountYen)}'),
               Text('見積内: ${snapshot.includedCategoryCount}カテゴリ'),
-              Text('別途: ${snapshot.separateCategoryNames.isEmpty ? "なし" : snapshot.separateCategoryNames.join(", ")}'),
-              Text('任意: ${snapshot.optionalCategoryNames.isEmpty ? "なし" : snapshot.optionalCategoryNames.join(", ")}'),
+              Text(
+                '別途: ${snapshot.separateCategoryNames.isEmpty ? 'なし' : snapshot.separateCategoryNames.join('、')}',
+              ),
+              Text(
+                '任意: ${snapshot.optionalCategoryNames.isEmpty ? 'なし' : snapshot.optionalCategoryNames.join('、')}',
+              ),
               Text('含有不明: ${snapshot.unknownCategoryNames.length}カテゴリ'),
               Text('不確実点: ${snapshot.uncertaintyCount}件'),
             ],
@@ -418,17 +499,29 @@ class _BadgeLegend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Card(
+    return Card(
       child: Padding(
-        padding: EdgeInsets.all(14),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: const [
             Text('表示の見方', style: TextStyle(fontWeight: FontWeight.bold)),
             SizedBox(height: 8),
-            _LegendRow(label: '未入力', description: '金額・数量・仕様が見積書に記載されていません。'),
-            _LegendRow(label: '別途', description: '提示総額には含まれず、追加費用になる可能性があります。'),
-            _LegendRow(label: '不明', description: '記載またはOCR結果だけでは判断できず、業者への確認が必要です。'),
+            _LegendRow(
+              icon: Icons.help_outline,
+              label: '未入力',
+              description: '金額・数量・仕様が見積書に記載されていません。',
+            ),
+            _LegendRow(
+              icon: Icons.add_circle_outline,
+              label: '別途',
+              description: '提示総額には含まれず、追加費用になる可能性があります。',
+            ),
+            _LegendRow(
+              icon: Icons.warning_amber_outlined,
+              label: '不明',
+              description: '記載またはOCR結果だけでは判断できず、業者への確認が必要です。',
+            ),
           ],
         ),
       ),
@@ -437,37 +530,34 @@ class _BadgeLegend extends StatelessWidget {
 }
 
 class _LegendRow extends StatelessWidget {
-  const _LegendRow({required this.label, required this.description});
+  const _LegendRow({
+    required this.icon,
+    required this.label,
+    required this.description,
+  });
 
+  final IconData icon;
   final String label;
   final String description;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Chip(
-            visualDensity: VisualDensity.compact,
-            label: Text(label, style: const TextStyle(fontSize: 11)),
-          ),
+          Icon(icon, semanticLabel: label),
           const SizedBox(width: 8),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(description, style: const TextStyle(fontSize: 12)),
-            ),
-          ),
+          Expanded(child: Text('$label: $description')),
         ],
       ),
     );
   }
 }
 
-class _CategoryComparisonTable extends StatelessWidget {
-  const _CategoryComparisonTable({required this.report});
+class _AccessibleComparisonTable extends StatelessWidget {
+  const _AccessibleComparisonTable({required this.report});
 
   final ComparisonReport report;
 
@@ -481,45 +571,69 @@ class _CategoryComparisonTable extends StatelessWidget {
         ),
       );
     }
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          columnSpacing: 20,
-          headingRowHeight: 56,
-          dataRowMinHeight: 112,
-          dataRowMaxHeight: 136,
-          columns: [
-            const DataColumn(label: Text('カテゴリ')),
-            for (final snapshot in report.quoteSnapshots)
-              DataColumn(
-                label: SizedBox(
-                  width: 170,
-                  child: Text(snapshot.contractorName, style: const TextStyle(fontWeight: FontWeight.bold)),
+    final columnWidths = <int, TableColumnWidth>{
+      0: const FixedColumnWidth(150),
+      for (var index = 0; index < report.quoteSnapshots.length; index++)
+        index + 1: const FixedColumnWidth(240),
+    };
+    return Semantics(
+      container: true,
+      label: '18カテゴリ比較表',
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Table(
+            defaultVerticalAlignment: TableCellVerticalAlignment.top,
+            border: TableBorder.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+            columnWidths: columnWidths,
+            children: [
+              TableRow(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 ),
-              ),
-          ],
-          rows: [
-            for (final comparison in report.categoryComparisons)
-              DataRow(
-                cells: [
-                  DataCell(
-                    SizedBox(
-                      width: 120,
-                      child: Text(comparison.category.nameJa, style: const TextStyle(fontWeight: FontWeight.w600)),
+                children: [
+                  const _TableCellPadding(
+                    child: Text(
+                      'カテゴリ',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                   for (final snapshot in report.quoteSnapshots)
-                    DataCell(
-                      _ComparisonCellView(
-                        cell: _findCell(comparison.cells, snapshot.quoteId),
+                    _TableCellPadding(
+                      child: Text(
+                        snapshot.contractorName,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                 ],
               ),
-          ],
+              for (final comparison in report.categoryComparisons)
+                TableRow(
+                  children: [
+                    _TableCellPadding(
+                      child: Semantics(
+                        header: true,
+                        child: Text(
+                          comparison.category.nameJa,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                    for (final snapshot in report.quoteSnapshots)
+                      _TableCellPadding(
+                        child: _ComparisonCellView(
+                          contractorName: snapshot.contractorName,
+                          categoryName: comparison.category.nameJa,
+                          cell: _findCell(comparison.cells, snapshot.quoteId),
+                        ),
+                      ),
+                  ],
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -533,9 +647,87 @@ class _CategoryComparisonTable extends StatelessWidget {
   }
 }
 
-class _ComparisonCellView extends StatelessWidget {
-  const _ComparisonCellView({required this.cell});
+class _TableCellPadding extends StatelessWidget {
+  const _TableCellPadding({required this.child});
 
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.all(12),
+        child: child,
+      );
+}
+
+class _ContractorCardComparison extends StatelessWidget {
+  const _ContractorCardComparison({required this.report});
+
+  final ComparisonReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    if (report.quoteSnapshots.isEmpty) {
+      return const Card(child: ListTile(title: Text('比較する見積がありません。')));
+    }
+    return Column(
+      children: [
+        for (final snapshot in report.quoteSnapshots)
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ExpansionTile(
+              initiallyExpanded: true,
+              title: Text(
+                snapshot.contractorName,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(
+                '提示総額: ${snapshot.totalAmountYen == null ? '未入力' : '${NumberFormat('#,##0', 'ja_JP').format(snapshot.totalAmountYen)}円'}',
+              ),
+              children: [
+                for (final comparison in report.categoryComparisons)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          comparison.category.nameJa,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 6),
+                        _ComparisonCellView(
+                          contractorName: snapshot.contractorName,
+                          categoryName: comparison.category.nameJa,
+                          cell: _findCell(comparison.cells, snapshot.quoteId),
+                        ),
+                        const Divider(height: 20),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  ComparisonCell? _findCell(List<ComparisonCell> cells, String quoteId) {
+    for (final cell in cells) {
+      if (cell.quoteId == quoteId) return cell;
+    }
+    return null;
+  }
+}
+
+class _ComparisonCellView extends StatelessWidget {
+  const _ComparisonCellView({
+    required this.contractorName,
+    required this.categoryName,
+    required this.cell,
+  });
+
+  final String contractorName;
+  final String categoryName;
   final ComparisonCell? cell;
 
   String _amount(int? value) => value == null
@@ -553,30 +745,101 @@ class _ComparisonCellView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final value = cell;
-    if (value == null) return const SizedBox(width: 170, child: Text('未入力'));
-
-    return SizedBox(
-      width: 170,
+    if (value == null) {
+      return Semantics(
+        label: '$contractorName、$categoryName、状態 未入力',
+        child: _statusBadge(context, InclusionStatus.unknown),
+      );
+    }
+    final semanticLabel = [
+      contractorName,
+      categoryName,
+      '状態 ${value.inclusionStatus.labelJa}',
+      '金額 ${_amount(value.amountYen)}',
+      '数量 ${_quantity(value.quantity, value.unit)}',
+      '仕様 ${value.specification ?? '未入力'}',
+      if (value.uncertaintyReasons.isNotEmpty)
+        '確認事項 ${value.uncertaintyReasons.join('、')}',
+    ].join('、');
+    return Semantics(
+      container: true,
+      label: semanticLabel,
+      excludeSemantics: true,
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Chip(
-            visualDensity: VisualDensity.compact,
-            label: Text(value.inclusionStatus.labelJa, style: const TextStyle(fontSize: 11)),
-          ),
+          _statusBadge(context, value.inclusionStatus),
+          const SizedBox(height: 8),
           Text('金額: ${_amount(value.amountYen)}'),
           Text('数量: ${_quantity(value.quantity, value.unit)}'),
-          Text('仕様: ${value.specification ?? "未入力"}', maxLines: 2, overflow: TextOverflow.ellipsis),
-          if (value.uncertaintyReasons.isNotEmpty)
-            Text(
-              '確認: ${value.uncertaintyReasons.join(" / ")}',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 11),
+          Text('仕様: ${value.specification ?? '未入力'}'),
+          if (value.uncertaintyReasons.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.warning_amber_outlined,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '確認: ${value.uncertaintyReasons.join(' / ')}',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _statusBadge(BuildContext context, InclusionStatus status) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final config = switch (status) {
+      InclusionStatus.included => (
+          Icons.check_circle_outline,
+          colorScheme.primaryContainer,
+          colorScheme.onPrimaryContainer,
+        ),
+      InclusionStatus.separate => (
+          Icons.add_circle_outline,
+          colorScheme.tertiaryContainer,
+          colorScheme.onTertiaryContainer,
+        ),
+      InclusionStatus.optional => (
+          Icons.tune_outlined,
+          colorScheme.secondaryContainer,
+          colorScheme.onSecondaryContainer,
+        ),
+      InclusionStatus.excluded => (
+          Icons.cancel_outlined,
+          colorScheme.errorContainer,
+          colorScheme.onErrorContainer,
+        ),
+      InclusionStatus.notApplicable => (
+          Icons.remove_circle_outline,
+          colorScheme.surfaceContainerHighest,
+          colorScheme.onSurfaceVariant,
+        ),
+      InclusionStatus.unknown => (
+          Icons.help_outline,
+          colorScheme.surfaceContainerHighest,
+          colorScheme.onSurfaceVariant,
+        ),
+    };
+    return AccessibleStatusBadge(
+      label: status.labelJa,
+      icon: config.$1,
+      backgroundColor: config.$2,
+      foregroundColor: config.$3,
     );
   }
 }
@@ -601,14 +864,22 @@ class _DetailUnlockCard extends StatelessWidget {
           children: [
             const Icon(Icons.table_chart_outlined, size: 40),
             const SizedBox(height: 8),
-            const Text('詳細比較を表示', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+              '詳細比較を表示',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
             const SizedBox(height: 6),
             const Text('カテゴリ別の金額・仕様差と、業者への確認質問を表示します。'),
             const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: loading ? null : onUnlock,
-              icon: const Icon(Icons.ondemand_video_outlined),
-              label: Text(loading ? '広告を準備中…' : '広告を見て詳細を表示'),
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: FilledButton.icon(
+                onPressed: loading ? null : onUnlock,
+                icon: const Icon(Icons.ondemand_video_outlined),
+                label: Text(loading ? '広告を準備中…' : '広告を見て詳細を表示'),
+              ),
             ),
             TextButton(onPressed: onRemoveAds, child: const Text('広告を削除')),
           ],
@@ -625,17 +896,24 @@ class _QuestionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(question.templateKey, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 4),
-            Text(question.questionText),
-          ],
+    return Semantics(
+      container: true,
+      label: '確認質問、${question.questionText}',
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                question.templateKey,
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+              const SizedBox(height: 4),
+              Text(question.questionText),
+            ],
+          ),
         ),
       ),
     );
