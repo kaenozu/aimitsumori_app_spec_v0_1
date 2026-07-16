@@ -9,6 +9,8 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'purchase_verification_service.dart';
+
 enum RewardedAdOutcome {
   rewarded,
   unavailable,
@@ -16,10 +18,14 @@ enum RewardedAdOutcome {
 }
 
 class AdService {
-  AdService._();
+  AdService._({PurchaseVerifier? verifier})
+      : _verifier = verifier ?? const PurchaseVerificationService();
 
   @visibleForTesting
-  AdService.testing({bool adFree = true}) {
+  AdService.testing({
+    bool adFree = true,
+    PurchaseVerifier verifier = const TestingPurchaseVerifier(),
+  }) : _verifier = verifier {
     this.adFree.value = adFree;
     _initialized = true;
   }
@@ -30,27 +36,33 @@ class AdService {
     'REMOVE_ADS_PRODUCT_ID',
     defaultValue: 'remove_ads',
   );
-  static const String _adFreePreferenceKey = 'ad_free_purchased';
+  static const String _adFreePreferenceKey = 'ad_free_verified_cache_v2';
 
-  static const String _androidBannerId = String.fromEnvironment(
+  static const String _configuredAndroidBannerId = String.fromEnvironment(
     'ADMOB_ANDROID_BANNER_ID',
-    defaultValue: 'ca-app-pub-3940256099942544/6300978111',
   );
-  static const String _iosBannerId = String.fromEnvironment(
+  static const String _configuredIosBannerId = String.fromEnvironment(
     'ADMOB_IOS_BANNER_ID',
-    defaultValue: 'ca-app-pub-3940256099942544/2934735716',
   );
-  static const String _androidRewardedId = String.fromEnvironment(
+  static const String _configuredAndroidRewardedId = String.fromEnvironment(
     'ADMOB_ANDROID_REWARDED_ID',
-    defaultValue: 'ca-app-pub-3940256099942544/5224354917',
   );
-  static const String _iosRewardedId = String.fromEnvironment(
+  static const String _configuredIosRewardedId = String.fromEnvironment(
     'ADMOB_IOS_REWARDED_ID',
-    defaultValue: 'ca-app-pub-3940256099942544/1712485313',
   );
+
+  static const String _androidTestBannerId =
+      'ca-app-pub-3940256099942544/6300978111';
+  static const String _iosTestBannerId =
+      'ca-app-pub-3940256099942544/2934735716';
+  static const String _androidTestRewardedId =
+      'ca-app-pub-3940256099942544/5224354917';
+  static const String _iosTestRewardedId =
+      'ca-app-pub-3940256099942544/1712485313';
 
   final ValueNotifier<bool> adFree = ValueNotifier<bool>(false);
   final InAppPurchase _inAppPurchase = InAppPurchase.instance;
+  final PurchaseVerifier _verifier;
 
   StreamSubscription<List<PurchaseDetails>>? _purchaseSubscription;
   ProductDetails? _removeAdsProduct;
@@ -62,23 +74,52 @@ class AdService {
 
   ProductDetails? get removeAdsProduct => _removeAdsProduct;
 
-  String get bannerAdUnitId => defaultTargetPlatform == TargetPlatform.iOS
-      ? _iosBannerId
-      : _androidBannerId;
+  String get bannerAdUnitId {
+    final configured = defaultTargetPlatform == TargetPlatform.iOS
+        ? _configuredIosBannerId
+        : _configuredAndroidBannerId;
+    final testId = defaultTargetPlatform == TargetPlatform.iOS
+        ? _iosTestBannerId
+        : _androidTestBannerId;
+    return _adUnitId(configured: configured, testId: testId, kind: 'banner');
+  }
 
-  String get rewardedAdUnitId => defaultTargetPlatform == TargetPlatform.iOS
-      ? _iosRewardedId
-      : _androidRewardedId;
+  String get rewardedAdUnitId {
+    final configured = defaultTargetPlatform == TargetPlatform.iOS
+        ? _configuredIosRewardedId
+        : _configuredAndroidRewardedId;
+    final testId = defaultTargetPlatform == TargetPlatform.iOS
+        ? _iosTestRewardedId
+        : _androidTestRewardedId;
+    return _adUnitId(
+      configured: configured,
+      testId: testId,
+      kind: 'rewarded',
+    );
+  }
+
+  String _adUnitId({
+    required String configured,
+    required String testId,
+    required String kind,
+  }) {
+    if (configured.trim().isNotEmpty) return configured.trim();
+    if (!kReleaseMode) return testId;
+    throw StateError('$kind AdMob unit ID is not configured for release.');
+  }
 
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
 
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      adFree.value = preferences.getBool(_adFreePreferenceKey) ?? false;
-    } catch (error) {
-      debugPrint('Ad preference load failed: $error');
+    // Releaseではローカルフラグを購入証明として信頼しない。
+    if (!kReleaseMode) {
+      try {
+        final preferences = await SharedPreferences.getInstance();
+        adFree.value = preferences.getBool(_adFreePreferenceKey) ?? false;
+      } catch (error) {
+        debugPrint('Ad preference load failed: $error');
+      }
     }
     if (!isSupportedPlatform) return;
 
@@ -99,6 +140,11 @@ class AdService {
       await _loadRemoveAdsProduct();
     } catch (error) {
       debugPrint('Remove ads product load failed: $error');
+    }
+
+    if (kReleaseMode) {
+      // 復元イベントもpurchaseStreamで検証してから権利付与する。
+      unawaited(restorePurchases());
     }
   }
 
@@ -140,7 +186,13 @@ class AdService {
     if (!isSupportedPlatform) return RewardedAdOutcome.unavailable;
 
     final completer = Completer<RewardedAdOutcome>();
+    Timer? timeout;
     try {
+      timeout = Timer(const Duration(seconds: 20), () {
+        if (!completer.isCompleted) {
+          completer.complete(RewardedAdOutcome.unavailable);
+        }
+      });
       await RewardedAd.load(
         adUnitId: rewardedAdUnitId,
         request: const AdRequest(),
@@ -186,7 +238,11 @@ class AdService {
         completer.complete(RewardedAdOutcome.unavailable);
       }
     }
-    return completer.future;
+    try {
+      return await completer.future;
+    } finally {
+      timeout?.cancel();
+    }
   }
 
   Future<bool> purchaseRemoveAds() async {
@@ -194,7 +250,7 @@ class AdService {
     try {
       _removeAdsProduct ??= await _queryRemoveAdsProduct();
       final product = _removeAdsProduct;
-      if (product == null) return false;
+      if (product == null || product.id != removeAdsProductId) return false;
 
       return _inAppPurchase.buyNonConsumable(
         purchaseParam: PurchaseParam(productDetails: product),
@@ -210,7 +266,10 @@ class AdService {
     final response =
         await _inAppPurchase.queryProductDetails({removeAdsProductId});
     if (response.error != null || response.productDetails.isEmpty) return null;
-    return response.productDetails.first;
+    return response.productDetails.firstWhere(
+      (value) => value.id == removeAdsProductId,
+      orElse: () => response.productDetails.first,
+    );
   }
 
   Future<void> restorePurchases() async {
@@ -228,15 +287,23 @@ class AdService {
     for (final purchase in purchases) {
       if (purchase.productID != removeAdsProductId) continue;
 
-      if (purchase.status == PurchaseStatus.purchased ||
-          purchase.status == PurchaseStatus.restored) {
-        await _setAdFree(true);
-      } else if (purchase.status == PurchaseStatus.error) {
-        debugPrint('Remove ads purchase failed: ${purchase.error}');
-      }
-
-      if (purchase.pendingCompletePurchase) {
-        await _inAppPurchase.completePurchase(purchase);
+      try {
+        if (purchase.status == PurchaseStatus.purchased ||
+            purchase.status == PurchaseStatus.restored) {
+          final valid = await _verifier.verify(purchase);
+          if (valid) {
+            await _setAdFree(true);
+          } else {
+            debugPrint('Remove ads purchase verification failed.');
+            await _setAdFree(false);
+          }
+        } else if (purchase.status == PurchaseStatus.error) {
+          debugPrint('Remove ads purchase failed: ${purchase.error}');
+        }
+      } finally {
+        if (purchase.pendingCompletePurchase) {
+          await _inAppPurchase.completePurchase(purchase);
+        }
       }
     }
   }
