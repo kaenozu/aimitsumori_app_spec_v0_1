@@ -1,10 +1,12 @@
-/// ファイルパス: lib/domain/comparison_engine.dart
+/// ファイルパス: lib/comparison_engine.dart
 /// 比較レポート生成エンジン
 /// 関連ファイル: lib/models.dart, lib/data/category_master.dart
+library;
 
-import '../models.dart';
-import '../data/category_master.dart';
 import 'package:intl/intl.dart';
+
+import 'data/category_master.dart';
+import 'models.dart';
 
 class ComparisonEngine {
   ComparisonReport compare({
@@ -13,7 +15,7 @@ class ComparisonEngine {
     required List<ClarificationQuestion> questions,
   }) {
     assert(
-      normalizedQuotes.map((q) => q.quoteId).toSet().length == normalizedQuotes.length,
+      normalizedQuotes.map((quote) => quote.quoteId).toSet().length == normalizedQuotes.length,
       'quoteId must be unique',
     );
 
@@ -23,21 +25,24 @@ class ComparisonEngine {
         contractorName: quote.contractorName,
         totalAmountYen: quote.totalAmountYen,
         includedCategoryCount: quote.lines
-            .where((l) => l.inclusionStatus == InclusionStatus.included)
+            .where((line) => line.inclusionStatus == InclusionStatus.included)
             .length,
         separateCategoryNames: quote.lines
-            .where((l) => l.inclusionStatus == InclusionStatus.separate)
-            .map((l) => l.category.nameJa)
+            .where((line) => line.inclusionStatus == InclusionStatus.separate)
+            .map((line) => line.category.nameJa)
             .toList(),
         optionalCategoryNames: quote.lines
-            .where((l) => l.inclusionStatus == InclusionStatus.optional)
-            .map((l) => l.category.nameJa)
+            .where((line) => line.inclusionStatus == InclusionStatus.optional)
+            .map((line) => line.category.nameJa)
             .toList(),
         unknownCategoryNames: quote.lines
-            .where((l) => l.inclusionStatus == InclusionStatus.unknown)
-            .map((l) => l.category.nameJa)
+            .where((line) => line.inclusionStatus == InclusionStatus.unknown)
+            .map((line) => line.category.nameJa)
             .toList(),
-        uncertaintyCount: quote.lines.fold<int>(0, (sum, l) => sum + l.uncertaintyReasons.length),
+        uncertaintyCount: quote.lines.fold<int>(
+          0,
+          (sum, line) => sum + line.uncertaintyReasons.length,
+        ),
       );
     }).toList();
 
@@ -46,7 +51,7 @@ class ComparisonEngine {
         category: category,
         cells: normalizedQuotes.map((quote) {
           final line = quote.lines.firstWhere(
-            (l) => l.category.id == category.id,
+            (value) => value.category.id == category.id,
           );
           return ComparisonCell(
             quoteId: quote.quoteId,
@@ -80,21 +85,36 @@ class ComparisonEngine {
     List<ClarificationQuestion> questions,
   ) {
     if (snapshots.isEmpty) {
-      return [
+      return const [
         '見積総額: 見積は未登録です。',
         '範囲差: 比較対象がないため判定できません。',
         '要確認: まず見積書を登録してください。質問テンプレートは0件です。',
       ];
     }
 
-    final totalText = snapshots.map((s) => '${s.contractorName} ${_formatYen(s.totalAmountYen)}').join(' / ');
-    final knownTotals = snapshots.where((s) => s.totalAmountYen != null).map((s) => s.totalAmountYen!).toList();
+    final totalText = snapshots
+        .map((snapshot) => '${snapshot.contractorName} ${_formatYen(snapshot.totalAmountYen)}')
+        .join(' / ');
+    final knownTotals = snapshots
+        .where((snapshot) => snapshot.totalAmountYen != null)
+        .map((snapshot) => snapshot.totalAmountYen!)
+        .toList();
     final spreadText = knownTotals.length >= 2
         ? '、提示総額の幅は${_formatYen(knownTotals.reduce((a, b) => a > b ? a : b) - knownTotals.reduce((a, b) => a < b ? a : b))}'
         : '、総額差は算出不能';
 
-    final scopeText = snapshots.map((s) => '${s.contractorName} 別途${s.separateCategoryNames.length}件・任意${s.optionalCategoryNames.length}件').join(' / ');
-    final unknownText = snapshots.map((s) => '${s.contractorName} 不明カテゴリ${s.unknownCategoryNames.length}件・不確実点${s.uncertaintyCount}件').join(' / ');
+    final scopeText = snapshots
+        .map(
+          (snapshot) =>
+              '${snapshot.contractorName} 別途${snapshot.separateCategoryNames.length}件・任意${snapshot.optionalCategoryNames.length}件',
+        )
+        .join(' / ');
+    final unknownText = snapshots
+        .map(
+          (snapshot) =>
+              '${snapshot.contractorName} 不明カテゴリ${snapshot.unknownCategoryNames.length}件・不確実点${snapshot.uncertaintyCount}件',
+        )
+        .join(' / ');
 
     return [
       '見積総額: $totalText$spreadText。',
