@@ -1,4 +1,4 @@
-/// 見積取り込み前の新規・改訂セッションを設定する。
+/// 見積取り込み前の新規・改訂意図を構築する。
 library;
 
 import '../models.dart';
@@ -11,11 +11,9 @@ class QuoteRevisionImportCoordinator {
 
   final QuoteRevisionService service;
 
-  void beginNewQuote() {
-    QuoteRevisionSession.instance.begin(const QuoteImportIntent.newQuote());
-  }
+  QuoteImportIntent newQuote() => const QuoteImportIntent.newQuote();
 
-  Future<void> beginRevision({
+  Future<QuoteImportIntent> revision({
     required String projectId,
     required ContractorQuote parentQuote,
     required String changeReason,
@@ -31,29 +29,23 @@ class QuoteRevisionImportCoordinator {
       groupId = initial.quoteGroupId;
       parentRevisionId = initial.id;
     }
-    QuoteRevisionSession.instance.begin(
-      QuoteImportIntent.revision(
-        parentQuote: parentQuote,
-        quoteGroupId: groupId,
-        parentRevisionId: parentRevisionId,
-        changeReason: changeReason,
-      ),
+    return QuoteImportIntent.revision(
+      parentQuote: parentQuote,
+      quoteGroupId: groupId,
+      parentRevisionId: parentRevisionId,
+      changeReason: changeReason,
     );
   }
 
-  void beginRevisionFromHistory({
+  QuoteImportIntent revisionFromHistory({
     required QuoteRevision parentRevision,
     required String changeReason,
   }) {
-    QuoteRevisionSession.instance.begin(
-      QuoteImportIntent.revision(
-        parentQuote: parentRevision.quoteSnapshot,
-        quoteGroupId: parentRevision.quoteGroupId,
-        parentRevisionId: parentRevision.id,
-        changeReason: changeReason,
-      ),
+    return QuoteImportIntent.revision(
+      parentQuote: parentRevision.quoteSnapshot,
+      quoteGroupId: parentRevision.quoteGroupId,
+      parentRevisionId: parentRevision.id,
+      changeReason: changeReason,
     );
   }
-
-  void cancel() => QuoteRevisionSession.instance.clear();
 }
