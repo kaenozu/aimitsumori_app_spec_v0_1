@@ -220,7 +220,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
                 : ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: _report.quoteSnapshots.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    separatorBuilder: (_, _) => const SizedBox(width: 12),
                     itemBuilder: (_, index) => _SnapshotCard(
                       snapshot: _report.quoteSnapshots[index],
                     ),
