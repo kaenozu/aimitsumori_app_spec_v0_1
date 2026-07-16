@@ -16,7 +16,9 @@ if (keystorePropertiesFile.exists()) {
 val releaseRequested = gradle.startParameter.taskNames.any {
     it.contains("release", ignoreCase = true)
 }
-val productionAdMobAppId = project.findProperty("ADMOB_ANDROID_APP_ID") as String?
+val productionAdMobAppId =
+    (project.findProperty("ADMOB_ANDROID_APP_ID") as String?)
+        ?: System.getenv("ADMOB_ANDROID_APP_ID")
 
 if (releaseRequested) {
     require(keystorePropertiesFile.exists()) {
