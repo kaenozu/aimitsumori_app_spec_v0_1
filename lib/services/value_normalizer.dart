@@ -52,10 +52,7 @@ class LocalizedNumberParser {
     return parsed?.isFinite == true ? parsed : null;
   }
 
-  static int? tryParseYen(
-    String input, {
-    bool allowNegative = false,
-  }) {
+  static int? tryParseYen(String input, {bool allowNegative = false}) {
     var value = normalizeCharacters(input).trim();
     if (value.isEmpty) return null;
     value = value
@@ -119,7 +116,10 @@ class UnitNormalizer {
     final convertedActual = convert(actual, actualUnit);
     if (convertedExpected == null || convertedActual == null) return false;
     if (convertedExpected.dimension != convertedActual.dimension) return false;
-    final tolerance = (convertedExpected.value.abs() * 0.001).clamp(0.01, 1000.0);
+    final tolerance = (convertedExpected.value.abs() * 0.001).clamp(
+      0.01,
+      1000.0,
+    );
     return (convertedExpected.value - convertedActual.value).abs() <= tolerance;
   }
 }
@@ -127,9 +127,7 @@ class UnitNormalizer {
 class CsvCellSanitizer {
   const CsvCellSanitizer._();
 
-  static final RegExp _formulaPrefix = RegExp(
-    r'^[\s\t\r\n]*[=+\-@＝＋－＠]',
-  );
+  static final RegExp _formulaPrefix = RegExp(r'^[\s\t\r\n]*[=+\-@＝＋－＠]');
 
   static String protect(String value) {
     if (value.isEmpty || !_formulaPrefix.hasMatch(value)) return value;

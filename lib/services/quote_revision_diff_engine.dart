@@ -54,8 +54,9 @@ class QuoteRevisionDiffEngine {
     return QuoteRevisionDiff(
       before: before,
       after: after,
-      totalDifferenceYen:
-          oldTotal == null || newTotal == null ? null : newTotal - oldTotal,
+      totalDifferenceYen: oldTotal == null || newTotal == null
+          ? null
+          : newTotal - oldTotal,
       changes: changes,
     );
   }
@@ -124,15 +125,19 @@ class QuoteRevisionDiffEngine {
   }
 
   String? _normalized(String? value) {
-    final normalized = value?.trim().replaceAll(RegExp(r'\s+'), '').toLowerCase();
+    final normalized = value
+        ?.trim()
+        .replaceAll(RegExp(r'\s+'), '')
+        .toLowerCase();
     return normalized == null || normalized.isEmpty ? null : normalized;
   }
 
   Map<String, List<QuoteLineItem>> _group(List<QuoteLineItem> items) {
     final grouped = <String, List<QuoteLineItem>>{};
     for (final item in items) {
-      final normalizedLabel =
-          item.rawLabel.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+      final normalizedLabel = item.rawLabel
+          .replaceAll(RegExp(r'\s+'), '')
+          .toLowerCase();
       grouped
           .putIfAbsent('${item.categoryId}|$normalizedLabel', () => [])
           .add(item);

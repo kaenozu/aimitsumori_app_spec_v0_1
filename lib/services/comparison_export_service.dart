@@ -212,6 +212,7 @@ class ComparisonExportService {
   static String _formatYen(int? value) =>
       value == null ? '未入力' : '${_yenFormat.format(value)}円';
 
-  static String _formatQuantity(double value) =>
-      value == value.roundToDouble() ? value.toInt().toString() : value.toString();
+  static String _formatQuantity(double value) => value == value.roundToDouble()
+      ? value.toInt().toString()
+      : value.toString();
 }

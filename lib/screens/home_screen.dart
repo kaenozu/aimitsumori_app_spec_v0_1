@@ -49,13 +49,15 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Project> get _filteredProjects {
     final query = _searchQuery.trim().toLowerCase();
     if (query.isEmpty) return _projects;
-    return _projects.where((project) {
-      final matchesProject = project.name.toLowerCase().contains(query);
-      final matchesContractor = project.quotes.any(
-        (quote) => quote.contractorName.toLowerCase().contains(query),
-      );
-      return matchesProject || matchesContractor;
-    }).toList(growable: false);
+    return _projects
+        .where((project) {
+          final matchesProject = project.name.toLowerCase().contains(query);
+          final matchesContractor = project.quotes.any(
+            (quote) => quote.contractorName.toLowerCase().contains(query),
+          );
+          return matchesProject || matchesContractor;
+        })
+        .toList(growable: false);
   }
 
   @override
@@ -137,9 +139,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (deleted != true || !mounted) return;
     await _loadProjects();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('すべての案件データを削除しました。')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('すべての案件データを削除しました。')));
   }
 
   Future<bool> _confirmDeleteProject(Project project) async {
@@ -172,9 +174,9 @@ class _HomeScreenState extends State<HomeScreen> {
       return true;
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
       }
       return false;
     }
@@ -186,9 +188,9 @@ class _HomeScreenState extends State<HomeScreen> {
           .where((existing) => existing.id != project.id)
           .toList(growable: false);
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('「${project.name}」を削除しました。')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('「${project.name}」を削除しました。')));
   }
 
   void _clearSearch() {
@@ -262,14 +264,14 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       await _loadProjects();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('案件を作成しました。')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('案件を作成しました。')));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -312,9 +314,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 children: [
-                  const Text(
-                    '総合点や順位ではなく、価格・範囲・要望との差・不明点を並べて確認します。',
-                  ),
+                  const Text('総合点や順位ではなく、価格・範囲・要望との差・不明点を並べて確認します。'),
                   const SizedBox(height: 12),
                   FilledButton.icon(
                     key: const ValueKey('create-project-button'),
@@ -382,7 +382,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           child: Icon(
                             Icons.delete_outline,
-                            color: Theme.of(context).colorScheme.onErrorContainer,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onErrorContainer,
                           ),
                         ),
                         child: _ProjectCard(
@@ -412,10 +414,7 @@ class _EmptyProjectsCard extends StatelessWidget {
           children: [
             Icon(Icons.folder_open_outlined, size: 40),
             SizedBox(height: 8),
-            Text(
-              '案件はまだありません。',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            Text('案件はまだありません。', style: TextStyle(fontWeight: FontWeight.bold)),
             SizedBox(height: 4),
             Text(
               '「新しい案件を作成」から要望を整理し、PDFまたは写真の見積書を追加してください。',
@@ -442,10 +441,7 @@ class _EmptySearchCard extends StatelessWidget {
           children: [
             const Icon(Icons.search_off_outlined, size: 40),
             const SizedBox(height: 8),
-            Text(
-              '「$query」に一致する案件はありません。',
-              textAlign: TextAlign.center,
-            ),
+            Text('「$query」に一致する案件はありません。', textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -454,11 +450,7 @@ class _EmptySearchCard extends StatelessWidget {
 }
 
 class _ProjectCard extends StatelessWidget {
-  const _ProjectCard({
-    super.key,
-    required this.project,
-    required this.onTap,
-  });
+  const _ProjectCard({super.key, required this.project, required this.onTap});
 
   final Project project;
   final VoidCallback onTap;

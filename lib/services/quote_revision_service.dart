@@ -13,7 +13,7 @@ import 'id_generator.dart';
 
 class QuoteRevisionService {
   QuoteRevisionService({DatabaseService? databaseService})
-      : _databaseService = databaseService ?? DatabaseService.instance;
+    : _databaseService = databaseService ?? DatabaseService.instance;
 
   static final QuoteRevisionService instance = QuoteRevisionService();
 
@@ -108,8 +108,9 @@ class QuoteRevisionService {
       orderBy: 'revision_number DESC',
       limit: 1,
     );
-    final latestRevisionId =
-        previousRows.isEmpty ? null : previousRows.first['id'] as String;
+    final latestRevisionId = previousRows.isEmpty
+        ? null
+        : previousRows.first['id'] as String;
     final revisionNumber = previousRows.isEmpty
         ? 1
         : (previousRows.first['revision_number'] as int) + 1;
@@ -187,8 +188,7 @@ class QuoteRevisionService {
       'quote_revisions',
       where: 'project_id = ?',
       whereArgs: [projectId],
-      orderBy:
-          'contractor_name ASC, quote_group_id ASC, revision_number ASC',
+      orderBy: 'contractor_name ASC, quote_group_id ASC, revision_number ASC',
     );
     return rows.map(_fromRow).toList(growable: false);
   }
@@ -222,71 +222,71 @@ class QuoteRevisionService {
   }
 
   Map<String, Object?> _toRow(QuoteRevision revision) => {
-        'id': revision.id,
-        'project_id': revision.projectId,
-        'quote_id': revision.quoteId,
-        'contractor_name': revision.contractorName,
-        'quote_group_id': revision.quoteGroupId,
-        'revision_number': revision.revisionNumber,
-        'parent_revision_id': revision.parentRevisionId,
-        'source_file_hash': revision.sourceFileHash,
-        'imported_at': revision.importedAt,
-        'change_reason': revision.changeReason,
-        'quote_snapshot_json': jsonEncode(_quoteToJson(revision.quoteSnapshot)),
-      };
+    'id': revision.id,
+    'project_id': revision.projectId,
+    'quote_id': revision.quoteId,
+    'contractor_name': revision.contractorName,
+    'quote_group_id': revision.quoteGroupId,
+    'revision_number': revision.revisionNumber,
+    'parent_revision_id': revision.parentRevisionId,
+    'source_file_hash': revision.sourceFileHash,
+    'imported_at': revision.importedAt,
+    'change_reason': revision.changeReason,
+    'quote_snapshot_json': jsonEncode(_quoteToJson(revision.quoteSnapshot)),
+  };
 
   QuoteRevision _fromRow(Map<String, Object?> row) => QuoteRevision(
-        id: row['id'] as String,
-        projectId: row['project_id'] as String,
-        quoteId: row['quote_id'] as String,
-        contractorName: row['contractor_name'] as String,
-        quoteGroupId: row['quote_group_id'] as String,
-        revisionNumber: row['revision_number'] as int,
-        parentRevisionId: row['parent_revision_id'] as String?,
-        sourceFileHash: row['source_file_hash'] as String,
-        importedAt: row['imported_at'] as int,
-        changeReason: row['change_reason'] as String?,
-        quoteSnapshot: _quoteFromJson(
-          Map<String, dynamic>.from(
-            jsonDecode(row['quote_snapshot_json'] as String) as Map,
-          ),
-        ),
-      );
+    id: row['id'] as String,
+    projectId: row['project_id'] as String,
+    quoteId: row['quote_id'] as String,
+    contractorName: row['contractor_name'] as String,
+    quoteGroupId: row['quote_group_id'] as String,
+    revisionNumber: row['revision_number'] as int,
+    parentRevisionId: row['parent_revision_id'] as String?,
+    sourceFileHash: row['source_file_hash'] as String,
+    importedAt: row['imported_at'] as int,
+    changeReason: row['change_reason'] as String?,
+    quoteSnapshot: _quoteFromJson(
+      Map<String, dynamic>.from(
+        jsonDecode(row['quote_snapshot_json'] as String) as Map,
+      ),
+    ),
+  );
 
   Map<String, Object?> _quoteToJson(ContractorQuote quote) => {
-        'id': quote.id,
-        'contractorName': quote.contractorName,
-        'totalAmountYen': quote.totalAmountYen,
-        'note': quote.note,
-        'createdAtEpochMillis': quote.createdAtEpochMillis,
-        'lineItems': [
-          for (final item in quote.lineItems)
-            {
-              'id': item.id,
-              'categoryId': item.categoryId,
-              'rawLabel': item.rawLabel,
-              'amountYen': item.amountYen,
-              'inclusionStatus': item.inclusionStatus.code,
-              'quantity': item.quantity,
-              'unit': item.unit,
-              'specification': item.specification,
-              'note': item.note,
-              'sortOrder': item.sortOrder,
-            },
-        ],
-      };
+    'id': quote.id,
+    'contractorName': quote.contractorName,
+    'totalAmountYen': quote.totalAmountYen,
+    'note': quote.note,
+    'createdAtEpochMillis': quote.createdAtEpochMillis,
+    'lineItems': [
+      for (final item in quote.lineItems)
+        {
+          'id': item.id,
+          'categoryId': item.categoryId,
+          'rawLabel': item.rawLabel,
+          'amountYen': item.amountYen,
+          'inclusionStatus': item.inclusionStatus.code,
+          'quantity': item.quantity,
+          'unit': item.unit,
+          'specification': item.specification,
+          'note': item.note,
+          'sortOrder': item.sortOrder,
+        },
+    ],
+  };
 
   ContractorQuote _quoteFromJson(Map<String, dynamic> json) => ContractorQuote(
-        id: json['id'] as String,
-        contractorName: json['contractorName'] as String,
-        totalAmountYen: json['totalAmountYen'] as int?,
-        note: json['note'] as String?,
-        createdAtEpochMillis: json['createdAtEpochMillis'] as int,
-        lineItems: [
-          for (final raw in json['lineItems'] as List<dynamic>? ?? const [])
-            QuoteLineItem.fromJson(Map<String, dynamic>.from(raw as Map)),
-        ],
-      );
+    id: json['id'] as String,
+    contractorName: json['contractorName'] as String,
+    totalAmountYen: json['totalAmountYen'] as int?,
+    note: json['note'] as String?,
+    createdAtEpochMillis: json['createdAtEpochMillis'] as int,
+    lineItems: [
+      for (final raw in json['lineItems'] as List<dynamic>? ?? const [])
+        QuoteLineItem.fromJson(Map<String, dynamic>.from(raw as Map)),
+    ],
+  );
 
   String _quoteHash(ContractorQuote quote) =>
       sha256.convert(utf8.encode(jsonEncode(_quoteToJson(quote)))).toString();

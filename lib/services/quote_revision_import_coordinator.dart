@@ -7,7 +7,7 @@ import 'quote_revision_service.dart';
 
 class QuoteRevisionImportCoordinator {
   QuoteRevisionImportCoordinator({QuoteRevisionService? service})
-      : service = service ?? QuoteRevisionService.instance;
+    : service = service ?? QuoteRevisionService.instance;
 
   final QuoteRevisionService service;
 

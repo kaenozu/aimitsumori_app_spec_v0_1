@@ -8,11 +8,7 @@ import 'package:flutter/material.dart';
 import '../ocr_models.dart';
 
 class OcrCropPreview extends StatefulWidget {
-  const OcrCropPreview({
-    super.key,
-    required this.line,
-    this.height = 92,
-  });
+  const OcrCropPreview({super.key, required this.line, this.height = 92});
 
   final OcrRecognizedLine line;
   final double height;
@@ -75,12 +71,17 @@ class _OcrCropPreviewState extends State<OcrCropPreview> {
         width: double.infinity,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
           borderRadius: BorderRadius.circular(8),
         ),
         child: image != null
             ? CustomPaint(
-                painter: _CropPainter(image: image, rect: widget.line.boundingRect),
+                painter: _CropPainter(
+                  image: image,
+                  rect: widget.line.boundingRect,
+                ),
               )
             : Center(
                 child: _error == null
@@ -105,10 +106,22 @@ class _CropPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const horizontalPadding = 36.0;
     const verticalPadding = 20.0;
-    final left = (rect.left - horizontalPadding).clamp(0.0, image.width.toDouble());
-    final top = (rect.top - verticalPadding).clamp(0.0, image.height.toDouble());
-    final right = (rect.right + horizontalPadding).clamp(left + 1, image.width.toDouble());
-    final bottom = (rect.bottom + verticalPadding).clamp(top + 1, image.height.toDouble());
+    final left = (rect.left - horizontalPadding).clamp(
+      0.0,
+      image.width.toDouble(),
+    );
+    final top = (rect.top - verticalPadding).clamp(
+      0.0,
+      image.height.toDouble(),
+    );
+    final right = (rect.right + horizontalPadding).clamp(
+      left + 1,
+      image.width.toDouble(),
+    );
+    final bottom = (rect.bottom + verticalPadding).clamp(
+      top + 1,
+      image.height.toDouble(),
+    );
     final source = Rect.fromLTRB(left, top, right, bottom);
     final paint = Paint()..filterQuality = FilterQuality.medium;
     canvas.drawImageRect(image, source, Offset.zero & size, paint);

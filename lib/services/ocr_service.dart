@@ -18,8 +18,8 @@ class OcrService {
   OcrService({
     TextRecognizer? recognizer,
     this.confidenceEngine = const OcrConfidenceEngine(),
-  }) : _recognizer = recognizer ??
-            TextRecognizer(script: TextRecognitionScript.japanese);
+  }) : _recognizer =
+           recognizer ?? TextRecognizer(script: TextRecognitionScript.japanese);
 
   final TextRecognizer _recognizer;
   final OcrConfidenceEngine confidenceEngine;
@@ -190,9 +190,7 @@ class OcrService {
     final aggregateIssues = OcrConfidenceEngine.buildAggregateIssues(
       totalAmountYen: totalAmount,
       includedItemAmounts: items
-          .where(
-            (item) => item.inclusionStatus == InclusionStatus.included,
-          )
+          .where((item) => item.inclusionStatus == InclusionStatus.included)
           .map((item) => item.amountYen)
           .whereType<int>(),
     );
@@ -214,9 +212,7 @@ class OcrService {
   }
 
   String _parseContractorName(List<String> lines) {
-    final companyPattern = RegExp(
-      r'(株式会社|有限会社|合同会社|工務店|建設|建築|外構|エクステリア|造園)',
-    );
+    final companyPattern = RegExp(r'(株式会社|有限会社|合同会社|工務店|建設|建築|外構|エクステリア|造園)');
     final excluded = RegExp(r'(御?見積|見積書|請求|合計|工事名|お客様|様$)');
 
     for (final line in lines.take(15)) {

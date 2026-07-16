@@ -182,14 +182,11 @@ class OcrConfidenceEngine {
     ).allMatches(normalized);
     return matches
         .map(
-          (match) =>
-              match.group(1) ?? match.group(2) ?? match.group(3) ?? '',
+          (match) => match.group(1) ?? match.group(2) ?? match.group(3) ?? '',
         )
         .map(
-          (value) => LocalizedNumberParser.tryParseYen(
-            value,
-            allowNegative: true,
-          ),
+          (value) =>
+              LocalizedNumberParser.tryParseYen(value, allowNegative: true),
         )
         .whereType<int>()
         .toList(growable: false);
@@ -215,8 +212,7 @@ class OcrConfidenceEngine {
     final amounts = includedItemAmounts.toList(growable: false);
     if (totalAmountYen == null || amounts.isEmpty) return const [];
     final sum = amounts.fold<int>(0, (value, amount) => value + amount);
-    final tolerance =
-        (totalAmountYen.abs() * 0.02).clamp(1000, 200000).toInt();
+    final tolerance = (totalAmountYen.abs() * 0.02).clamp(1000, 200000).toInt();
     if ((sum - totalAmountYen).abs() <= tolerance) return const [];
     return [
       OcrReviewIssue(

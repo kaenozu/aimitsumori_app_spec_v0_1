@@ -13,9 +13,7 @@ abstract interface class PurchaseVerifier {
 
 class PurchaseVerificationService implements PurchaseVerifier {
   const PurchaseVerificationService({
-    this.endpoint = const String.fromEnvironment(
-      'PURCHASE_VERIFICATION_URL',
-    ),
+    this.endpoint = const String.fromEnvironment('PURCHASE_VERIFICATION_URL'),
   });
 
   final String endpoint;
@@ -34,11 +32,12 @@ class PurchaseVerificationService implements PurchaseVerifier {
     final uri = Uri.tryParse(endpoint);
     if (uri == null || uri.scheme != 'https') return false;
 
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10);
     try {
-      final request = await client.postUrl(uri).timeout(
-            const Duration(seconds: 10),
-          );
+      final request = await client
+          .postUrl(uri)
+          .timeout(const Duration(seconds: 10));
       request.headers.contentType = ContentType.json;
       request.write(
         jsonEncode({
@@ -52,8 +51,8 @@ class PurchaseVerificationService implements PurchaseVerifier {
         }),
       );
       final response = await request.close().timeout(
-            const Duration(seconds: 15),
-          );
+        const Duration(seconds: 15),
+      );
       final body = await utf8.decoder.bind(response).join();
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return false;

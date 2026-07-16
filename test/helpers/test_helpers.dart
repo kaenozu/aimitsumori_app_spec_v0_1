@@ -12,7 +12,7 @@ import 'package:sqflite/sqflite.dart';
 
 class MockDatabaseService implements DatabaseService {
   MockDatabaseService({List<Project> initialProjects = const []})
-      : _projects = List<Project>.from(initialProjects);
+    : _projects = List<Project>.from(initialProjects);
 
   final List<Project> _projects;
   final Map<String, ComparisonReport> _reports = <String, ComparisonReport>{};
@@ -24,8 +24,8 @@ class MockDatabaseService implements DatabaseService {
 
   @override
   Future<Database> get database => Future<Database>.error(
-        UnsupportedError('MockDatabaseService does not expose a SQLite database.'),
-      );
+    UnsupportedError('MockDatabaseService does not expose a SQLite database.'),
+  );
 
   @override
   Future<void> initializeSchemaForTesting() async {}
@@ -85,8 +85,9 @@ class MockDatabaseService implements DatabaseService {
         'MockDatabaseService does not provide transaction callbacks.',
       );
     }
-    final projectIndex =
-        _projects.indexWhere((project) => project.id == projectId);
+    final projectIndex = _projects.indexWhere(
+      (project) => project.id == projectId,
+    );
     if (projectIndex == -1) {
       throw StateError('保存先の案件が見つかりません: $projectId');
     }
@@ -113,8 +114,7 @@ class MockDatabaseService implements DatabaseService {
     DatabaseExecutor transaction,
     String projectId,
     ContractorQuote quote,
-  ) =>
-      saveQuote(projectId, quote);
+  ) => saveQuote(projectId, quote);
 
   @override
   Future<void> saveComparisonResult(ComparisonReport report) async {

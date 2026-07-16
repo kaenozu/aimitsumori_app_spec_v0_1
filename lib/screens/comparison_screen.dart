@@ -144,10 +144,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
       }
       final refreshed = await _repository.getProject(_project.id);
       if (refreshed == null) {
-        throw const ProjectRepositoryException(
-          '案件の再読み込み',
-          'project not found',
-        );
+        throw const ProjectRepositoryException('案件の再読み込み', 'project not found');
       }
       if (!mounted) return;
       setState(() {
@@ -168,10 +165,8 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
       final saved = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
-          builder: (_) => QuoteInputScreen(
-            project: _project,
-            repository: _repository,
-          ),
+          builder: (_) =>
+              QuoteInputScreen(project: _project, repository: _repository),
         ),
       );
       if (saved == true) await _refresh();
@@ -297,9 +292,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
           final captured = await _captureComparison();
           await SharePlus.instance.share(
             ShareParams(
-              files: [
-                XFile.fromData(captured.bytes, mimeType: 'image/png'),
-              ],
+              files: [XFile.fromData(captured.bytes, mimeType: 'image/png')],
               fileNameOverrides: ['${fileStem}_比較結果.png'],
               subject: '${_report.projectName} 相見積もり比較',
               title: '比較結果を画像で共有',
@@ -361,8 +354,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
     }
     final image = await renderObject.toImage(pixelRatio: pixelRatio);
     try {
-      if (image.width > maxPixelDimension ||
-          image.height > maxPixelDimension) {
+      if (image.width > maxPixelDimension || image.height > maxPixelDimension) {
         throw StateError('比較画面の画像サイズが上限を超えました。');
       }
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -380,9 +372,9 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -396,8 +388,9 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
           Builder(
             builder: (shareContext) => IconButton(
               tooltip: '比較結果を共有',
-              onPressed:
-                  _exporting ? null : () => _showShareOptions(shareContext),
+              onPressed: _exporting
+                  ? null
+                  : () => _showShareOptions(shareContext),
               icon: _exporting
                   ? const SizedBox.square(
                       dimension: 20,
@@ -428,14 +421,14 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
       ),
       bottomNavigationBar:
           banner != null && _bannerLoaded && !_adService.adFree.value
-              ? SafeArea(
-                  child: SizedBox(
-                    width: banner.size.width.toDouble(),
-                    height: banner.size.height.toDouble(),
-                    child: AdWidget(ad: banner),
-                  ),
-                )
-              : null,
+          ? SafeArea(
+              child: SizedBox(
+                width: banner.size.width.toDouble(),
+                height: banner.size.height.toDouble(),
+                child: AdWidget(ad: banner),
+              ),
+            )
+          : null,
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: ListView(
@@ -452,9 +445,8 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
                     children: [
                       Text(
                         _report.projectName,
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
                       const Text('順位・総合点は付けず、条件差と不明点を確認します。'),
@@ -660,13 +652,13 @@ class _CategoryComparisonList extends StatelessWidget {
   }
 
   IconData _statusIcon(InclusionStatus status) => switch (status) {
-        InclusionStatus.included => Icons.check_circle_outline,
-        InclusionStatus.separate => Icons.add_circle_outline,
-        InclusionStatus.optional => Icons.info_outline,
-        InclusionStatus.excluded || InclusionStatus.notApplicable =>
-          Icons.remove_circle_outline,
-        InclusionStatus.unknown => Icons.help_outline,
-      };
+    InclusionStatus.included => Icons.check_circle_outline,
+    InclusionStatus.separate => Icons.add_circle_outline,
+    InclusionStatus.optional => Icons.info_outline,
+    InclusionStatus.excluded ||
+    InclusionStatus.notApplicable => Icons.remove_circle_outline,
+    InclusionStatus.unknown => Icons.help_outline,
+  };
 }
 
 class _DetailUnlockCard extends StatelessWidget {

@@ -13,81 +13,76 @@ class ProjectRepository {
   ProjectRepository({
     DatabaseService? databaseService,
     QuoteRevisionService? revisionService,
-  })  : _databaseService = databaseService ?? DatabaseService.instance,
-        _revisionService = revisionService ??
-            (databaseService == null ? QuoteRevisionService.instance : null);
+  }) : _databaseService = databaseService ?? DatabaseService.instance,
+       _revisionService =
+           revisionService ??
+           (databaseService == null ? QuoteRevisionService.instance : null);
 
   static final ProjectRepository instance = ProjectRepository();
 
   final DatabaseService _databaseService;
   final QuoteRevisionService? _revisionService;
 
-  Future<List<Project>> getProjects() => _run(
-        operation: '案件の読み込み',
-        action: _databaseService.getProjects,
-      );
+  Future<List<Project>> getProjects() =>
+      _run(operation: '案件の読み込み', action: _databaseService.getProjects);
 
   Future<Project?> getProject(String projectId) => _run(
-        operation: '案件の読み込み',
-        action: () => _databaseService.getProject(projectId),
-      );
+    operation: '案件の読み込み',
+    action: () => _databaseService.getProject(projectId),
+  );
 
   Future<void> saveProject(Project project) => _run(
-        operation: '案件の保存',
-        action: () => _databaseService.saveProject(project),
-      );
+    operation: '案件の保存',
+    action: () => _databaseService.saveProject(project),
+  );
 
   Future<void> updateProject(Project project) => _run(
-        operation: '案件の更新',
-        action: () => _databaseService.updateProject(project),
-      );
+    operation: '案件の更新',
+    action: () => _databaseService.updateProject(project),
+  );
 
   Future<void> deleteProject(String projectId) => _run(
-        operation: '案件の削除',
-        action: () => _databaseService.deleteProject(projectId),
-      );
+    operation: '案件の削除',
+    action: () => _databaseService.deleteProject(projectId),
+  );
 
-  Future<void> deleteAllData() => _run(
-        operation: '全データの削除',
-        action: _databaseService.deleteAllData,
-      );
+  Future<void> deleteAllData() =>
+      _run(operation: '全データの削除', action: _databaseService.deleteAllData);
 
   Future<void> saveQuote(
     String projectId,
     ContractorQuote quote, {
     QuoteImportIntent? revisionIntent,
     String? sourceFileHash,
-  }) =>
-      _run(
-        operation: '見積の保存',
-        action: () async {
-          final revisionService = _revisionService;
-          await _databaseService.saveQuote(
-            projectId,
-            quote,
-            afterQuoteSaved: revisionService == null
-                ? null
-                : (transaction) => revisionService.recordQuoteInTransaction(
-                      transaction,
-                      projectId: projectId,
-                      quote: quote,
-                      intent: revisionIntent ??
-                          const QuoteImportIntent.newQuote(),
-                      sourceFileHash: sourceFileHash,
-                    ),
-          );
-        },
+  }) => _run(
+    operation: '見積の保存',
+    action: () async {
+      final revisionService = _revisionService;
+      await _databaseService.saveQuote(
+        projectId,
+        quote,
+        afterQuoteSaved: revisionService == null
+            ? null
+            : (transaction) => revisionService.recordQuoteInTransaction(
+                transaction,
+                projectId: projectId,
+                quote: quote,
+                intent: revisionIntent ?? const QuoteImportIntent.newQuote(),
+                sourceFileHash: sourceFileHash,
+              ),
       );
+    },
+  );
 
   Future<void> saveComparisonResult(ComparisonReport report) => _run(
-        operation: '比較結果の保存',
-        action: () => _databaseService.saveComparisonResult(report),
-      );
+    operation: '比較結果の保存',
+    action: () => _databaseService.saveComparisonResult(report),
+  );
 
   Future<ComparisonReport?> loadComparisonResult(String projectId) => _run(
-        operation: '比較結果の読み込み',
-        action: () => _databaseService.loadComparisonResult(projectId),
-      );
+    operation: '比較結果の読み込み',
+    action: () => _databaseService.loadComparisonResult(projectId),
+  );
 
   Future<T> _run<T>({
     required String operation,

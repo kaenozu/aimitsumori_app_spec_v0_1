@@ -9,18 +9,18 @@ void main() {
   final category = CategoryMaster.require('drainage');
 
   NormalizedQuote quote({double? quantity, String? unit}) => NormalizedQuote(
-        quoteId: 'quote-1',
-        contractorName: 'A社',
-        lines: [
-          NormalizedLine(
-            category: category,
-            inclusionStatus: InclusionStatus.included,
-            quantity: quantity,
-            unit: unit,
-            sourceLineItemIds: const ['line-1'],
-          ),
-        ],
-      );
+    quoteId: 'quote-1',
+    contractorName: 'A社',
+    lines: [
+      NormalizedLine(
+        category: category,
+        inclusionStatus: InclusionStatus.included,
+        quantity: quantity,
+        unit: unit,
+        sourceLineItemIds: const ['line-1'],
+      ),
+    ],
+  );
 
   test('compatible units are converted before quantity comparison', () {
     final result = engine.evaluate(

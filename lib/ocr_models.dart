@@ -13,7 +13,8 @@ enum OcrReviewStatus {
   final String code;
   final String labelJa;
 
-  static OcrReviewStatus fromCode(String code) => OcrReviewStatus.values.firstWhere(
+  static OcrReviewStatus fromCode(String code) =>
+      OcrReviewStatus.values.firstWhere(
         (value) => value.code == code,
         orElse: () => OcrReviewStatus.pending,
       );
@@ -47,13 +48,14 @@ class OcrBoundingRect {
   double get height => bottom - top;
 
   Map<String, Object?> toJson() => {
-        'left': left,
-        'top': top,
-        'right': right,
-        'bottom': bottom,
-      };
+    'left': left,
+    'top': top,
+    'right': right,
+    'bottom': bottom,
+  };
 
-  factory OcrBoundingRect.fromJson(Map<String, Object?> json) => OcrBoundingRect(
+  factory OcrBoundingRect.fromJson(Map<String, Object?> json) =>
+      OcrBoundingRect(
         left: (json['left'] as num).toDouble(),
         top: (json['top'] as num).toDouble(),
         right: (json['right'] as num).toDouble(),
@@ -114,7 +116,8 @@ class OcrRecognizedLine {
 
   bool get needsReview => reviewReasons.isNotEmpty;
 
-  OcrReviewSeverity get severity => reviewReasons.any(
+  OcrReviewSeverity get severity =>
+      reviewReasons.any(
         (reason) => reason == OcrReviewReason.quantityUnitPriceMismatch,
       )
       ? OcrReviewSeverity.critical
@@ -140,10 +143,7 @@ class OcrReviewIssue {
 }
 
 class OcrReviewBundle {
-  const OcrReviewBundle({
-    required this.lines,
-    required this.issues,
-  });
+  const OcrReviewBundle({required this.lines, required this.issues});
 
   final List<OcrRecognizedLine> lines;
   final List<OcrReviewIssue> issues;

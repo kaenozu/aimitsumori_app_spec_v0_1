@@ -123,9 +123,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     } catch (error, stackTrace) {
       debugPrint('Image picker failed: $error\n$stackTrace');
       if (!mounted) return;
-      setState(
-        () => _error = '写真を開けませんでした。カメラ・写真へのアクセス権限を確認してください。',
-      );
+      setState(() => _error = '写真を開けませんでした。カメラ・写真へのアクセス権限を確認してください。');
     }
   }
 
@@ -142,7 +140,8 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
 
     try {
       final result = await _ocrService.extractQuote(path);
-      final bundle = _ocrService.lastReviewBundle ??
+      final bundle =
+          _ocrService.lastReviewBundle ??
           const OcrReviewBundle(lines: [], issues: []);
       final documentKey = _ocrService.lastSourceFileHash ?? result.sourcePath;
       final persisted = await _reviewStore.load(documentKey);
@@ -169,9 +168,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     } catch (error, stackTrace) {
       debugPrint('OCR processing failed: $error\n$stackTrace');
       if (!mounted) return;
-      setState(
-        () => _error = '文字の読み取りに失敗しました。画像の明るさ・向き・解像度を確認して、もう一度お試しください。',
-      );
+      setState(() => _error = '文字の読み取りに失敗しました。画像の明るさ・向き・解像度を確認して、もう一度お試しください。');
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -191,8 +188,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
             line.rawText == item.rawLabel &&
             line.categoryCandidates.contains(item.categoryId),
       );
-      final sourceLine =
-          matchIndex < 0 ? null : remaining.removeAt(matchIndex);
+      final sourceLine = matchIndex < 0 ? null : remaining.removeAt(matchIndex);
       return _EditableLineItem.fromModel(item, sourceLine: sourceLine);
     }).toList();
   }
@@ -245,9 +241,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
           builder: (context) => AlertDialog(
             icon: const Icon(Icons.warning_amber_outlined),
             title: const Text('重大な未確認項目があります'),
-            content: Text(
-              '合計不一致や数量×単価不一致など、$count件が未確認です。保存前の確認を推奨します。',
-            ),
+            content: Text('合計不一致や数量×単価不一致など、$count件が未確認です。保存前の確認を推奨します。'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -334,9 +328,9 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
         await _reviewStore.save(documentKey, _reviewStatuses);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('見積を保存しました。')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('見積を保存しました。')));
       Navigator.pop(context, true);
     } catch (error, stackTrace) {
       debugPrint('Quote save failed: $error\n$stackTrace');
@@ -353,7 +347,9 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     final reviewBundle = _reviewBundle;
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.revisionIntent.isRevision ? '改訂見積書を取り込む' : '見積書を取り込む'),
+        title: Text(
+          widget.revisionIntent.isRevision ? '改訂見積書を取り込む' : '見積書を取り込む',
+        ),
         actions: [
           IconButton(
             key: const ValueKey('quote-save-button'),
@@ -524,25 +520,25 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
               )
             else
               ..._editableItems.asMap().entries.map(
-                    (entry) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _EditableLineCard(
-                        key: ValueKey(entry.value),
-                        index: entry.key,
-                        item: entry.value,
-                        reviewStatus: entry.value.sourceLine == null
-                            ? null
-                            : _statusFor(entry.value.sourceLine!),
-                        onReviewStatusChanged: entry.value.sourceLine == null
-                            ? null
-                            : (status) => _setReviewStatus(
-                                  entry.value.sourceLine!.id,
-                                  status,
-                                ),
-                        onRemove: () => _removeLineItem(entry.key),
-                      ),
-                    ),
+                (entry) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _EditableLineCard(
+                    key: ValueKey(entry.value),
+                    index: entry.key,
+                    item: entry.value,
+                    reviewStatus: entry.value.sourceLine == null
+                        ? null
+                        : _statusFor(entry.value.sourceLine!),
+                    onReviewStatusChanged: entry.value.sourceLine == null
+                        ? null
+                        : (status) => _setReviewStatus(
+                            entry.value.sourceLine!.id,
+                            status,
+                          ),
+                    onRemove: () => _removeLineItem(entry.key),
                   ),
+                ),
+              ),
             const SizedBox(height: 16),
             ExpansionTile(
               tilePadding: EdgeInsets.zero,
@@ -644,7 +640,10 @@ class _EditableLineCardState extends State<_EditableLineCard> {
           ),
           items: [
             for (final category in CategoryMaster.categories)
-              DropdownMenuItem(value: category.id, child: Text(category.nameJa)),
+              DropdownMenuItem(
+                value: category.id,
+                child: Text(category.nameJa),
+              ),
           ],
           onChanged: (value) {
             if (value != null) setState(() => item.categoryId = value);
@@ -681,8 +680,9 @@ class _EditableLineCardState extends State<_EditableLineCard> {
               flex: 2,
               child: TextField(
                 controller: item.quantityController,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(
                   labelText: '数量',
                   border: OutlineInputBorder(),
@@ -778,8 +778,9 @@ class _EditableLineItem {
         text: item.quantity == null ? '' : item.quantity.toString(),
       ),
       unitController: TextEditingController(text: item.unit ?? ''),
-      specificationController:
-          TextEditingController(text: item.specification ?? ''),
+      specificationController: TextEditingController(
+        text: item.specification ?? '',
+      ),
       categoryId: CategoryMaster.find(item.categoryId) == null
           ? CategoryMaster.categories.first.id
           : item.categoryId,
@@ -790,14 +791,14 @@ class _EditableLineItem {
   }
 
   factory _EditableLineItem.empty() => _EditableLineItem(
-        rawLabelController: TextEditingController(),
-        amountController: TextEditingController(),
-        quantityController: TextEditingController(),
-        unitController: TextEditingController(),
-        specificationController: TextEditingController(),
-        categoryId: CategoryMaster.categories.first.id,
-        inclusionStatus: InclusionStatus.unknown,
-      );
+    rawLabelController: TextEditingController(),
+    amountController: TextEditingController(),
+    quantityController: TextEditingController(),
+    unitController: TextEditingController(),
+    specificationController: TextEditingController(),
+    categoryId: CategoryMaster.categories.first.id,
+    inclusionStatus: InclusionStatus.unknown,
+  );
 
   final TextEditingController rawLabelController;
   final TextEditingController amountController;

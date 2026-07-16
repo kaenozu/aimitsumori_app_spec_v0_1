@@ -50,9 +50,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('全データを削除しますか？'),
-        content: const Text(
-          '保存済みの案件、見積、比較結果が削除対象です。設定内容と購入状態は削除されません。',
-        ),
+        content: const Text('保存済みの案件、見積、比較結果が削除対象です。設定内容と購入状態は削除されません。'),
         actions: [
           TextButton(
             onPressed: () async {
@@ -81,9 +79,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           color: Theme.of(dialogContext).colorScheme.error,
         ),
         title: const Text('最終確認'),
-        content: const Text(
-          'この操作は元に戻せません。本当にすべての案件データを削除しますか？',
-        ),
+        content: const Text('この操作は元に戻せません。本当にすべての案件データを削除しますか？'),
         actions: [
           TextButton(
             onPressed: () async {
@@ -115,9 +111,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Navigator.pop(context, true);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     } finally {
       if (mounted) setState(() => _deleting = false);
     }

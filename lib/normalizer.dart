@@ -40,7 +40,10 @@ class Normalizer {
     }
 
     final reasons = <String>[];
-    final distinctStatuses = items.map((item) => item.inclusionStatus).toSet().toList();
+    final distinctStatuses = items
+        .map((item) => item.inclusionStatus)
+        .toSet()
+        .toList();
     final status = distinctStatuses.length == 1
         ? distinctStatuses.first
         : (() {
@@ -84,7 +87,9 @@ class Normalizer {
         .map((item) => item.specification!.trim())
         .toSet()
         .toList();
-    final specification = specificationValues.length == 1 ? specificationValues.first : null;
+    final specification = specificationValues.length == 1
+        ? specificationValues.first
+        : null;
     if (category.specificationExpected && specification == null) {
       reasons.add('仕様・型番が不明です');
     }

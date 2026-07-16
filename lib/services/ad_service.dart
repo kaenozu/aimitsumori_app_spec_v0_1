@@ -11,15 +11,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'purchase_verification_service.dart';
 
-enum RewardedAdOutcome {
-  rewarded,
-  unavailable,
-  dismissed,
-}
+enum RewardedAdOutcome { rewarded, unavailable, dismissed }
 
 class AdService {
   AdService._({PurchaseVerifier? verifier})
-      : _verifier = verifier ?? const PurchaseVerificationService();
+    : _verifier = verifier ?? const PurchaseVerificationService();
 
   @visibleForTesting
   AdService.testing({
@@ -91,11 +87,7 @@ class AdService {
     final testId = defaultTargetPlatform == TargetPlatform.iOS
         ? _iosTestRewardedId
         : _androidTestRewardedId;
-    return _adUnitId(
-      configured: configured,
-      testId: testId,
-      kind: 'rewarded',
-    );
+    return _adUnitId(configured: configured, testId: testId, kind: 'rewarded');
   }
 
   String _adUnitId({
@@ -150,8 +142,9 @@ class AdService {
 
   Future<void> _loadRemoveAdsProduct() async {
     if (!await _inAppPurchase.isAvailable()) return;
-    final response =
-        await _inAppPurchase.queryProductDetails({removeAdsProductId});
+    final response = await _inAppPurchase.queryProductDetails({
+      removeAdsProductId,
+    });
     if (response.error != null) {
       debugPrint('Product query failed: ${response.error}');
       return;
@@ -263,8 +256,9 @@ class AdService {
 
   Future<ProductDetails?> _queryRemoveAdsProduct() async {
     if (!await _inAppPurchase.isAvailable()) return null;
-    final response =
-        await _inAppPurchase.queryProductDetails({removeAdsProductId});
+    final response = await _inAppPurchase.queryProductDetails({
+      removeAdsProductId,
+    });
     if (response.error != null || response.productDetails.isEmpty) return null;
     return response.productDetails.firstWhere(
       (value) => value.id == removeAdsProductId,
@@ -281,9 +275,7 @@ class AdService {
     }
   }
 
-  Future<void> _handlePurchaseUpdates(
-    List<PurchaseDetails> purchases,
-  ) async {
+  Future<void> _handlePurchaseUpdates(List<PurchaseDetails> purchases) async {
     for (final purchase in purchases) {
       if (purchase.productID != removeAdsProductId) continue;
 

@@ -40,10 +40,7 @@ void main() {
       final adService = MockAdMobService();
 
       await tester.pumpWidget(
-        AimitsumoriApp(
-          repository: repository,
-          adService: adService,
-        ),
+        AimitsumoriApp(repository: repository, adService: adService),
       );
       await tester.pumpAndSettle();
 
@@ -82,7 +79,9 @@ void main() {
     },
   );
 
-  testWidgets('OCR screen exposes PDF, camera and save controls', (tester) async {
+  testWidgets('OCR screen exposes PDF, camera and save controls', (
+    tester,
+  ) async {
     final project = createSampleComparisonProject();
     final database = MockDatabaseService(initialProjects: [project]);
     final repository = ProjectRepository(databaseService: database);
@@ -102,26 +101,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('見積書を取り込む'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('quote-pdf-button')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('quote-photo-button')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('quote-save-button')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('quote-pdf-button')), findsOneWidget);
+    expect(find.byKey(const ValueKey('quote-photo-button')), findsOneWidget);
+    expect(find.byKey(const ValueKey('quote-save-button')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('quote-photo-button')));
     await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const ValueKey('quote-camera-option')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('quote-camera-option')), findsOneWidget);
     expect(find.text('カメラで撮影'), findsOneWidget);
   });
 
@@ -142,10 +129,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final callsBeforeRefresh = database.getProjectCallCount;
-    await tester.drag(
-      find.byType(RefreshIndicator),
-      const Offset(0, 360),
-    );
+    await tester.drag(find.byType(RefreshIndicator), const Offset(0, 360));
     await tester.pump();
     await tester.pumpAndSettle();
 

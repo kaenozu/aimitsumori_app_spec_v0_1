@@ -60,24 +60,14 @@ void main() {
         number: 1,
         total: 100000,
         items: [
-          item(
-            id: 'i1',
-            amount: 100000,
-            quantity: 10,
-            specification: 'H800',
-          ),
+          item(id: 'i1', amount: 100000, quantity: 10, specification: 'H800'),
         ],
       );
       final after = revision(
         number: 2,
         total: 144000,
         items: [
-          item(
-            id: 'i2',
-            amount: 144000,
-            quantity: 12,
-            specification: 'H1000',
-          ),
+          item(id: 'i2', amount: 144000, quantity: 12, specification: 'H1000'),
         ],
       );
 
@@ -125,12 +115,7 @@ void main() {
           label: '門柱工事',
           inclusionStatus: InclusionStatus.separate,
         ),
-        item(
-          id: 'i4',
-          categoryId: 'drainage',
-          label: '排水工事',
-          amount: 50000,
-        ),
+        item(id: 'i4', categoryId: 'drainage', label: '排水工事', amount: 50000),
       ],
     );
 

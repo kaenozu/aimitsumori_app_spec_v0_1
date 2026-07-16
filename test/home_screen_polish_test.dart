@@ -17,9 +17,7 @@ void main() {
         createTestProject(
           id: 'parking',
           name: '駐車場拡張',
-          quotes: [
-            createTestContractorQuote(contractorName: '熊谷建設'),
-          ],
+          quotes: [createTestContractorQuote(contractorName: '熊谷建設')],
         ),
       ],
     );
@@ -76,18 +74,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('案件を削除しますか？'), findsOneWidget);
-    expect(
-      find.text('「削除対象案件」の見積と比較結果も削除されます。'),
-      findsOneWidget,
-    );
+    expect(find.text('「削除対象案件」の見積と比較結果も削除されます。'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(FilledButton, '削除'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const ValueKey('project-card-delete-me')),
-      findsNothing,
-    );
+    expect(find.byKey(const ValueKey('project-card-delete-me')), findsNothing);
     expect(await database.getProject(project.id), isNull);
   });
 

@@ -10,10 +10,7 @@ import '../normalizer.dart';
 import '../question_generator.dart';
 
 class RevisionComparisonScreen extends StatelessWidget {
-  const RevisionComparisonScreen({
-    super.key,
-    required this.project,
-  });
+  const RevisionComparisonScreen({super.key, required this.project});
 
   final Project project;
 
@@ -35,10 +32,7 @@ class RevisionComparisonScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(
-            project.name,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          Text(project.name, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 4),
           const Text('この画面は読み取り専用です。現在の案件データや比較結果は変更しません。'),
           const SizedBox(height: 16),
@@ -53,7 +47,11 @@ class RevisionComparisonScreen extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  for (var index = 0; index < report.summaryLines.length; index++)
+                  for (
+                    var index = 0;
+                    index < report.summaryLines.length;
+                    index++
+                  )
                     Text('${index + 1}. ${report.summaryLines[index]}'),
                 ],
               ),
@@ -72,10 +70,7 @@ class RevisionComparisonScreen extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 12),
-          Text(
-            'カテゴリ別比較',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          Text('カテゴリ別比較', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           for (final comparison in report.categoryComparisons)
             ExpansionTile(
@@ -102,9 +97,7 @@ class RevisionComparisonScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           if (report.clarificationQuestions.isEmpty)
-            const Card(
-              child: ListTile(title: Text('確認質問はありません。')),
-            )
+            const Card(child: ListTile(title: Text('確認質問はありません。')))
           else
             for (final question in report.clarificationQuestions)
               Card(

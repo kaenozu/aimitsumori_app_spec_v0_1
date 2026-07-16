@@ -57,7 +57,8 @@ class _RequirementsComparisonScreenState
       final projectRepository =
           widget.projectRepository ?? ProjectRepository.instance;
       final project =
-          await projectRepository.getProject(widget.project.id) ?? widget.project;
+          await projectRepository.getProject(widget.project.id) ??
+          widget.project;
       final requirements = await _repository.getRequirements(project.id);
       final normalized = Normalizer().normalize(project);
       final assessments = const RequirementsEngine().evaluate(
@@ -70,9 +71,7 @@ class _RequirementsComparisonScreenState
             normalizedQuotes: normalized,
             requirements: requirements,
           )
-          .where(
-            (question) => question.templateKey.startsWith('REQUIREMENT_'),
-          )
+          .where((question) => question.templateKey.startsWith('REQUIREMENT_'))
           .toList(growable: false);
       if (!mounted) return;
       setState(() {
@@ -134,9 +133,7 @@ class _RequirementsComparisonScreenState
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 children: [
-                  const Text(
-                    '総合点やランキングは付けず、要望との差異と確認が必要な点だけを表示します。',
-                  ),
+                  const Text('総合点やランキングは付けず、要望との差異と確認が必要な点だけを表示します。'),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: _editRequirements,
@@ -163,9 +160,7 @@ class _RequirementsComparisonScreenState
                       child: ListTile(
                         leading: Icon(Icons.info_outline),
                         title: Text('要望がまだ設定されていません。'),
-                        subtitle: Text(
-                          '必須・あればよい・不要を設定すると、各社との差異を表示します。',
-                        ),
+                        subtitle: Text('必須・あればよい・不要を設定すると、各社との差異を表示します。'),
                       ),
                     ),
                   ] else if (_project.quotes.isEmpty) ...[
@@ -174,9 +169,7 @@ class _RequirementsComparisonScreenState
                       child: ListTile(
                         leading: Icon(Icons.description_outlined),
                         title: Text('比較する見積がありません。'),
-                        subtitle: Text(
-                          '見積書を追加すると、各社の要望充足状況を表示します。',
-                        ),
+                        subtitle: Text('見積書を追加すると、各社の要望充足状況を表示します。'),
                       ),
                     ),
                   ] else ...[
@@ -290,14 +283,14 @@ class _AssessmentTile extends StatelessWidget {
   }
 
   IconData _icon(RequirementCoverageStatus status) => switch (status) {
-        RequirementCoverageStatus.requiredIncluded => Icons.check_circle_outline,
-        RequirementCoverageStatus.requiredSeparate => Icons.add_circle_outline,
-        RequirementCoverageStatus.requiredMissing => Icons.help_outline,
-        RequirementCoverageStatus.unnecessaryIncluded =>
-          Icons.warning_amber_outlined,
-        RequirementCoverageStatus.optionalIncluded => Icons.check_circle_outline,
-        RequirementCoverageStatus.optionalMissing => Icons.info_outline,
-        RequirementCoverageStatus.noIssue => Icons.remove_circle_outline,
-        RequirementCoverageStatus.unset => Icons.help_outline,
-      };
+    RequirementCoverageStatus.requiredIncluded => Icons.check_circle_outline,
+    RequirementCoverageStatus.requiredSeparate => Icons.add_circle_outline,
+    RequirementCoverageStatus.requiredMissing => Icons.help_outline,
+    RequirementCoverageStatus.unnecessaryIncluded =>
+      Icons.warning_amber_outlined,
+    RequirementCoverageStatus.optionalIncluded => Icons.check_circle_outline,
+    RequirementCoverageStatus.optionalMissing => Icons.info_outline,
+    RequirementCoverageStatus.noIssue => Icons.remove_circle_outline,
+    RequirementCoverageStatus.unset => Icons.help_outline,
+  };
 }

@@ -58,7 +58,8 @@ class RequirementsEngine {
             ? RequirementCoverageStatus.optionalIncluded
             : RequirementCoverageStatus.optionalMissing;
       case RequirementPriority.unnecessary:
-        final hasCharge = line.inclusionStatus == InclusionStatus.included ||
+        final hasCharge =
+            line.inclusionStatus == InclusionStatus.included ||
             (line.amountYen ?? 0) > 0;
         return hasCharge
             ? RequirementCoverageStatus.unnecessaryIncluded
@@ -88,7 +89,8 @@ class RequirementsEngine {
         mismatches.add(
           RequirementMismatch(
             type: RequirementMismatchType.quantity,
-            message: '希望数量 ${_formatNumber(expectedQuantity)}'
+            message:
+                '希望数量 ${_formatNumber(expectedQuantity)}'
                 '${_text(expectedUnit)}に対し、見積数量の記載がありません。',
           ),
         );
@@ -97,7 +99,8 @@ class RequirementsEngine {
           mismatches.add(
             RequirementMismatch(
               type: RequirementMismatchType.quantity,
-              message: '希望数量 ${_formatNumber(expectedQuantity)} / '
+              message:
+                  '希望数量 ${_formatNumber(expectedQuantity)} / '
                   '見積 ${_formatNumber(actualQuantity)}${_text(actualUnit)}',
             ),
           );
@@ -107,7 +110,8 @@ class RequirementsEngine {
           mismatches.add(
             RequirementMismatch(
               type: RequirementMismatchType.quantity,
-              message: '希望数量 ${_formatNumber(expectedQuantity)}$expectedUnit / '
+              message:
+                  '希望数量 ${_formatNumber(expectedQuantity)}$expectedUnit / '
                   '見積数量 ${_formatNumber(actualQuantity)}（単位未記載）',
             ),
           );
@@ -122,7 +126,8 @@ class RequirementsEngine {
           mismatches.add(
             RequirementMismatch(
               type: RequirementMismatchType.quantity,
-              message: '希望数量 ${_formatNumber(expectedQuantity)}$expectedUnit / '
+              message:
+                  '希望数量 ${_formatNumber(expectedQuantity)}$expectedUnit / '
                   '見積 ${_formatNumber(actualQuantity)}$actualUnit',
             ),
           );
@@ -131,7 +136,8 @@ class RequirementsEngine {
         mismatches.add(
           RequirementMismatch(
             type: RequirementMismatchType.quantity,
-            message: '希望数量 ${_formatNumber(expectedQuantity)}$expectedUnit / '
+            message:
+                '希望数量 ${_formatNumber(expectedQuantity)}$expectedUnit / '
                 '見積 ${_formatNumber(actualQuantity)}$actualUnit'
                 '（単位が異なるため換算できません）',
           ),
@@ -185,11 +191,12 @@ class RequirementsEngine {
   }
 
   String _normalize(String value) => LocalizedNumberParser.normalizeCharacters(
-        value.toLowerCase(),
-      ).replaceAll(RegExp(r'\s+'), '');
+    value.toLowerCase(),
+  ).replaceAll(RegExp(r'\s+'), '');
 
   static String _text(String? value) => value?.trim() ?? '';
 
-  static String _formatNumber(double value) =>
-      value == value.roundToDouble() ? value.toInt().toString() : value.toString();
+  static String _formatNumber(double value) => value == value.roundToDouble()
+      ? value.toInt().toString()
+      : value.toString();
 }

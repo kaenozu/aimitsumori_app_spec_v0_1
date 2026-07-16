@@ -85,9 +85,7 @@ class _FirstRunGateState extends State<FirstRunGate> {
   Widget build(BuildContext context) {
     final completed = _completed;
     if (completed == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (completed) {
       return HomeScreen(
@@ -141,9 +139,9 @@ class OnboardingScreen extends StatelessWidget {
             Text(
               '見積書の「違い」を見つける',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             const Text(
@@ -222,9 +220,7 @@ class _OnboardingStep extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              child: Text(number),
-            ),
+            CircleAvatar(child: Text(number)),
             const SizedBox(width: 12),
             Icon(icon, size: 28),
             const SizedBox(width: 12),

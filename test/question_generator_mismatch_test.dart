@@ -49,7 +49,10 @@ void main() {
         'REQUIREMENT_UNIT_MISMATCH',
       ]),
     );
-    expect(questions.map((value) => value.id).toSet(), hasLength(questions.length));
+    expect(
+      questions.map((value) => value.id).toSet(),
+      hasLength(questions.length),
+    );
     expect(questions.every((value) => value.id.length == 36), isTrue);
   });
 }

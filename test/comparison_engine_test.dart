@@ -15,27 +15,34 @@ void main() {
   final questionGenerator = QuestionGenerator();
   final engine = ComparisonEngine();
 
-  test('compare keeps input company order and creates exactly three summary lines', () {
-    final project = createSampleComparisonProject();
-    final normalized = normalizer.normalize(project);
-    final questions = questionGenerator.generate(
-      project: project,
-      normalizedQuotes: normalized,
-      nowEpochMillis: 1,
-    );
+  test(
+    'compare keeps input company order and creates exactly three summary lines',
+    () {
+      final project = createSampleComparisonProject();
+      final normalized = normalizer.normalize(project);
+      final questions = questionGenerator.generate(
+        project: project,
+        normalizedQuotes: normalized,
+        nowEpochMillis: 1,
+      );
 
-    final report = engine.compare(
-      project: project,
-      normalizedQuotes: normalized,
-      questions: questions,
-    );
+      final report = engine.compare(
+        project: project,
+        normalizedQuotes: normalized,
+        questions: questions,
+      );
 
-    expect(report.quoteSnapshots.map((s) => s.contractorName).toList(), ['A社', 'B社', 'C社']);
-    expect(report.summaryLines.length, 3);
-    expect(report.summaryLines[0], contains('A社 2,530,000円'));
-    expect(report.summaryLines[0], contains('B社 3,450,000円'));
-    expect(report.summaryLines[0], contains('C社 2,785,000円'));
-  });
+      expect(report.quoteSnapshots.map((s) => s.contractorName).toList(), [
+        'A社',
+        'B社',
+        'C社',
+      ]);
+      expect(report.summaryLines.length, 3);
+      expect(report.summaryLines[0], contains('A社 2,530,000円'));
+      expect(report.summaryLines[0], contains('B社 3,450,000円'));
+      expect(report.summaryLines[0], contains('C社 2,785,000円'));
+    },
+  );
 
   test('compare does not hide separate items behind low total', () {
     final project = createSampleComparisonProject();
@@ -51,7 +58,9 @@ void main() {
       normalizedQuotes: normalized,
       questions: questions,
     );
-    final companyA = report.quoteSnapshots.firstWhere((s) => s.contractorName == 'A社');
+    final companyA = report.quoteSnapshots.firstWhere(
+      (s) => s.contractorName == 'A社',
+    );
 
     expect(companyA.totalAmountYen, 2530000);
     expect(companyA.separateCategoryNames, contains('残土処分'));
@@ -66,9 +75,15 @@ void main() {
 
   test('normalization preserves unknown values without guessing', () {
     final project = createSampleComparisonProject();
-    final companyC = normalizer.normalize(project).firstWhere((q) => q.contractorName == 'C社');
-    final concrete = companyC.lines.firstWhere((l) => l.category.id == 'concrete');
-    final drainage = companyC.lines.firstWhere((l) => l.category.id == 'drainage');
+    final companyC = normalizer
+        .normalize(project)
+        .firstWhere((q) => q.contractorName == 'C社');
+    final concrete = companyC.lines.firstWhere(
+      (l) => l.category.id == 'concrete',
+    );
+    final drainage = companyC.lines.firstWhere(
+      (l) => l.category.id == 'drainage',
+    );
 
     expect(concrete.quantity, isNull);
     expect(concrete.unit, isNull);
@@ -80,23 +95,26 @@ void main() {
     expect(drainage.amountYen, isNull);
   });
 
-  test('report contains all 18 categories and no synthetic score or ranking', () {
-    final project = createSampleComparisonProject();
-    final normalized = normalizer.normalize(project);
-    final questions = questionGenerator.generate(
-      project: project,
-      normalizedQuotes: normalized,
-      nowEpochMillis: 1,
-    );
-    final report = engine.compare(
-      project: project,
-      normalizedQuotes: normalized,
-      questions: questions,
-    );
+  test(
+    'report contains all 18 categories and no synthetic score or ranking',
+    () {
+      final project = createSampleComparisonProject();
+      final normalized = normalizer.normalize(project);
+      final questions = questionGenerator.generate(
+        project: project,
+        normalizedQuotes: normalized,
+        nowEpochMillis: 1,
+      );
+      final report = engine.compare(
+        project: project,
+        normalizedQuotes: normalized,
+        questions: questions,
+      );
 
-    expect(report.categoryComparisons.length, 18);
-    expect(report.summaryLines.any((l) => l.contains('総合点')), isFalse);
-    expect(report.summaryLines.any((l) => l.contains('ランキング')), isFalse);
-    expect(report.summaryLines.any((l) => l.contains('1位')), isFalse);
-  });
+      expect(report.categoryComparisons.length, 18);
+      expect(report.summaryLines.any((l) => l.contains('総合点')), isFalse);
+      expect(report.summaryLines.any((l) => l.contains('ランキング')), isFalse);
+      expect(report.summaryLines.any((l) => l.contains('1位')), isFalse);
+    },
+  );
 }

@@ -88,9 +88,9 @@ class _RequirementsChecklistScreenState
         Navigator.pop(context, true);
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('要望・工事範囲を保存しました。')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('要望・工事範囲を保存しました。')));
     } on FormatException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } catch (error) {
@@ -107,9 +107,7 @@ class _RequirementsChecklistScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.creationFlow ? '案件の要望を設定' : '要望・工事範囲'),
-      ),
+      appBar: AppBar(title: Text(widget.creationFlow ? '案件の要望を設定' : '要望・工事範囲')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -124,7 +122,9 @@ class _RequirementsChecklistScreenState
                   '18カテゴリを「必須・あればよい・不要・未設定」に分類します。数量・単位・希望仕様も必要な範囲だけ入力してください。',
                 ),
                 const SizedBox(height: 8),
-                Text('設定済み $_configuredCount / ${CategoryMaster.categories.length}'),
+                Text(
+                  '設定済み $_configuredCount / ${CategoryMaster.categories.length}',
+                ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
                   Card(
@@ -172,8 +172,9 @@ class _RequirementsChecklistScreenState
                 if (widget.creationFlow) ...[
                   const SizedBox(height: 8),
                   TextButton(
-                    onPressed:
-                        _saving ? null : () => Navigator.pop(context, false),
+                    onPressed: _saving
+                        ? null
+                        : () => Navigator.pop(context, false),
                     child: const Text('未設定のまま後で入力'),
                   ),
                 ],
@@ -197,7 +198,8 @@ class _RequirementCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final category = CategoryMaster.require(editor.requirement.categoryId);
-    final needsDetails = editor.priority == RequirementPriority.required ||
+    final needsDetails =
+        editor.priority == RequirementPriority.required ||
         editor.priority == RequirementPriority.optional;
     return Card(
       child: Padding(
@@ -233,8 +235,9 @@ class _RequirementCard extends StatelessWidget {
                   Expanded(
                     child: TextField(
                       controller: editor.quantityController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: const InputDecoration(
                         labelText: '希望数量',
                         border: OutlineInputBorder(),
@@ -284,17 +287,17 @@ class _RequirementCard extends StatelessWidget {
 
 class _RequirementEditor {
   _RequirementEditor(this.requirement)
-      : priority = requirement.priority,
-        quantityController = TextEditingController(
-          text: requirement.expectedQuantity?.toString() ?? '',
-        ),
-        unitController = TextEditingController(
-          text: requirement.expectedUnit ?? '',
-        ),
-        specificationController = TextEditingController(
-          text: requirement.desiredSpecification ?? '',
-        ),
-        noteController = TextEditingController(text: requirement.note ?? '');
+    : priority = requirement.priority,
+      quantityController = TextEditingController(
+        text: requirement.expectedQuantity?.toString() ?? '',
+      ),
+      unitController = TextEditingController(
+        text: requirement.expectedUnit ?? '',
+      ),
+      specificationController = TextEditingController(
+        text: requirement.desiredSpecification ?? '',
+      ),
+      noteController = TextEditingController(text: requirement.note ?? '');
 
   final ProjectRequirement requirement;
   RequirementPriority priority;

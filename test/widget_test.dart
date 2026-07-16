@@ -15,10 +15,7 @@ void main() {
     final adService = MockAdMobService();
 
     await tester.pumpWidget(
-      AimitsumoriApp(
-        repository: repository,
-        adService: adService,
-      ),
+      AimitsumoriApp(repository: repository, adService: adService),
     );
     await tester.pumpAndSettle();
 

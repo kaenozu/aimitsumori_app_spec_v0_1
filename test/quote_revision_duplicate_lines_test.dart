@@ -5,17 +5,18 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   QuoteLineItem item(String id, int sortOrder, int amount) => QuoteLineItem(
-        id: id,
-        categoryId: 'fence',
-        rawLabel: 'フェンス工事',
-        amountYen: amount,
-        inclusionStatus: InclusionStatus.included,
-        quantity: 10,
-        unit: 'm',
-        sortOrder: sortOrder,
-      );
+    id: id,
+    categoryId: 'fence',
+    rawLabel: 'フェンス工事',
+    amountYen: amount,
+    inclusionStatus: InclusionStatus.included,
+    quantity: 10,
+    unit: 'm',
+    sortOrder: sortOrder,
+  );
 
-  QuoteRevision revision(int number, List<QuoteLineItem> items) => QuoteRevision(
+  QuoteRevision revision(int number, List<QuoteLineItem> items) =>
+      QuoteRevision(
         id: 'revision-$number',
         projectId: 'project-1',
         quoteId: 'quote-$number',
