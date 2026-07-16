@@ -40,6 +40,16 @@ class ProjectRepository {
         action: () => _databaseService.deleteProject(projectId),
       );
 
+  Future<void> deleteAllData() => _run(
+        operation: '全データの削除',
+        action: () async {
+          final projects = await _databaseService.getProjects();
+          for (final project in projects) {
+            await _databaseService.deleteProject(project.id);
+          }
+        },
+      );
+
   Future<void> saveQuote(String projectId, ContractorQuote quote) => _run(
         operation: '見積の保存',
         action: () => _databaseService.saveQuote(projectId, quote),
