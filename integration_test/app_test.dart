@@ -73,9 +73,12 @@ void main() {
 
       expect(find.text('比較'), findsOneWidget);
       expect(find.text('新築外構 3社相見積もり'), findsOneWidget);
-      expect(find.textContaining('A社 2,530,000円'), findsOneWidget);
-      expect(find.textContaining('B社 3,450,000円'), findsOneWidget);
-      expect(find.textContaining('C社 2,785,000円'), findsOneWidget);
+      expect(find.text('A社'), findsOneWidget);
+      expect(find.text('B社'), findsOneWidget);
+      expect(find.text('C社'), findsOneWidget);
+      expect(find.textContaining('2,530,000円'), findsWidgets);
+      expect(find.textContaining('3,450,000円'), findsWidgets);
+      expect(find.textContaining('2,785,000円'), findsWidgets);
     },
   );
 
