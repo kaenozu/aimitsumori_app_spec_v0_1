@@ -68,7 +68,7 @@ class OcrConfidenceEngine {
     final amountCandidates = extractAmountCandidates(text);
     final quantityMatch = RegExp(
       r'([0-9０-９]+(?:[.,，．][0-9０-９]+)*)\s*'
-      '$_quantityUnitPattern',
+      '($_quantityUnitPattern)',
       caseSensitive: false,
     ).firstMatch(text);
     final quantity = quantityMatch == null
