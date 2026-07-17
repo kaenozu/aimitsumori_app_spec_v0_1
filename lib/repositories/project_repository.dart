@@ -58,6 +58,7 @@ class ProjectRepository {
     operation: '見積の保存',
     action: () async {
       final revisionService = _revisionService;
+      final intent = revisionIntent ?? const QuoteImportIntent.newQuote();
       await _databaseService.saveQuote(
         projectId,
         quote,
@@ -67,8 +68,9 @@ class ProjectRepository {
                 transaction,
                 projectId: projectId,
                 quote: quote,
-                intent: revisionIntent ?? const QuoteImportIntent.newQuote(),
+                intent: intent,
                 sourceFileHash: sourceFileHash,
+                replaceCurrentQuote: intent.isRevision,
               ),
       );
     },
