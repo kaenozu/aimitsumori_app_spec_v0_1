@@ -132,8 +132,7 @@ class MockDatabaseService implements DatabaseService {
 }
 
 class MockAdMobService implements AdService {
-  MockAdMobService({bool adFree = true})
-    : adFree = ValueNotifier<bool>(adFree);
+  MockAdMobService({bool adFree = true}) : adFree = ValueNotifier<bool>(adFree);
 
   @override
   final ValueNotifier<bool> adFree;
