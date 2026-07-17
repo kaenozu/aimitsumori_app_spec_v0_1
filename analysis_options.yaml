@@ -9,12 +9,5 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
-linter:
-  # The verifier is intentionally received as a public named parameter and
-  # assigned to a private final field in the test-only AdService constructor.
-  # An initializing formal would expose the private field name in that API.
-  rules:
-    prefer_initializing_formals: false
-
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
