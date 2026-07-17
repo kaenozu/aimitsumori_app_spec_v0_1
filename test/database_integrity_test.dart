@@ -139,12 +139,16 @@ void main() {
   );
 
   test(
-    'revision numbers are allocated sequentially inside transactions',
+    'revision numbers are sequential and only the newest quote remains current',
     () async {
       final firstQuote = quote('quote-1');
       await databaseService.saveProject(project(quotes: [firstQuote]));
       final revisionService = QuoteRevisionService(
         databaseService: databaseService,
+      );
+      final repository = ProjectRepository(
+        databaseService: databaseService,
+        revisionService: revisionService,
       );
       final first = await revisionService.recordQuote(
         projectId: 'project-1',
@@ -152,10 +156,11 @@ void main() {
         intent: const QuoteImportIntent.newQuote(),
         sourceFileHash: 'source-1',
       );
-      final second = await revisionService.recordQuote(
-        projectId: 'project-1',
-        quote: quote('quote-2'),
-        intent: QuoteImportIntent.revision(
+      final secondQuote = quote('quote-2');
+      await repository.saveQuote(
+        'project-1',
+        secondQuote,
+        revisionIntent: QuoteImportIntent.revision(
           parentQuote: firstQuote,
           quoteGroupId: first.quoteGroupId,
           parentRevisionId: first.id,
@@ -164,9 +169,12 @@ void main() {
         sourceFileHash: 'source-2',
       );
 
-      expect(first.revisionNumber, 1);
-      expect(second.revisionNumber, 2);
-      expect(second.parentRevisionId, first.id);
+      final revisions = await revisionService.getProjectRevisions('project-1');
+      final currentProject = await databaseService.getProject('project-1');
+      expect(revisions.map((value) => value.revisionNumber), [1, 2]);
+      expect(revisions.last.parentRevisionId, first.id);
+      expect(currentProject?.quotes, hasLength(1));
+      expect(currentProject?.quotes.single.id, secondQuote.id);
     },
   );
 }
