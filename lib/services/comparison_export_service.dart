@@ -4,6 +4,7 @@ library;
 
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -151,8 +152,7 @@ class ComparisonExportService {
   static Uint8List toCsvBytes(Project project) =>
       Uint8List.fromList(utf8.encode(toCsv(project)));
 
-  /// 比較画面のキャプチャ画像を、その縦横比を保った1ページPDFへ変換する。
-  /// 呼び出し元は8192px以下へ縮小してから渡す。
+  /// 比較画面のキャプチャ画像をA4比率で分割し、標準A4の複数ページPDFへ変換する。
   static Future<Uint8List> toPdfFromImage(
     Uint8List pngBytes, {
     required double imageWidth,
@@ -165,27 +165,82 @@ class ComparisonExportService {
       throw ArgumentError('画像サイズは0より大きい必要があります。');
     }
 
-    final pageWidth = PdfPageFormat.a4.width;
-    final scaledHeight = pageWidth * imageHeight / imageWidth;
-    final pageHeight = scaledHeight
-        .clamp(PdfPageFormat.a4.height, 14400.0)
-        .toDouble();
+    final pageImages = await _splitPngIntoA4Pages(pngBytes);
     final document = pw.Document();
-    final image = pw.MemoryImage(pngBytes);
-
-    document.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat(pageWidth, pageHeight, marginAll: 0),
-        build: (_) => pw.Image(
-          image,
-          width: pageWidth,
-          height: pageHeight,
-          fit: pw.BoxFit.contain,
+    for (final pageBytes in pageImages) {
+      final image = pw.MemoryImage(pageBytes);
+      document.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.zero,
+          build: (_) => pw.Align(
+            alignment: pw.Alignment.topCenter,
+            child: pw.Image(image, fit: pw.BoxFit.contain),
+          ),
         ),
-      ),
-    );
-
+      );
+    }
     return document.save();
+  }
+
+  static Future<List<Uint8List>> _splitPngIntoA4Pages(
+    Uint8List pngBytes,
+  ) async {
+    final codec = await ui.instantiateImageCodec(pngBytes);
+    try {
+      final frame = await codec.getNextFrame();
+      final source = frame.image;
+      try {
+        final a4AspectRatio = PdfPageFormat.a4.height / PdfPageFormat.a4.width;
+        final sliceHeight = (source.width * a4AspectRatio)
+            .floor()
+            .clamp(1, source.height)
+            .toInt();
+        final pages = <Uint8List>[];
+        for (var top = 0; top < source.height; top += sliceHeight) {
+          final currentHeight = (source.height - top)
+              .clamp(1, sliceHeight)
+              .toInt();
+          final recorder = ui.PictureRecorder();
+          final canvas = ui.Canvas(recorder);
+          canvas.drawImageRect(
+            source,
+            ui.Rect.fromLTWH(
+              0,
+              top.toDouble(),
+              source.width.toDouble(),
+              currentHeight.toDouble(),
+            ),
+            ui.Rect.fromLTWH(
+              0,
+              0,
+              source.width.toDouble(),
+              currentHeight.toDouble(),
+            ),
+            ui.Paint(),
+          );
+          final picture = recorder.endRecording();
+          final pageImage = await picture.toImage(source.width, currentHeight);
+          try {
+            final data = await pageImage.toByteData(
+              format: ui.ImageByteFormat.png,
+            );
+            if (data == null) {
+              throw StateError('PDFページ用の画像を生成できませんでした。');
+            }
+            pages.add(data.buffer.asUint8List());
+          } finally {
+            pageImage.dispose();
+            picture.dispose();
+          }
+        }
+        return pages;
+      } finally {
+        source.dispose();
+      }
+    } finally {
+      codec.dispose();
+    }
   }
 
   static String fileStem(String projectName) {
