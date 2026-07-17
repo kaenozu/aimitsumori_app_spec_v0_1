@@ -1,0 +1,40 @@
+name: Apply agent review fixes
+
+on:
+  push:
+    branches:
+      - agent/fix-full-source-review
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fix-full-source-review
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          channel: stable
+          cache: true
+      - name: Apply targeted fixes
+        run: python3 .github/scripts/apply_review_fixes.py
+      - name: Format affected Dart files
+        run: dart format lib/services/ad_service.dart lib/services/comparison_export_service.dart
+      - name: Remove one-shot helper
+        run: git rm .github/scripts/apply_review_fixes.py .github/workflows/apply_agent_review_fixes.yml
+      - name: Commit applied fixes
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "fix: paginate PDF exports and clean test constructor"
+          git push origin HEAD:agent/fix-full-source-review
