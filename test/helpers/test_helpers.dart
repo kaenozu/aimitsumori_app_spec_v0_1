@@ -8,6 +8,7 @@ import 'package:aimitsumori_app/services/ad_service.dart';
 import 'package:aimitsumori_app/services/database_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:sqflite/sqflite.dart';
 
 class MockDatabaseService implements DatabaseService {
@@ -130,13 +131,32 @@ class MockDatabaseService implements DatabaseService {
   Future<void> close() async {}
 }
 
-class MockAdMobService extends AdService {
-  MockAdMobService({super.adFree = true}) : super.testing();
+class MockAdMobService implements AdService {
+  MockAdMobService({bool adFree = true})
+    : adFree = ValueNotifier<bool>(adFree);
+
+  @override
+  final ValueNotifier<bool> adFree;
 
   int bannerRequestCount = 0;
   int rewardedRequestCount = 0;
   int purchaseRequestCount = 0;
   int restoreRequestCount = 0;
+
+  @override
+  bool get isSupportedPlatform => false;
+
+  @override
+  ProductDetails? get removeAdsProduct => null;
+
+  @override
+  String get bannerAdUnitId => 'test-banner';
+
+  @override
+  String get rewardedAdUnitId => 'test-rewarded';
+
+  @override
+  Future<void> initialize() async {}
 
   @override
   BannerAd? createBannerAd({
@@ -162,6 +182,11 @@ class MockAdMobService extends AdService {
   @override
   Future<void> restorePurchases() async {
     restoreRequestCount += 1;
+  }
+
+  @override
+  Future<void> dispose() async {
+    adFree.dispose();
   }
 }
 
