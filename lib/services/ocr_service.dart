@@ -103,7 +103,10 @@ class OcrService {
         await renderer.openPage(pageIndex: pageIndex);
         try {
           final size = await renderer.getPageSize(pageIndex: pageIndex);
-          final scale = _renderScale(size.width, size.height);
+          final scale = _renderScale(
+            size.width.toDouble(),
+            size.height.toDouble(),
+          );
           final bytes = await renderer.renderPage(
             pageIndex: pageIndex,
             x: 0,
