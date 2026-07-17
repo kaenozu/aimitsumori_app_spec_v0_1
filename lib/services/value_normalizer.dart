@@ -84,7 +84,7 @@ class UnitNormalizer {
     };
   }
 
-  static _ConvertedQuantity? convert(double quantity, String? rawUnit) {
+  static _ConvertedQuantity? _convert(double quantity, String? rawUnit) {
     final unit = normalize(rawUnit);
     if (unit == null) return null;
     return switch (unit) {
@@ -101,8 +101,8 @@ class UnitNormalizer {
     final normalizedLeft = normalize(left);
     final normalizedRight = normalize(right);
     if (normalizedLeft == null || normalizedRight == null) return false;
-    final leftConverted = convert(1, normalizedLeft);
-    final rightConverted = convert(1, normalizedRight);
+    final leftConverted = _convert(1, normalizedLeft);
+    final rightConverted = _convert(1, normalizedRight);
     return leftConverted?.dimension == rightConverted?.dimension;
   }
 
@@ -112,8 +112,8 @@ class UnitNormalizer {
     required double actual,
     required String actualUnit,
   }) {
-    final convertedExpected = convert(expected, expectedUnit);
-    final convertedActual = convert(actual, actualUnit);
+    final convertedExpected = _convert(expected, expectedUnit);
+    final convertedActual = _convert(actual, actualUnit);
     if (convertedExpected == null || convertedActual == null) return false;
     if (convertedExpected.dimension != convertedActual.dimension) return false;
     final tolerance = (convertedExpected.value.abs() * 0.001).clamp(
