@@ -18,12 +18,14 @@ class AdService {
     : _verifier = verifier ?? const PurchaseVerificationService();
 
   @visibleForTesting
-  AdService.testing({
+  factory AdService.testing({
     bool adFree = true,
     PurchaseVerifier verifier = const TestingPurchaseVerifier(),
-  }) : _verifier = verifier {
-    this.adFree.value = adFree;
-    _initialized = true;
+  }) {
+    final service = AdService._(verifier: verifier);
+    service.adFree.value = adFree;
+    service._initialized = true;
+    return service;
   }
 
   static final AdService instance = AdService._();
