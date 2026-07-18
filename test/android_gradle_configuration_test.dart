@@ -54,8 +54,9 @@ Map<String, String> _readGradleProperties(File file) {
       continue;
     }
 
-    result[line.substring(0, separatorIndex).trim()] =
-        line.substring(separatorIndex + 1).trim();
+    result[line.substring(0, separatorIndex).trim()] = line
+        .substring(separatorIndex + 1)
+        .trim();
   }
 
   return result;
