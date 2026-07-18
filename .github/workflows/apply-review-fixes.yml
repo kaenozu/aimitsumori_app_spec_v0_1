@@ -1,0 +1,183 @@
+name: Apply pending review fixes
+
+on:
+  push:
+    branches:
+      - agent/fix-full-source-review
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: agent/fix-full-source-review
+          fetch-depth: 0
+      - name: Apply focused fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          comparison = Path('lib/screens/comparison_screen.dart')
+          text = comparison.read_text(encoding='utf-8')
+          old = """  Future<void> _restorePurchases() async {
+            await _adService.restorePurchases();
+            if (mounted) _showMessage('購入履歴の復元を開始しました。');
+          }
+"""
+          new = """  Future<void> _restorePurchases() async {
+            try {
+              await _adService.restorePurchases();
+              if (mounted) _showMessage('購入履歴の復元を開始しました。');
+            } catch (error, stackTrace) {
+              debugPrint('Purchase restore failed: $error\\n$stackTrace');
+              if (mounted) {
+                _showMessage('購入履歴を復元できませんでした。通信状態を確認してください。');
+              }
+            }
+          }
+"""
+          if old not in text:
+              raise SystemExit('restorePurchases target not found')
+          text = text.replace(old, new, 1)
+          old = "if (renderObject is! RenderRepaintBoundary || renderObject.size.isEmpty) {"
+          new = "if (renderObject is! RenderRepaintBoundary ||\n        !renderObject.hasSize ||\n        renderObject.size.isEmpty) {"
+          if old not in text:
+              raise SystemExit('RenderRepaintBoundary target not found')
+          comparison.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          home = Path('lib/screens/home_screen.dart')
+          text = home.read_text(encoding='utf-8')
+          old = """    final controller = TextEditingController();
+            final name = await showDialog<String>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: const Text('案件作成'),
+                content: TextField(
+                  key: const ValueKey('project-name-field'),
+                  controller: controller,
+                  maxLength: 100,
+                  decoration: const InputDecoration(
+                    labelText: '案件名',
+                    hintText: '例: 新築外構工事',
+                  ),
+                  autofocus: true,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (value) {
+                    final trimmed = value.trim();
+                    if (trimmed.isNotEmpty && trimmed.length <= 100) {
+                      Navigator.pop(dialogContext, trimmed);
+                    }
+                  },
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () async {
+                      await HapticService.lightImpact();
+                      if (dialogContext.mounted) Navigator.pop(dialogContext);
+                    },
+                    child: const Text('キャンセル'),
+                  ),
+                  FilledButton(
+                    onPressed: () async {
+                      await HapticService.lightImpact();
+                      final value = controller.text.trim();
+                      if (value.isNotEmpty &&
+                          value.length <= 100 &&
+                          dialogContext.mounted) {
+                        Navigator.pop(dialogContext, value);
+                      }
+                    },
+                    child: const Text('次へ'),
+                  ),
+                ],
+              ),
+            );
+            controller.dispose();
+"""
+          new = """    final name = await showDialog<String>(
+              context: context,
+              builder: (_) => const _CreateProjectDialog(),
+            );
+"""
+          if old not in text:
+              raise SystemExit('create dialog target not found')
+          text = text.replace(old, new, 1)
+          marker = "\nenum _HomeMenuAction { settings }\n"
+          dialog = r'''
+
+          class _CreateProjectDialog extends StatefulWidget {
+            const _CreateProjectDialog();
+
+            @override
+            State<_CreateProjectDialog> createState() => _CreateProjectDialogState();
+          }
+
+          class _CreateProjectDialogState extends State<_CreateProjectDialog> {
+            final TextEditingController _controller = TextEditingController();
+
+            @override
+            void dispose() {
+              _controller.dispose();
+              super.dispose();
+            }
+
+            void _submit() {
+              final value = _controller.text.trim();
+              if (value.isNotEmpty && value.length <= 100) {
+                Navigator.pop(context, value);
+              }
+            }
+
+            @override
+            Widget build(BuildContext context) {
+              return AlertDialog(
+                title: const Text('案件作成'),
+                content: TextField(
+                  key: const ValueKey('project-name-field'),
+                  controller: _controller,
+                  maxLength: 100,
+                  decoration: const InputDecoration(
+                    labelText: '案件名',
+                    hintText: '例: 新築外構工事',
+                  ),
+                  autofocus: true,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submit(),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () async {
+                      await HapticService.lightImpact();
+                      if (context.mounted) Navigator.pop(context);
+                    },
+                    child: const Text('キャンセル'),
+                  ),
+                  FilledButton(
+                    onPressed: () async {
+                      await HapticService.lightImpact();
+                      if (context.mounted) _submit();
+                    },
+                    child: const Text('次へ'),
+                  ),
+                ],
+              );
+            }
+          }
+          '''
+          if marker not in text:
+              raise SystemExit('home screen insertion marker not found')
+          home.write_text(text.replace(marker, dialog + marker, 1), encoding='utf-8')
+
+          Path('.github/workflows/apply-review-fixes.yml').unlink()
+      - name: Commit fixes
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add lib/screens/comparison_screen.dart lib/screens/home_screen.dart .github/workflows/apply-review-fixes.yml
+          git commit -m "fix: address pending UI review findings"
+          git push origin HEAD:agent/fix-full-source-review
