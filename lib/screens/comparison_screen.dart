@@ -137,10 +137,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
     try {
       final refreshed = await _repository.getProject(_project.id);
       if (refreshed == null) {
-        throw const ProjectRepositoryException(
-          '案件の再読み込み',
-          'project not found',
-        );
+        throw const ProjectRepositoryException('案件の再読み込み', 'project not found');
       }
       if (!mounted) return;
       setState(() {
@@ -160,10 +157,8 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
       final saved = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
-          builder: (_) => QuoteInputScreen(
-            project: _project,
-            repository: _repository,
-          ),
+          builder: (_) =>
+              QuoteInputScreen(project: _project, repository: _repository),
         ),
       );
       if (saved == true) await _refresh();
@@ -296,12 +291,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
           final captured = await _captureComparison();
           await SharePlus.instance.share(
             ShareParams(
-              files: [
-                XFile.fromData(
-                  captured.bytes,
-                  mimeType: 'image/png',
-                ),
-              ],
+              files: [XFile.fromData(captured.bytes, mimeType: 'image/png')],
               fileNameOverrides: ['${fileStem}_比較結果.png'],
               subject: '${_report.projectName} 相見積もり比較',
               title: '比較結果を画像で共有',
@@ -375,9 +365,9 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -391,8 +381,9 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
           Builder(
             builder: (shareContext) => IconButton(
               tooltip: '比較結果を共有',
-              onPressed:
-                  _exporting ? null : () => _showShareOptions(shareContext),
+              onPressed: _exporting
+                  ? null
+                  : () => _showShareOptions(shareContext),
               icon: _exporting
                   ? const SizedBox.square(
                       dimension: 20,
@@ -421,14 +412,14 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
       ),
       bottomNavigationBar:
           banner != null && _bannerLoaded && !_adService.adFree.value
-              ? SafeArea(
-                  child: SizedBox(
-                    width: banner.size.width.toDouble(),
-                    height: banner.size.height.toDouble(),
-                    child: AdWidget(ad: banner),
-                  ),
-                )
-              : null,
+          ? SafeArea(
+              child: SizedBox(
+                width: banner.size.width.toDouble(),
+                height: banner.size.height.toDouble(),
+                child: AdWidget(ad: banner),
+              ),
+            )
+          : null,
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: ListView(
@@ -456,56 +447,98 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
                         style: TextStyle(fontSize: 13),
                       ),
                       const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: _addQuote,
-                        icon: const Icon(Icons.add_a_photo_outlined),
-                        label: const Text('PDF・写真から見積を追加'),
-                      ),
-                      const SizedBox(height: 16),
-                      _SummaryCard(lines: _report.summaryLines),
-                      const SizedBox(height: 16),
-                      _SnapshotList(snapshots: _report.quoteSnapshots),
-                      const SizedBox(height: 16),
-                      const _BadgeLegend(),
-                      const SizedBox(height: 16),
-                      if (_detailsUnlocked) ...[
-                        const Text(
-                          '18カテゴリ比較',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      if (_project.quotes.isEmpty)
+                        _EmptyComparisonCard(onAddQuote: _addQuote)
+                      else ...[
+                        OutlinedButton.icon(
+                          onPressed: _addQuote,
+                          icon: const Icon(Icons.add_a_photo_outlined),
+                          label: const Text('PDF・写真から見積を追加'),
                         ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          '表は左右にスクロールできます。',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        const SizedBox(height: 8),
-                        _CategoryComparisonTable(report: _report),
                         const SizedBox(height: 16),
-                        Text(
-                          '確認質問テンプレート (${_report.clarificationQuestions.length}件)',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                        _SummaryCard(lines: _report.summaryLines),
+                        const SizedBox(height: 16),
+                        _SnapshotList(snapshots: _report.quoteSnapshots),
+                        const SizedBox(height: 16),
+                        const _BadgeLegend(),
+                        const SizedBox(height: 16),
+                        if (_detailsUnlocked) ...[
+                          const Text(
+                            '18カテゴリ比較',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        ..._report.clarificationQuestions.map(
-                          (question) => _QuestionCard(question: question),
-                        ),
-                      ] else
-                        _DetailUnlockCard(
-                          loading: _unlocking,
-                          onUnlock: _unlockDetails,
-                          onRemoveAds: _purchaseRemoveAds,
-                        ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            '表は左右にスクロールできます。',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          const SizedBox(height: 8),
+                          _CategoryComparisonTable(report: _report),
+                          const SizedBox(height: 16),
+                          Text(
+                            '確認質問テンプレート (${_report.clarificationQuestions.length}件)',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          ..._report.clarificationQuestions.map(
+                            (question) => _QuestionCard(question: question),
+                          ),
+                        ] else
+                          _DetailUnlockCard(
+                            loading: _unlocking,
+                            onUnlock: _unlockDetails,
+                            onRemoveAds: _purchaseRemoveAds,
+                          ),
+                      ],
                       const SizedBox(height: 24),
                     ],
                   ),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyComparisonCard extends StatelessWidget {
+  const _EmptyComparisonCard({required this.onAddQuote});
+
+  final VoidCallback onAddQuote;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Icon(Icons.document_scanner_outlined, size: 44),
+            const SizedBox(height: 12),
+            const Text(
+              'まず1社目の見積を入れます',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '見積書の写真またはPDFを選ぶと、内容を確認して保存できます。\n2社目以降を追加すると、違いを比較できます。',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onAddQuote,
+              icon: const Icon(Icons.add_a_photo_outlined),
+              label: const Text('見積書を追加する'),
             ),
           ],
         ),
@@ -539,14 +572,11 @@ class _SummaryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '3行サマリー',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            const Text('3行サマリー', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             ...lines.asMap().entries.map(
-                  (entry) => Text('${entry.key + 1}. ${entry.value}'),
-                ),
+              (entry) => Text('${entry.key + 1}. ${entry.value}'),
+            ),
           ],
         ),
       ),
@@ -569,7 +599,8 @@ class _SnapshotList extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               itemCount: snapshots.length,
               separatorBuilder: (_, _) => const SizedBox(width: 12),
-              itemBuilder: (_, index) => _SnapshotCard(snapshot: snapshots[index]),
+              itemBuilder: (_, index) =>
+                  _SnapshotCard(snapshot: snapshots[index]),
             ),
     );
   }
@@ -631,7 +662,10 @@ class _BadgeLegend extends StatelessWidget {
             SizedBox(height: 8),
             _LegendRow(label: '未入力', description: '金額・数量・仕様が見積書に記載されていません。'),
             _LegendRow(label: '別途', description: '提示総額には含まれず、追加費用になる可能性があります。'),
-            _LegendRow(label: '不明', description: '記載またはOCR結果だけでは判断できず、業者への確認が必要です。'),
+            _LegendRow(
+              label: '不明',
+              description: '記載またはOCR結果だけでは判断できず、業者への確認が必要です。',
+            ),
           ],
         ),
       ),

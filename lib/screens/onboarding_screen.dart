@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/sample_data.dart';
 import '../repositories/project_repository.dart';
+import '../repositories/project_requirement_repository.dart';
+import '../repositories/quote_revision_repository.dart';
 import '../services/ad_service.dart';
 import '../services/haptic_service.dart';
 import 'home_screen.dart';
@@ -15,12 +17,16 @@ class FirstRunGate extends StatefulWidget {
   const FirstRunGate({
     super.key,
     this.repository,
+    this.requirementRepository,
+    this.quoteRevisionRepository,
     this.adService,
     this.darkModeEnabled = false,
     this.onDarkModeChanged,
   });
 
   final ProjectRepository? repository;
+  final ProjectRequirementRepository? requirementRepository;
+  final QuoteRevisionRepository? quoteRevisionRepository;
   final AdService? adService;
   final bool darkModeEnabled;
   final ValueChanged<bool>? onDarkModeChanged;
@@ -85,13 +91,13 @@ class _FirstRunGateState extends State<FirstRunGate> {
   Widget build(BuildContext context) {
     final completed = _completed;
     if (completed == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (completed) {
       return HomeScreen(
         repository: _repository,
+        requirementRepository: widget.requirementRepository,
+        quoteRevisionRepository: widget.quoteRevisionRepository,
         adService: widget.adService,
         darkModeEnabled: widget.darkModeEnabled,
         onDarkModeChanged: widget.onDarkModeChanged,
@@ -141,9 +147,9 @@ class OnboardingScreen extends StatelessWidget {
             Text(
               '見積書の「違い」を見つける',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             const Text(
@@ -222,9 +228,7 @@ class _OnboardingStep extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              child: Text(number),
-            ),
+            CircleAvatar(child: Text(number)),
             const SizedBox(width: 12),
             Icon(icon, size: 28),
             const SizedBox(width: 12),

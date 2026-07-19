@@ -1,2 +1,3 @@
 #include "Generated.xcconfig"
 IPHONEOS_DEPLOYMENT_TARGET=15.5
+// Set ADMOB_APP_ID in the Release build settings to a production AdMob application ID.

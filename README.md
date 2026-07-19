@@ -15,13 +15,14 @@ PDFまたは写真から見積書を取り込み、端末内OCRで抽出した�
 - ダークモード
 - 端末内データの一括削除
 
-## スクリーンショット
+データの保存・OCR・共有・広告の概要は[PRIVACY.md](PRIVACY.md)を参照してください。ストア公開時は、正式なプライバシーポリシーURLを別途用意してください。
+公開前の確認項目は[RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)にまとめています。
 
-> リリース前に以下の画像へ差し替えてください。
+## スクリーンショット
 
 | ホーム | 見積取込 | 比較結果 |
 | --- | --- | --- |
-| `docs/screenshots/home.png` | `docs/screenshots/quote-input.png` | `docs/screenshots/comparison.png` |
+| ![ホーム](docs/screenshots/home.png) | ![見積取込](docs/screenshots/quote-input.png) | ![比較結果](docs/screenshots/comparison.png) |
 
 ## セットアップ
 
@@ -64,11 +65,13 @@ flutter run
 | --- | --- |
 | `make run` | アプリを起動 |
 | `make test` | ユニット・Widgetテストを実行 |
-| `make test-integration` | 統合テストを実行 |
+| `make test-integration` | `DEVICE`で指定したデバイス（既定: `windows`）で統合テストを実行 |
 | `make analyze` | 静的解析を実行 |
 | `make icons` | ランチャーアイコンを生成 |
 | `make splash` | ネイティブスプラッシュを生成 |
-| `make build-apk` | Release APKを作成 |
+| `make build-apk` | 開発用Debug APKを作成 |
+| `make build-release-apk` | 本番設定を使ってRelease APKを作成 |
+| `make audit-release-apk` | Release APKのパッケージ、AdMobテストID、署名を監査 |
 | `make release-prep` | アイコン・スプラッシュ生成、解析、テスト、APK作成を順番に実行 |
 
 ## テストと静的解析
@@ -81,18 +84,51 @@ make test
 Androidエミュレーターまたは実機で統合テストを実行する場合:
 
 ```bash
-make test-integration
+make test-integration DEVICE=emulator-5554
 ```
+
+Windowsで実行する場合は`make test-integration`（`DEVICE=windows`）を使用します。接続先が複数ある場合は、必ず`DEVICE`を明示してください。
 
 ## リリースビルド
 
-Android APKを作成します。
+Android向けの開発用APKを作成します。
 
 ```bash
 make build-apk
 ```
 
 生成物は通常、`build/app/outputs/flutter-apk/app-release.apk`に出力されます。
+
+Google Play提出用にはAABを使用します。
+
+### 本番リリースの必須設定
+
+本番ビルドは、debug署名やAdMobのテストIDでは作成できません。
+
+1. `android/key.properties.example`を`android/key.properties`へコピーし、リリース用keystoreの情報を設定します。
+2. 本番AdMobアプリIDと広告ユニットIDを環境変数から渡します。
+3. Google Playの広告削除商品IDを`REMOVE_ADS_PRODUCT_ID`で渡します。
+
+iOSで広告を有効にする場合は、`ios/Runner/Info.plist`の`ADMOB_APP_ID`ビルド設定に本番AdMobアプリIDを渡し、`ADMOB_IOS_BANNER_ID`と`ADMOB_IOS_REWARDED_ID`を`--dart-define`で渡します。未設定のまま本番広告を初期化しないでください。
+
+AndroidのReleaseビルドでは、AdMob IDは`ca-app-pub-...`形式、課金商品IDはGoogle Playで作成した商品ID形式であることも検証されます。
+
+```powershell
+$env:ADMOB_APP_ID='ca-app-pub-XXXXXXXX~YYYYYYYY'
+$env:ADMOB_ANDROID_BANNER_ID='ca-app-pub-XXXXXXXX/BBBBBBBB'
+$env:ADMOB_ANDROID_REWARDED_ID='ca-app-pub-XXXXXXXX/RRRRRRRR'
+$env:REMOVE_ADS_PRODUCT_ID='remove_ads_pro'
+.\tool\build_android_release.ps1 -Artifact appbundle
+```
+
+スクリプトが環境変数を検証し、GradleとDartの両方へ同じ値を渡します。署名情報、本番広告ID、または課金商品IDが未設定・不正の場合は、ビルドを意図的に停止します。
+生成物は通常、`build/app/outputs/bundle/release/app-release.aab`に出力されます。
+
+APKのAdMob Application IDと本番設定値まで照合する場合は、次のように指定します。
+
+```powershell
+.\tool\audit_android_release.ps1 -ExpectedAdMobAppId $env:ADMOB_APP_ID
+```
 
 アイコンやスプラッシュ素材を変更した場合は、ビルド前に次を実行してください。
 

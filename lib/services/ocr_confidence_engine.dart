@@ -160,13 +160,15 @@ class OcrConfidenceEngine {
     return 0.68;
   }
 
-  static List<int> extractAmountCandidates(String line) => RegExp(
-        r'(?:¥|￥)?\s*(-?\d{1,3}(?:,\d{3})+|-?\d{4,})\s*円?',
+  static List<int> extractAmountCandidates(
+    String line,
+  ) => RegExp(r'(?:¥|￥)?\s*(-?\d{1,3}(?:,\d{3})+|-?\d{4,})\s*円?')
+      .allMatches(
+        line.replaceAll(RegExp(r'[\u00a0\u3000\s]'), '').replaceAll('，', ','),
       )
-          .allMatches(line)
-          .map((match) => int.tryParse((match.group(1) ?? '').replaceAll(',', '')))
-          .whereType<int>()
-          .toList(growable: false);
+      .map((match) => int.tryParse((match.group(1) ?? '').replaceAll(',', '')))
+      .whereType<int>()
+      .toList(growable: false);
 
   static bool hasQuantityUnitPriceMismatch({
     required double? quantity,

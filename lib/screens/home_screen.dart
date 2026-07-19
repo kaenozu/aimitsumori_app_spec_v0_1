@@ -3,11 +3,14 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../data/sample_data.dart';
 import '../models.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/project_requirement_repository.dart';
+import '../repositories/quote_revision_repository.dart';
 import '../services/ad_service.dart';
 import '../services/haptic_service.dart';
+import '../services/ocr_review_store.dart';
 import 'requirements_checklist_screen.dart';
 import 'requirements_comparison_shell.dart';
 import 'settings_screen.dart';
@@ -17,14 +20,18 @@ class HomeScreen extends StatefulWidget {
     super.key,
     this.repository,
     this.requirementRepository,
+    this.quoteRevisionRepository,
     this.adService,
+    this.reviewStore,
     this.darkModeEnabled = false,
     this.onDarkModeChanged,
   });
 
   final ProjectRepository? repository;
   final ProjectRequirementRepository? requirementRepository;
+  final QuoteRevisionRepository? quoteRevisionRepository;
   final AdService? adService;
+  final OcrReviewStore? reviewStore;
   final bool darkModeEnabled;
   final ValueChanged<bool>? onDarkModeChanged;
 
@@ -48,13 +55,15 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Project> get _filteredProjects {
     final query = _searchQuery.trim().toLowerCase();
     if (query.isEmpty) return _projects;
-    return _projects.where((project) {
-      final matchesProject = project.name.toLowerCase().contains(query);
-      final matchesContractor = project.quotes.any(
-        (quote) => quote.contractorName.toLowerCase().contains(query),
-      );
-      return matchesProject || matchesContractor;
-    }).toList(growable: false);
+    return _projects
+        .where((project) {
+          final matchesProject = project.name.toLowerCase().contains(query);
+          final matchesContractor = project.quotes.any(
+            (quote) => quote.contractorName.toLowerCase().contains(query),
+          );
+          return matchesProject || matchesContractor;
+        })
+        .toList(growable: false);
   }
 
   @override
@@ -88,8 +97,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<Project> _createProject(String name) async {
     final now = DateTime.now().millisecondsSinceEpoch;
+    final projectId = 'project-${DateTime.now().microsecondsSinceEpoch}';
     final project = Project(
-      id: 'project-$now',
+      id: projectId,
       name: name,
       status: ProjectStatus.draft,
       createdAtEpochMillis: now,
@@ -110,6 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
             project: project,
             projectRepository: _repository,
             requirementRepository: _requirementRepository,
+            quoteRevisionRepository: widget.quoteRevisionRepository,
             adService: widget.adService,
           ),
         ),
@@ -126,6 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(
         builder: (_) => SettingsScreen(
           repository: _repository,
+          reviewStore: widget.reviewStore,
           darkModeEnabled: widget.darkModeEnabled,
           onDarkModeChanged: widget.onDarkModeChanged ?? (_) {},
         ),
@@ -134,9 +146,24 @@ class _HomeScreenState extends State<HomeScreen> {
     if (deleted != true || !mounted) return;
     await _loadProjects();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('すべての案件データを削除しました。')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('すべての案件データを削除しました。')));
+  }
+
+  Future<void> _openSampleProject() async {
+    try {
+      final sample = SampleData.project();
+      await _repository.saveProject(sample);
+      await _loadProjects();
+      if (!mounted) return;
+      await _openProject(sample);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
   }
 
   Future<bool> _confirmDeleteProject(Project project) async {
@@ -169,9 +196,9 @@ class _HomeScreenState extends State<HomeScreen> {
       return true;
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
       }
       return false;
     }
@@ -183,9 +210,9 @@ class _HomeScreenState extends State<HomeScreen> {
           .where((existing) => existing.id != project.id)
           .toList(growable: false);
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('「${project.name}」を削除しました。')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('「${project.name}」を削除しました。')));
   }
 
   void _clearSearch() {
@@ -284,7 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                   const SizedBox(height: 16),
                   if (_projects.isEmpty)
-                    const _EmptyProjectsCard()
+                    _EmptyProjectsCard(onTrySample: _openSampleProject)
                   else if (filteredProjects.isEmpty)
                     _EmptySearchCard(query: _searchQuery.trim())
                   else
@@ -304,7 +331,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           child: Icon(
                             Icons.delete_outline,
-                            color: Theme.of(context).colorScheme.onErrorContainer,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onErrorContainer,
                           ),
                         ),
                         child: _ProjectCard(
@@ -366,7 +395,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final project = await _createProject(name);
       if (!mounted) return;
-      await Navigator.push<bool>(
+      final openProject = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
           builder: (_) => RequirementsChecklistScreen(
@@ -379,14 +408,18 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       await _loadProjects();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('案件を作成しました。')),
-      );
+      if (openProject == true) {
+        await _openProject(project);
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('案件を作成しました。')));
+      }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 }
@@ -394,25 +427,33 @@ class _HomeScreenState extends State<HomeScreen> {
 enum _HomeMenuAction { settings }
 
 class _EmptyProjectsCard extends StatelessWidget {
-  const _EmptyProjectsCard();
+  const _EmptyProjectsCard({required this.onTrySample});
+
+  final VoidCallback onTrySample;
 
   @override
   Widget build(BuildContext context) {
-    return const Card(
+    return Card(
       child: Padding(
-        padding: EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            Icon(Icons.folder_open_outlined, size: 40),
-            SizedBox(height: 8),
-            Text(
+            const Icon(Icons.folder_open_outlined, size: 40),
+            const SizedBox(height: 8),
+            const Text(
               '案件はまだありません。',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 4),
-            Text(
+            const SizedBox(height: 4),
+            const Text(
               '「新しい案件を作成」から要望を整理し、PDFまたは写真の見積書を追加してください。',
               textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onTrySample,
+              icon: const Icon(Icons.play_arrow_outlined),
+              label: const Text('サンプル比較を試す'),
             ),
           ],
         ),
@@ -435,10 +476,7 @@ class _EmptySearchCard extends StatelessWidget {
           children: [
             const Icon(Icons.search_off_outlined, size: 40),
             const SizedBox(height: 8),
-            Text(
-              '「$query」に一致する案件はありません。',
-              textAlign: TextAlign.center,
-            ),
+            Text('「$query」に一致する案件はありません。', textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -447,11 +485,7 @@ class _EmptySearchCard extends StatelessWidget {
 }
 
 class _ProjectCard extends StatelessWidget {
-  const _ProjectCard({
-    super.key,
-    required this.project,
-    required this.onTap,
-  });
+  const _ProjectCard({super.key, required this.project, required this.onTap});
 
   final Project project;
   final VoidCallback onTap;

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../repositories/project_repository.dart';
 import '../services/haptic_service.dart';
+import '../services/ocr_review_store.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -13,6 +14,7 @@ class SettingsScreen extends StatefulWidget {
     required this.repository,
     required this.darkModeEnabled,
     required this.onDarkModeChanged,
+    this.reviewStore,
   });
 
   static const appVersion = '0.1.0+1';
@@ -20,6 +22,7 @@ class SettingsScreen extends StatefulWidget {
   final ProjectRepository repository;
   final bool darkModeEnabled;
   final ValueChanged<bool> onDarkModeChanged;
+  final OcrReviewStore? reviewStore;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -28,6 +31,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late bool _darkModeEnabled;
   bool _deleting = false;
+
+  OcrReviewStore get _reviewStore => widget.reviewStore ?? OcrReviewStore();
 
   @override
   void initState() {
@@ -50,9 +55,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('全データを削除しますか？'),
-        content: const Text(
-          '保存済みの案件、見積、比較結果が削除対象です。設定内容と購入状態は削除されません。',
-        ),
+        content: const Text('保存済みの案件、見積、比較結果が削除対象です。設定内容と購入状態は削除されません。'),
         actions: [
           TextButton(
             onPressed: () async {
@@ -81,9 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           color: Theme.of(dialogContext).colorScheme.error,
         ),
         title: const Text('最終確認'),
-        content: const Text(
-          'この操作は元に戻せません。本当にすべての案件データを削除しますか？',
-        ),
+        content: const Text('この操作は元に戻せません。本当にすべての案件データを削除しますか？'),
         actions: [
           TextButton(
             onPressed: () async {
@@ -111,16 +112,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _deleting = true);
     try {
       await widget.repository.deleteAllData();
+      await _reviewStore.clearAll();
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (error) {
+      debugPrint('Delete all data failed: $error');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+        const SnackBar(content: Text('データを削除できませんでした。もう一度お試しください。')),
       );
     } finally {
       if (mounted) setState(() => _deleting = false);
     }
+  }
+
+  Future<void> _showPrivacySummary() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('データとプライバシー'),
+        content: const SingleChildScrollView(
+          child: Text(
+            '案件、見積、OCR結果、確認状態は端末内に保存されます。\n\n'
+            '見積書のOCR処理は端末上で行われ、アプリから外部サービスへ見積内容を送信しません。\n\n'
+            '比較結果の共有を実行した場合だけ、選択した内容が端末の共有先へ渡ります。\n\n'
+            '広告表示と広告削除購入では、Google Playおよび広告SDKのプライバシーポリシーが適用されます。\n\n'
+            '保存した案件・見積・比較結果は「全データを削除」から削除できます。',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('閉じる'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -142,6 +169,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: Icon(Icons.info_outline),
             title: Text('バージョン'),
             subtitle: Text(SettingsScreen.appVersion),
+          ),
+          ListTile(
+            key: const ValueKey('privacy-summary-button'),
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('データとプライバシー'),
+            subtitle: const Text('保存・OCR・共有・広告の取り扱い'),
+            onTap: _showPrivacySummary,
           ),
           const Divider(height: 1),
           Padding(

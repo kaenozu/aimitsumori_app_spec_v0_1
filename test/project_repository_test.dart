@@ -16,5 +16,6 @@ void main() {
     await repository.deleteAllData();
 
     expect(await repository.getProjects(), isEmpty);
+    expect(database.deleteAllDataCallCount, 1);
   });
 }

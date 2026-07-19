@@ -9,11 +9,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum RewardedAdOutcome {
-  rewarded,
-  unavailable,
-  dismissed,
-}
+enum RewardedAdOutcome { rewarded, unavailable, dismissed }
 
 class AdService {
   AdService._();
@@ -34,19 +30,19 @@ class AdService {
 
   static const String _androidBannerId = String.fromEnvironment(
     'ADMOB_ANDROID_BANNER_ID',
-    defaultValue: 'ca-app-pub-3940256099942544/6300978111',
+    defaultValue: '',
   );
   static const String _iosBannerId = String.fromEnvironment(
     'ADMOB_IOS_BANNER_ID',
-    defaultValue: 'ca-app-pub-3940256099942544/2934735716',
+    defaultValue: '',
   );
   static const String _androidRewardedId = String.fromEnvironment(
     'ADMOB_ANDROID_REWARDED_ID',
-    defaultValue: 'ca-app-pub-3940256099942544/5224354917',
+    defaultValue: '',
   );
   static const String _iosRewardedId = String.fromEnvironment(
     'ADMOB_IOS_REWARDED_ID',
-    defaultValue: 'ca-app-pub-3940256099942544/1712485313',
+    defaultValue: '',
   );
 
   final ValueNotifier<bool> adFree = ValueNotifier<bool>(false);
@@ -59,6 +55,9 @@ class AdService {
   bool get isSupportedPlatform =>
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;
+
+  bool get hasAdConfiguration =>
+      bannerAdUnitId.isNotEmpty && rewardedAdUnitId.isNotEmpty;
 
   ProductDetails? get removeAdsProduct => _removeAdsProduct;
 
@@ -82,18 +81,22 @@ class AdService {
     }
     if (!isSupportedPlatform) return;
 
-    try {
-      await MobileAds.instance.initialize();
-    } catch (error) {
-      debugPrint('Mobile Ads initialization failed: $error');
-    }
-
     _purchaseSubscription ??= _inAppPurchase.purchaseStream.listen(
       _handlePurchaseUpdates,
       onError: (Object error, StackTrace stackTrace) {
         debugPrint('Purchase stream error: $error');
       },
     );
+
+    // 課金は広告設定の不備に引きずられないよう、広告初期化と分離する。
+    // 片方の広告枠だけが無効でも、広告削除購入・復元は利用できる必要がある。
+    if (hasAdConfiguration) {
+      try {
+        await MobileAds.instance.initialize();
+      } catch (error) {
+        debugPrint('Mobile Ads initialization failed: $error');
+      }
+    }
 
     try {
       await _loadRemoveAdsProduct();
@@ -104,8 +107,9 @@ class AdService {
 
   Future<void> _loadRemoveAdsProduct() async {
     if (!await _inAppPurchase.isAvailable()) return;
-    final response =
-        await _inAppPurchase.queryProductDetails({removeAdsProductId});
+    final response = await _inAppPurchase.queryProductDetails({
+      removeAdsProductId,
+    });
     if (response.error != null) {
       debugPrint('Product query failed: ${response.error}');
       return;
@@ -119,7 +123,9 @@ class AdService {
     VoidCallback? onLoaded,
     ValueChanged<LoadAdError>? onFailed,
   }) {
-    if (!isSupportedPlatform || adFree.value) return null;
+    if (!isSupportedPlatform || !hasAdConfiguration || adFree.value) {
+      return null;
+    }
 
     return BannerAd(
       adUnitId: bannerAdUnitId,
@@ -137,7 +143,9 @@ class AdService {
 
   Future<RewardedAdOutcome> showRewardedAd() async {
     if (adFree.value) return RewardedAdOutcome.rewarded;
-    if (!isSupportedPlatform) return RewardedAdOutcome.unavailable;
+    if (!isSupportedPlatform || !hasAdConfiguration) {
+      return RewardedAdOutcome.unavailable;
+    }
 
     final completer = Completer<RewardedAdOutcome>();
     try {
@@ -207,8 +215,9 @@ class AdService {
 
   Future<ProductDetails?> _queryRemoveAdsProduct() async {
     if (!await _inAppPurchase.isAvailable()) return null;
-    final response =
-        await _inAppPurchase.queryProductDetails({removeAdsProductId});
+    final response = await _inAppPurchase.queryProductDetails({
+      removeAdsProductId,
+    });
     if (response.error != null || response.productDetails.isEmpty) return null;
     return response.productDetails.first;
   }
@@ -222,9 +231,7 @@ class AdService {
     }
   }
 
-  Future<void> _handlePurchaseUpdates(
-    List<PurchaseDetails> purchases,
-  ) async {
+  Future<void> _handlePurchaseUpdates(List<PurchaseDetails> purchases) async {
     for (final purchase in purchases) {
       if (purchase.productID != removeAdsProductId) continue;
 

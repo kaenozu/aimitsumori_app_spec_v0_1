@@ -79,7 +79,9 @@ class DatabaseService {
         FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
       )
     ''');
-    await db.execute('CREATE INDEX idx_quotes_project ON contractor_quotes(project_id)');
+    await db.execute(
+      'CREATE INDEX idx_quotes_project ON contractor_quotes(project_id)',
+    );
     await db.execute('CREATE INDEX idx_items_quote ON line_items(quote_id)');
   }
 
@@ -152,7 +154,9 @@ class DatabaseService {
       categoryId: row['category_id'] as String,
       rawLabel: row['raw_label'] as String,
       amountYen: row['amount_yen'] as int?,
-      inclusionStatus: InclusionStatus.fromCode(row['inclusion_status'] as String),
+      inclusionStatus: InclusionStatus.fromCode(
+        row['inclusion_status'] as String,
+      ),
       quantity: (row['quantity'] as num?)?.toDouble(),
       unit: row['unit'] as String?,
       specification: row['specification'] as String?,
@@ -169,11 +173,19 @@ class DatabaseService {
         _projectToRow(project),
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
-      await txn.delete('contractor_quotes', where: 'project_id = ?', whereArgs: [project.id]);
+      await txn.delete(
+        'contractor_quotes',
+        where: 'project_id = ?',
+        whereArgs: [project.id],
+      );
       for (final quote in project.quotes) {
         await _insertQuote(txn, project.id, quote);
       }
-      await txn.delete('comparison_results', where: 'project_id = ?', whereArgs: [project.id]);
+      await txn.delete(
+        'comparison_results',
+        where: 'project_id = ?',
+        whereArgs: [project.id],
+      );
     });
   }
 
@@ -182,6 +194,30 @@ class DatabaseService {
   Future<void> deleteProject(String projectId) async {
     final db = await database;
     await db.delete('projects', where: 'id = ?', whereArgs: [projectId]);
+  }
+
+  Future<void> deleteAllData() async {
+    final db = await database;
+    await db.transaction((txn) async {
+      // 要件・改訂履歴のテーブルは遅延作成のため、存在する場合だけ削除する。
+      for (final table in [
+        'comparison_results',
+        'line_items',
+        'contractor_quotes',
+        'quote_revisions',
+        'project_requirements',
+        'projects',
+      ]) {
+        final exists = await txn.query(
+          'sqlite_master',
+          columns: const ['name'],
+          where: 'type = ? AND name = ?',
+          whereArgs: ['table', table],
+          limit: 1,
+        );
+        if (exists.isNotEmpty) await txn.delete(table);
+      }
+    });
   }
 
   Future<void> saveQuote(String projectId, ContractorQuote quote) async {
@@ -208,7 +244,11 @@ class DatabaseService {
         where: 'id = ?',
         whereArgs: [projectId],
       );
-      await txn.delete('comparison_results', where: 'project_id = ?', whereArgs: [projectId]);
+      await txn.delete(
+        'comparison_results',
+        where: 'project_id = ?',
+        whereArgs: [projectId],
+      );
     });
   }
 
@@ -217,59 +257,47 @@ class DatabaseService {
     String projectId,
     ContractorQuote quote,
   ) async {
-    await db.insert(
-      'contractor_quotes',
-      {
-        'id': quote.id,
-        'project_id': projectId,
-        'contractor_name': quote.contractorName,
-        'total_amount_yen': quote.totalAmountYen,
-        'note': quote.note,
-        'created_at': quote.createdAtEpochMillis,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await db.insert('contractor_quotes', {
+      'id': quote.id,
+      'project_id': projectId,
+      'contractor_name': quote.contractorName,
+      'total_amount_yen': quote.totalAmountYen,
+      'note': quote.note,
+      'created_at': quote.createdAtEpochMillis,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
     await db.delete('line_items', where: 'quote_id = ?', whereArgs: [quote.id]);
     for (final item in quote.lineItems) {
-      await db.insert(
-        'line_items',
-        {
-          'id': item.id,
-          'quote_id': quote.id,
-          'category_id': item.categoryId,
-          'raw_label': item.rawLabel,
-          'amount_yen': item.amountYen,
-          'inclusion_status': item.inclusionStatus.code,
-          'quantity': item.quantity,
-          'unit': item.unit,
-          'specification': item.specification,
-          'note': item.note,
-          'sort_order': item.sortOrder,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await db.insert('line_items', {
+        'id': item.id,
+        'quote_id': quote.id,
+        'category_id': item.categoryId,
+        'raw_label': item.rawLabel,
+        'amount_yen': item.amountYen,
+        'inclusion_status': item.inclusionStatus.code,
+        'quantity': item.quantity,
+        'unit': item.unit,
+        'specification': item.specification,
+        'note': item.note,
+        'sort_order': item.sortOrder,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
   }
 
   Map<String, Object?> _projectToRow(Project project) => {
-        'id': project.id,
-        'name': project.name,
-        'status': project.status.code,
-        'created_at': project.createdAtEpochMillis,
-        'updated_at': project.updatedAtEpochMillis,
-      };
+    'id': project.id,
+    'name': project.name,
+    'status': project.status.code,
+    'created_at': project.createdAtEpochMillis,
+    'updated_at': project.updatedAtEpochMillis,
+  };
 
   Future<void> saveComparisonResult(ComparisonReport report) async {
     final db = await database;
-    await db.insert(
-      'comparison_results',
-      {
-        'project_id': report.projectId,
-        'payload_json': jsonEncode(_reportToJson(report)),
-        'saved_at': DateTime.now().millisecondsSinceEpoch,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await db.insert('comparison_results', {
+      'project_id': report.projectId,
+      'payload_json': jsonEncode(_reportToJson(report)),
+      'saved_at': DateTime.now().millisecondsSinceEpoch,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<ComparisonReport?> loadComparisonResult(String projectId) async {
@@ -283,65 +311,68 @@ class DatabaseService {
     );
     if (rows.isEmpty) return null;
 
-    final payload = jsonDecode(rows.first['payload_json'] as String) as Map<String, dynamic>;
+    final payload =
+        jsonDecode(rows.first['payload_json'] as String)
+            as Map<String, dynamic>;
     return _reportFromJson(payload);
   }
 
   Map<String, Object?> _reportToJson(ComparisonReport report) => {
-        'projectId': report.projectId,
-        'projectName': report.projectName,
-        'summaryLines': report.summaryLines,
-        'quoteSnapshots': [
-          for (final snapshot in report.quoteSnapshots)
-            {
-              'quoteId': snapshot.quoteId,
-              'contractorName': snapshot.contractorName,
-              'totalAmountYen': snapshot.totalAmountYen,
-              'includedCategoryCount': snapshot.includedCategoryCount,
-              'separateCategoryNames': snapshot.separateCategoryNames,
-              'optionalCategoryNames': snapshot.optionalCategoryNames,
-              'unknownCategoryNames': snapshot.unknownCategoryNames,
-              'uncertaintyCount': snapshot.uncertaintyCount,
-            },
-        ],
-        'categoryComparisons': [
-          for (final comparison in report.categoryComparisons)
-            {
-              'categoryId': comparison.category.id,
-              'cells': [
-                for (final cell in comparison.cells)
-                  {
-                    'quoteId': cell.quoteId,
-                    'contractorName': cell.contractorName,
-                    'inclusionStatus': cell.inclusionStatus.code,
-                    'amountYen': cell.amountYen,
-                    'quantity': cell.quantity,
-                    'unit': cell.unit,
-                    'specification': cell.specification,
-                    'uncertaintyReasons': cell.uncertaintyReasons,
-                  },
-              ],
-            },
-        ],
-        'clarificationQuestions': [
-          for (final question in report.clarificationQuestions)
-            {
-              'id': question.id,
-              'projectId': question.projectId,
-              'quoteId': question.quoteId,
-              'contractorName': question.contractorName,
-              'categoryId': question.categoryId,
-              'templateKey': question.templateKey,
-              'questionText': question.questionText,
-              'status': question.status.code,
-              'createdAtEpochMillis': question.createdAtEpochMillis,
-            },
-        ],
-      };
+    'projectId': report.projectId,
+    'projectName': report.projectName,
+    'summaryLines': report.summaryLines,
+    'quoteSnapshots': [
+      for (final snapshot in report.quoteSnapshots)
+        {
+          'quoteId': snapshot.quoteId,
+          'contractorName': snapshot.contractorName,
+          'totalAmountYen': snapshot.totalAmountYen,
+          'includedCategoryCount': snapshot.includedCategoryCount,
+          'separateCategoryNames': snapshot.separateCategoryNames,
+          'optionalCategoryNames': snapshot.optionalCategoryNames,
+          'unknownCategoryNames': snapshot.unknownCategoryNames,
+          'uncertaintyCount': snapshot.uncertaintyCount,
+        },
+    ],
+    'categoryComparisons': [
+      for (final comparison in report.categoryComparisons)
+        {
+          'categoryId': comparison.category.id,
+          'cells': [
+            for (final cell in comparison.cells)
+              {
+                'quoteId': cell.quoteId,
+                'contractorName': cell.contractorName,
+                'inclusionStatus': cell.inclusionStatus.code,
+                'amountYen': cell.amountYen,
+                'quantity': cell.quantity,
+                'unit': cell.unit,
+                'specification': cell.specification,
+                'uncertaintyReasons': cell.uncertaintyReasons,
+              },
+          ],
+        },
+    ],
+    'clarificationQuestions': [
+      for (final question in report.clarificationQuestions)
+        {
+          'id': question.id,
+          'projectId': question.projectId,
+          'quoteId': question.quoteId,
+          'contractorName': question.contractorName,
+          'categoryId': question.categoryId,
+          'templateKey': question.templateKey,
+          'questionText': question.questionText,
+          'status': question.status.code,
+          'createdAtEpochMillis': question.createdAtEpochMillis,
+        },
+    ],
+  };
 
   ComparisonReport _reportFromJson(Map<String, dynamic> json) {
     final comparisons = <CategoryComparison>[];
-    for (final raw in json['categoryComparisons'] as List<dynamic>? ?? const []) {
+    for (final raw
+        in json['categoryComparisons'] as List<dynamic>? ?? const []) {
       final value = Map<String, dynamic>.from(raw as Map);
       final category = CategoryMaster.find(value['categoryId'] as String);
       if (category == null) continue;
@@ -350,7 +381,9 @@ class DatabaseService {
           category: category,
           cells: [
             for (final cellRaw in value['cells'] as List<dynamic>? ?? const [])
-              _comparisonCellFromJson(Map<String, dynamic>.from(cellRaw as Map)),
+              _comparisonCellFromJson(
+                Map<String, dynamic>.from(cellRaw as Map),
+              ),
           ],
         ),
       );
@@ -359,42 +392,58 @@ class DatabaseService {
     return ComparisonReport(
       projectId: json['projectId'] as String,
       projectName: json['projectName'] as String,
-      summaryLines: List<String>.from(json['summaryLines'] as List<dynamic>? ?? const []),
+      summaryLines: List<String>.from(
+        json['summaryLines'] as List<dynamic>? ?? const [],
+      ),
       quoteSnapshots: [
         for (final raw in json['quoteSnapshots'] as List<dynamic>? ?? const [])
           _quoteSnapshotFromJson(Map<String, dynamic>.from(raw as Map)),
       ],
       categoryComparisons: comparisons,
       clarificationQuestions: [
-        for (final raw in json['clarificationQuestions'] as List<dynamic>? ?? const [])
+        for (final raw
+            in json['clarificationQuestions'] as List<dynamic>? ?? const [])
           _questionFromJson(Map<String, dynamic>.from(raw as Map)),
       ],
     );
   }
 
-  QuoteSnapshot _quoteSnapshotFromJson(Map<String, dynamic> json) => QuoteSnapshot(
+  QuoteSnapshot _quoteSnapshotFromJson(Map<String, dynamic> json) =>
+      QuoteSnapshot(
         quoteId: json['quoteId'] as String,
         contractorName: json['contractorName'] as String,
         totalAmountYen: json['totalAmountYen'] as int?,
         includedCategoryCount: json['includedCategoryCount'] as int,
-        separateCategoryNames: List<String>.from(json['separateCategoryNames'] as List<dynamic>? ?? const []),
-        optionalCategoryNames: List<String>.from(json['optionalCategoryNames'] as List<dynamic>? ?? const []),
-        unknownCategoryNames: List<String>.from(json['unknownCategoryNames'] as List<dynamic>? ?? const []),
+        separateCategoryNames: List<String>.from(
+          json['separateCategoryNames'] as List<dynamic>? ?? const [],
+        ),
+        optionalCategoryNames: List<String>.from(
+          json['optionalCategoryNames'] as List<dynamic>? ?? const [],
+        ),
+        unknownCategoryNames: List<String>.from(
+          json['unknownCategoryNames'] as List<dynamic>? ?? const [],
+        ),
         uncertaintyCount: json['uncertaintyCount'] as int,
       );
 
-  ComparisonCell _comparisonCellFromJson(Map<String, dynamic> json) => ComparisonCell(
+  ComparisonCell _comparisonCellFromJson(Map<String, dynamic> json) =>
+      ComparisonCell(
         quoteId: json['quoteId'] as String,
         contractorName: json['contractorName'] as String,
-        inclusionStatus: InclusionStatus.fromCode(json['inclusionStatus'] as String),
+        inclusionStatus: InclusionStatus.fromCode(
+          json['inclusionStatus'] as String,
+        ),
         amountYen: json['amountYen'] as int?,
         quantity: (json['quantity'] as num?)?.toDouble(),
         unit: json['unit'] as String?,
         specification: json['specification'] as String?,
-        uncertaintyReasons: List<String>.from(json['uncertaintyReasons'] as List<dynamic>? ?? const []),
+        uncertaintyReasons: List<String>.from(
+          json['uncertaintyReasons'] as List<dynamic>? ?? const [],
+        ),
       );
 
-  ClarificationQuestion _questionFromJson(Map<String, dynamic> json) => ClarificationQuestion(
+  ClarificationQuestion _questionFromJson(Map<String, dynamic> json) =>
+      ClarificationQuestion(
         id: json['id'] as String,
         projectId: json['projectId'] as String,
         quoteId: json['quoteId'] as String?,
