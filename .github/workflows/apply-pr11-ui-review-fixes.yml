@@ -138,9 +138,8 @@ jobs:
           home.write_text(text.replace(marker, dialog + marker, 1), encoding='utf-8')
 
           Path('.github/workflows/apply-pr11-ui-review-fixes.yml').unlink()
-      - name: Format and commit fixes
+      - name: Commit fixes
         run: |
-          dart format lib/screens/comparison_screen.dart lib/screens/home_screen.dart
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add lib/screens/comparison_screen.dart lib/screens/home_screen.dart .github/workflows/apply-pr11-ui-review-fixes.yml
