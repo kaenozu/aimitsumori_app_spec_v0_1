@@ -229,11 +229,11 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
         title: const Text('改訂'),
         actions: [
           IconButton(
-            tooltip: '比較',
+            tooltip: '選択した改訂版を比較',
             onPressed: _loading ? null : _compareSelected,
             icon: const Icon(
               Icons.compare_arrows_outlined,
-              semanticLabel: '選択した改訂版を比較',
+              semanticLabel: '',
             ),
           ),
         ],
@@ -263,6 +263,7 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
                       Semantics(
                         button: true,
                         label: '新規業者として登録',
+                        onTap: _registerNewContractor,
                         child: ExcludeSemantics(
                           child: OutlinedButton.icon(
                             onPressed: _registerNewContractor,
@@ -274,6 +275,9 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
                       Semantics(
                         button: true,
                         label: '既存見積の改訂版として登録',
+                        onTap: _revisions.isEmpty
+                            ? null
+                            : _registerExistingRevision,
                         child: ExcludeSemantics(
                           child: FilledButton.icon(
                             onPressed: _revisions.isEmpty
@@ -290,6 +294,7 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
                   Semantics(
                     button: true,
                     label: '選択した${_selectedRevisions.length}件を比較',
+                    onTap: groups.isEmpty ? null : _compareSelected,
                     child: ExcludeSemantics(
                       child: FilledButton.icon(
                         onPressed: groups.isEmpty ? null : _compareSelected,
@@ -396,11 +401,11 @@ class _RevisionGroupCard extends StatelessWidget {
                 ].join(' / '),
               ),
               trailing: IconButton(
-                tooltip: '改訂',
+                tooltip: 'この版から新しい改訂版を作成',
                 onPressed: () => onCreateRevision(ordered[index]),
                 icon: const Icon(
                   Icons.note_add_outlined,
-                  semanticLabel: 'この版から新しい改訂版を作成',
+                  semanticLabel: '',
                 ),
               ),
               onTap: () => onSelected(ordered[index].id),
