@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/sprint-3
+      - agent/sprint-3-apply
     paths:
       - .github/sprint3_apply.py
       - .github/workflows/sprint3_apply.yml
@@ -23,7 +24,7 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout branch
+      - name: Checkout target branch
         uses: actions/checkout@v4
         with:
           ref: feature/sprint-3
