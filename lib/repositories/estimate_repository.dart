@@ -5,9 +5,12 @@ library;
 import '../models.dart';
 
 abstract interface class EstimateRepository {
+  /// 指定案件に保存されている見積をすべて取得する。
   Future<List<ContractorQuote>> findAll(String projectId);
 
-  Future<void> save(String projectId, ContractorQuote estimate);
+  /// 指定案件へ見積を新規保存または更新する。
+  Future<void> save(String projectId, ContractorQuote quote);
 
-  Future<void> delete(String projectId, String estimateId);
+  /// 指定案件から見積を削除する。
+  Future<void> delete(String projectId, String quoteId);
 }
