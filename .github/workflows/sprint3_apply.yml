@@ -6,6 +6,7 @@ on:
       - feature/sprint-3
     paths:
       - .github/sprint3_apply.py
+      - .github/workflows/sprint3_apply.yml
 
 permissions:
   contents: write
