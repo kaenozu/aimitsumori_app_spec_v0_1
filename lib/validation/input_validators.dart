@@ -63,9 +63,7 @@ String? _validateNumber(
   }
 
   // 桁区切りは 1,234 の形だけを許可する。OCR誤認識を文字削除で救済しない。
-  final numericPattern = RegExp(
-    r'^-?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$',
-  );
+  final numericPattern = RegExp(r'^-?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$');
   if (!numericPattern.hasMatch(raw)) {
     return '$labelを数値で入力してください。';
   }

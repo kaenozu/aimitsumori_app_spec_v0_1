@@ -14,6 +14,7 @@ import '../models.dart';
 import '../ocr_models.dart';
 import '../repositories/project_repository.dart';
 import '../services/ocr_review_store.dart';
+import '../validation/input_validators.dart';
 import '../services/ocr_service.dart';
 import '../widgets/ocr_review_widgets.dart';
 
@@ -24,12 +25,14 @@ class QuoteInputScreen extends StatefulWidget {
     this.repository,
     this.ocrService,
     this.reviewStore,
+    this.initialQuote,
   });
 
   final Project project;
   final ProjectRepository? repository;
   final OcrService? ocrService;
   final OcrReviewStore? reviewStore;
+  final RawQuoteData? initialQuote;
 
   @override
   State<QuoteInputScreen> createState() => _QuoteInputScreenState();
@@ -40,6 +43,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
   late final OcrReviewStore _reviewStore =
       widget.reviewStore ?? OcrReviewStore();
   final ImagePicker _imagePicker = ImagePicker();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _contractorController = TextEditingController();
   final TextEditingController _totalController = TextEditingController();
 
@@ -54,6 +58,20 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
 
   ProjectRepository get _repository =>
       widget.repository ?? ProjectRepository.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialQuote = widget.initialQuote;
+    if (initialQuote == null) return;
+
+    _rawQuote = initialQuote;
+    _contractorController.text = initialQuote.contractorName;
+    _totalController.text = initialQuote.totalAmountYen == null
+        ? ''
+        : NumberFormat('#,##0', 'ja_JP').format(initialQuote.totalAmountYen);
+    _replaceEditableItems(initialQuote.lineItems, const []);
+  }
 
   @override
   void dispose() {
@@ -251,25 +269,12 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
   Future<void> _save() async {
     final rawQuote = _rawQuote;
     if (rawQuote == null || _saving) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     if (!await _confirmSaveWithCriticalItems()) return;
 
     final contractorName = _contractorController.text.trim();
-    if (contractorName.isEmpty) {
-      setState(() => _error = '業者名を入力してください。');
-      return;
-    }
-
-    final normalizedTotal = _totalController.text.replaceAll(
-      RegExp(r'[^0-9-]'),
-      '',
-    );
-    final totalAmount = normalizedTotal.isEmpty
-        ? null
-        : int.tryParse(normalizedTotal);
-    if (normalizedTotal.isNotEmpty && totalAmount == null) {
-      setState(() => _error = '合計金額を数値で入力してください。');
-      return;
-    }
+    final normalizedTotal = _totalController.text.trim().replaceAll(',', '');
+    final totalAmount = int.parse(normalizedTotal);
 
     late final List<RawQuoteLineItem> lineItems;
     try {
@@ -322,11 +327,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     final ocrSupported = OcrService.isSupportedPlatform;
     return Scaffold(
       appBar: AppBar(
-        title: Semantics(
-          header: true,
-          label: '編集画面',
-          child: const Text('編集'),
-        ),
+        title: Semantics(header: true, label: '編集画面', child: const Text('編集')),
         actions: [
           Semantics(
             button: true,
@@ -346,228 +347,241 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
           ),
         ],
       ),
-      body: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            widget.project.name,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 6),
-          const Text('見積書を読み取り、自動抽出された箇所だけ確認・修正して保存します。'),
-          const SizedBox(height: 12),
-          if (ocrSupported)
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    key: const ValueKey('quote-pdf-button'),
-                    onPressed: _processing ? null : _pickPdf,
-                    icon: const Icon(Icons.picture_as_pdf_outlined),
-                    label: const Text('PDFを読み込み'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    key: const ValueKey('quote-photo-button'),
-                    onPressed: _processing ? null : _pickPhoto,
-                    icon: const Icon(Icons.add_a_photo_outlined),
-                    label: const Text('写真を読み込み'),
-                  ),
-                ),
-              ],
-            )
-          else
-            const Card(
-              key: ValueKey('quote-ocr-unsupported'),
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.phone_android_outlined),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        '見積書のOCR取込はAndroid・iOSで利用できます。モバイル端末でこの案件を開いてください。',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+      body: Form(
+        key: _formKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(
+              widget.project.name,
+              style: Theme.of(context).textTheme.titleMedium,
             ),
-          if (_processing) ...[
-            const SizedBox(height: 24),
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 12),
-                    Text('文字と見積項目を読み取っています…'),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          if (_error != null) ...[
-            const SizedBox(height: 16),
-            Card(
-              color: Theme.of(context).colorScheme.errorContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      color: Theme.of(context).colorScheme.onErrorContainer,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _error!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onErrorContainer,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          if (rawQuote != null) ...[
-            const SizedBox(height: 20),
-            if (reviewBundle != null)
-              OcrReviewOverview(
-                bundle: reviewBundle,
-                statuses: _reviewStatuses,
-                onStatusChanged: _setReviewStatus,
-              ),
-            const SizedBox(height: 16),
-            Text('基本情報', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _contractorController,
-              decoration: const InputDecoration(
-                labelText: '業者名',
-                border: OutlineInputBorder(),
-              ),
-            ),
+            const SizedBox(height: 6),
+            const Text('見積書を読み取り、自動抽出された箇所だけ確認・修正して保存します。'),
             const SizedBox(height: 12),
-            TextField(
-              controller: _totalController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '提示総額（税込・円）',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '抽出明細 (${_editableItems.length}件)',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const Text(
-                        'カテゴリはOCR結果から自動判定しています。必要に応じて変更してください。',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ],
+            if (ocrSupported)
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      key: const ValueKey('quote-pdf-button'),
+                      onPressed: _processing ? null : _pickPdf,
+                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                      label: const Text('PDFを読み込み'),
+                    ),
                   ),
-                ),
-                IconButton(
-                  tooltip: '明細を追加',
-                  onPressed: _addLineItem,
-                  icon: const Icon(Icons.add_circle_outline),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (_editableItems.isEmpty)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      const Text('カテゴリ明細を自動判定できませんでした。'),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: _addLineItem,
-                        icon: const Icon(Icons.add),
-                        label: const Text('明細を手動追加'),
-                      ),
-                    ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      key: const ValueKey('quote-photo-button'),
+                      onPressed: _processing ? null : _pickPhoto,
+                      icon: const Icon(Icons.add_a_photo_outlined),
+                      label: const Text('写真を読み込み'),
+                    ),
                   ),
-                ),
+                ],
               )
             else
-              ..._editableItems.asMap().entries.map(
-                (entry) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _EditableLineCard(
-                    key: ValueKey(entry.value),
-                    index: entry.key,
-                    item: entry.value,
-                    reviewStatus: entry.value.sourceLine == null
-                        ? null
-                        : _statusFor(entry.value.sourceLine!),
-                    onReviewStatusChanged: entry.value.sourceLine == null
-                        ? null
-                        : (status) => _setReviewStatus(
-                            entry.value.sourceLine!.id,
-                            status,
-                          ),
-                    onRemove: () => _removeLineItem(entry.key),
+              const Card(
+                key: ValueKey('quote-ocr-unsupported'),
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.phone_android_outlined),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '見積書のOCR取込はAndroid・iOSで利用できます。モバイル端末でこの案件を開いてください。',
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            const SizedBox(height: 16),
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              title: const Text('OCR抽出テキストを確認'),
-              children: [
-                Container(
-                  width: double.infinity,
-                  constraints: const BoxConstraints(
-                    minHeight: 140,
-                    maxHeight: 320,
-                  ),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.outlineVariant,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: SingleChildScrollView(
-                    child: SelectableText(rawQuote.extractedText),
+            if (_processing) ...[
+              const SizedBox(height: 24),
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 12),
+                      Text('文字と見積項目を読み取っています…'),
+                    ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: _saving ? null : _save,
-              icon: _saving
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save_outlined),
-              label: Text(_saving ? '保存中…' : '確認して保存'),
-            ),
+              ),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              Card(
+                color: Theme.of(context).colorScheme.errorContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onErrorContainer,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            if (rawQuote != null) ...[
+              const SizedBox(height: 20),
+              if (reviewBundle != null)
+                OcrReviewOverview(
+                  bundle: reviewBundle,
+                  statuses: _reviewStatuses,
+                  onStatusChanged: _setReviewStatus,
+                ),
+              const SizedBox(height: 16),
+              Text('基本情報', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              TextFormField(
+                key: const ValueKey('quote-contractor-field'),
+                controller: _contractorController,
+                decoration: const InputDecoration(
+                  labelText: '業者名',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? '業者名を入力してください。'
+                    : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const ValueKey('quote-total-field'),
+                controller: _totalController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '提示総額（税込・円）',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) =>
+                    validateAmount(value, maxDecimalPlaces: 0),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '抽出明細 (${_editableItems.length}件)',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const Text(
+                          'カテゴリはOCR結果から自動判定しています。必要に応じて変更してください。',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: '明細を追加',
+                    onPressed: _addLineItem,
+                    icon: const Icon(Icons.add_circle_outline),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (_editableItems.isEmpty)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        const Text('カテゴリ明細を自動判定できませんでした。'),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: _addLineItem,
+                          icon: const Icon(Icons.add),
+                          label: const Text('明細を手動追加'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                ..._editableItems.asMap().entries.map(
+                  (entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _EditableLineCard(
+                      key: ValueKey(entry.value),
+                      index: entry.key,
+                      item: entry.value,
+                      reviewStatus: entry.value.sourceLine == null
+                          ? null
+                          : _statusFor(entry.value.sourceLine!),
+                      onReviewStatusChanged: entry.value.sourceLine == null
+                          ? null
+                          : (status) => _setReviewStatus(
+                              entry.value.sourceLine!.id,
+                              status,
+                            ),
+                      onRemove: () => _removeLineItem(entry.key),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text('OCR抽出テキストを確認'),
+                children: [
+                  Container(
+                    width: double.infinity,
+                    constraints: const BoxConstraints(
+                      minHeight: 140,
+                      maxHeight: 320,
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: SingleChildScrollView(
+                      child: SelectableText(rawQuote.extractedText),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: _saving
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_outlined),
+                label: Text(_saving ? '保存中…' : '確認して保存'),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -614,13 +628,16 @@ class _EditableLineCardState extends State<_EditableLineCard> {
             ),
           ],
         ),
-        TextField(
+        TextFormField(
+          key: ValueKey('quote-line-label-${widget.index}'),
           controller: item.rawLabelController,
           decoration: const InputDecoration(
             labelText: '項目名・原文',
             border: OutlineInputBorder(),
           ),
           maxLines: 2,
+          validator: (value) =>
+              value == null || value.trim().isEmpty ? '項目名を入力してください。' : null,
         ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
@@ -656,20 +673,26 @@ class _EditableLineCardState extends State<_EditableLineCard> {
           },
         ),
         const SizedBox(height: 10),
-        TextField(
+        TextFormField(
+          key: ValueKey('quote-line-amount-${widget.index}'),
           controller: item.amountController,
           keyboardType: TextInputType.number,
           decoration: const InputDecoration(
             labelText: '金額（円・未記載は空欄）',
             border: OutlineInputBorder(),
           ),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) return null;
+            return validateAmount(value, maxDecimalPlaces: 0);
+          },
         ),
         const SizedBox(height: 10),
         Row(
           children: [
             Expanded(
               flex: 2,
-              child: TextField(
+              child: TextFormField(
+                key: ValueKey('quote-line-quantity-${widget.index}'),
                 controller: item.quantityController,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
@@ -678,6 +701,10 @@ class _EditableLineCardState extends State<_EditableLineCard> {
                   labelText: '数量',
                   border: OutlineInputBorder(),
                 ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) return null;
+                  return validateQuantity(value);
+                },
               ),
             ),
             const SizedBox(width: 8),
@@ -805,19 +832,18 @@ class _EditableLineItem {
     if (rawLabel.isEmpty) {
       throw FormatException('明細${index + 1}の項目名を入力してください。');
     }
-    final normalizedAmount = amountController.text.replaceAll(
-      RegExp(r'[^0-9-]'),
-      '',
-    );
+
+    final normalizedAmount = amountController.text.trim().replaceAll(',', '');
     final amount = normalizedAmount.isEmpty
         ? null
         : int.tryParse(normalizedAmount);
     if (normalizedAmount.isNotEmpty && amount == null) {
       throw FormatException('明細${index + 1}の金額を数値で入力してください。');
     }
+
     final normalizedQuantity = quantityController.text.trim().replaceAll(
       ',',
-      '.',
+      '',
     );
     final quantity = normalizedQuantity.isEmpty
         ? null
@@ -825,6 +851,7 @@ class _EditableLineItem {
     if (normalizedQuantity.isNotEmpty && quantity == null) {
       throw FormatException('明細${index + 1}の数量を数値で入力してください。');
     }
+
     final unit = unitController.text.trim();
     final specification = specificationController.text.trim();
     return RawQuoteLineItem(
