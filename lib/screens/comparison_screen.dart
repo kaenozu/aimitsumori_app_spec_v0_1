@@ -401,16 +401,16 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     )
-                  : const Icon(Icons.share_outlined, semanticLabel: '共有'),
+                  : const Icon(Icons.share_outlined, semanticLabel: ''),
             ),
           ),
           if (widget.allowQuoteEditing)
             IconButton(
-              tooltip: '追加',
+              tooltip: '見積を追加',
               onPressed: _addQuote,
               icon: const Icon(
                 Icons.document_scanner_outlined,
-                semanticLabel: '見積を追加',
+                semanticLabel: '',
               ),
             ),
           if (!_adService.adFree.value)
@@ -466,6 +466,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
                         Semantics(
                           button: true,
                           label: 'PDFまたは写真から見積を追加',
+                          onTap: _addQuote,
                           child: ExcludeSemantics(
                             child: OutlinedButton.icon(
                               onPressed: _addQuote,
@@ -562,6 +563,7 @@ class _SummaryCard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Semantics(
                   label: '要約 ${index + 1}。${lines[index]}',
+                  excludeSemantics: true,
                   child: Text('${index + 1}. ${lines[index]}'),
                 ),
               ),
@@ -599,15 +601,14 @@ class _SnapshotList extends StatelessWidget {
                     '任意 ${snapshot.optionalCategoryNames.length}件。'
                     '含有不明 ${snapshot.unknownCategoryNames.length}カテゴリ。'
                     '不確実点 ${snapshot.uncertaintyCount}件。',
-                child: ExcludeSemantics(
-                  child: Text(
-                    '提示総額: ${_yen(snapshot.totalAmountYen)}\n'
-                    '見積内: ${snapshot.includedCategoryCount}カテゴリ / '
-                    '別途: ${snapshot.separateCategoryNames.length}件 / '
-                    '任意: ${snapshot.optionalCategoryNames.length}件\n'
-                    '含有不明: ${snapshot.unknownCategoryNames.length}カテゴリ / '
-                    '不確実点: ${snapshot.uncertaintyCount}件',
-                  ),
+                excludeSemantics: true,
+                child: Text(
+                  '提示総額: ${_yen(snapshot.totalAmountYen)}\n'
+                  '見積内: ${snapshot.includedCategoryCount}カテゴリ / '
+                  '別途: ${snapshot.separateCategoryNames.length}件 / '
+                  '任意: ${snapshot.optionalCategoryNames.length}件\n'
+                  '含有不明: ${snapshot.unknownCategoryNames.length}カテゴリ / '
+                  '不確実点: ${snapshot.uncertaintyCount}件',
                 ),
               ),
               isThreeLine: true,
@@ -686,14 +687,13 @@ class _CategoryComparisonList extends StatelessWidget {
                           '数量 ${_quantity(cell.quantity, cell.unit)}。'
                           '仕様 ${cell.specification ?? "未入力"}。'
                           '${cell.uncertaintyReasons.isEmpty ? "" : "確認 ${cell.uncertaintyReasons.join("、")}。"}',
-                      child: ExcludeSemantics(
-                        child: Text(
-                          '${cell.inclusionStatus.labelJa}\n'
-                          '金額: ${_amount(cell.amountYen)} / '
-                          '数量: ${_quantity(cell.quantity, cell.unit)}\n'
-                          '仕様: ${cell.specification ?? "未入力"}'
-                          '${cell.uncertaintyReasons.isEmpty ? "" : "\n確認: ${cell.uncertaintyReasons.join(" / ")}"}',
-                        ),
+                      excludeSemantics: true,
+                      child: Text(
+                        '${cell.inclusionStatus.labelJa}\n'
+                        '金額: ${_amount(cell.amountYen)} / '
+                        '数量: ${_quantity(cell.quantity, cell.unit)}\n'
+                        '仕様: ${cell.specification ?? "未入力"}'
+                        '${cell.uncertaintyReasons.isEmpty ? "" : "\n確認: ${cell.uncertaintyReasons.join(" / ")}"}',
                       ),
                     ),
                     isThreeLine: true,
