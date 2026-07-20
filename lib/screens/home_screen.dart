@@ -322,6 +322,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   Semantics(
                     button: true,
                     label: '案件を追加',
+                    onTap: () async {
+                      await HapticService.lightImpact();
+                      if (mounted) await _showCreateDialog();
+                    },
                     child: ExcludeSemantics(
                       child: FilledButton.icon(
                         key: const ValueKey('create-project-button'),
@@ -352,10 +356,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               key: const ValueKey('project-search-clear'),
                               tooltip: '検索をクリア',
                               onPressed: _clearSearch,
-                              icon: const Icon(
-                                Icons.clear,
-                                semanticLabel: '検索をクリア',
-                              ),
+                              icon: const Icon(Icons.clear, semanticLabel: ''),
                             ),
                       border: const OutlineInputBorder(),
                     ),
@@ -373,10 +374,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         trailing: IconButton(
                           tooltip: '再読み込み',
                           onPressed: _loadProjects,
-                          icon: const Icon(
-                            Icons.refresh,
-                            semanticLabel: '再読み込み',
-                          ),
+                          icon: const Icon(Icons.refresh, semanticLabel: ''),
                         ),
                       ),
                     ),
@@ -485,6 +483,7 @@ class _ProjectCard extends StatelessWidget {
           '${project.name}。${project.status.labelJa}。'
           '見積 ${project.quotes.length}社。'
           '開く。左にスワイプして削除できます。',
+      onTap: onTap,
       child: ExcludeSemantics(
         child: Card(
           margin: const EdgeInsets.only(bottom: 12),
