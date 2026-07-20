@@ -1,5 +1,7 @@
 /// ファイルパス: lib/screens/comparison_screen.dart
-/// 比較画面 - 更新、PDF・画像・CSV・テキスト共有、カテゴリ比較、質問テンプレート、広告
+/// 目的: 見積の差、不明点、確認質問をアクセシブルに表示・共有する。
+/// 存在理由: 業者ごとの条件差を順位付けせず確認できる中核画面のため。
+/// 関連ファイル: comparison_engine.dart, quote_input_screen.dart, comparison_export_service.dart
 library;
 
 import 'dart:math' as math;
@@ -387,23 +389,29 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
         actions: [
           Builder(
             builder: (shareContext) => IconButton(
-              tooltip: '比較結果を共有',
+              tooltip: '共有',
               onPressed: _exporting
                   ? null
                   : () => _showShareOptions(shareContext),
               icon: _exporting
-                  ? const SizedBox.square(
-                      dimension: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                  ? const Semantics(
+                      label: '共有中',
+                      child: SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
                     )
-                  : const Icon(Icons.share_outlined),
+                  : const Icon(Icons.share_outlined, semanticLabel: '共有'),
             ),
           ),
           if (widget.allowQuoteEditing)
             IconButton(
-              tooltip: '見積を追加',
+              tooltip: '追加',
               onPressed: _addQuote,
-              icon: const Icon(Icons.document_scanner_outlined),
+              icon: const Icon(
+                Icons.document_scanner_outlined,
+                semanticLabel: '見積を追加',
+              ),
             ),
           if (!_adService.adFree.value)
             PopupMenuButton<String>(
@@ -443,19 +451,28 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        _report.projectName,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          _report.projectName,
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
                       ),
                       const SizedBox(height: 4),
                       const Text('順位・総合点は付けず、条件差と不明点を確認します。'),
                       if (widget.allowQuoteEditing) ...[
                         const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: _addQuote,
-                          icon: const Icon(Icons.add_a_photo_outlined),
-                          label: const Text('PDF・写真から見積を追加'),
+                        Semantics(
+                          button: true,
+                          label: 'PDFまたは写真から見積を追加',
+                          child: ExcludeSemantics(
+                            child: OutlinedButton.icon(
+                              onPressed: _addQuote,
+                              icon: const Icon(Icons.add_a_photo_outlined),
+                              label: const Text('追加'),
+                            ),
+                          ),
                         ),
                       ],
                       const SizedBox(height: 16),
@@ -466,16 +483,22 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
                       const _BadgeLegend(),
                       const SizedBox(height: 16),
                       if (_detailsUnlocked) ...[
-                        Text(
-                          '18カテゴリ比較',
-                          style: Theme.of(context).textTheme.titleLarge,
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            '18カテゴリ比較',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         _CategoryComparisonList(report: _report),
                         const SizedBox(height: 16),
-                        Text(
-                          '確認質問テンプレート (${_report.clarificationQuestions.length}件)',
-                          style: Theme.of(context).textTheme.titleLarge,
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            '確認質問テンプレート (${_report.clarificationQuestions.length}件)',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         if (_report.clarificationQuestions.isEmpty)
@@ -529,12 +552,18 @@ class _SummaryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('3行サマリー', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Semantics(
+              header: true,
+              child: Text('要約', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
             const SizedBox(height: 8),
             for (var index = 0; index < lines.length; index++)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
-                child: Text('${index + 1}. ${lines[index]}'),
+                child: Semantics(
+                  label: '要約 ${index + 1}。${lines[index]}',
+                  child: Text('${index + 1}. ${lines[index]}'),
+                ),
               ),
           ],
         ),
@@ -558,14 +587,28 @@ class _SnapshotList extends StatelessWidget {
         for (final snapshot in snapshots)
           Card(
             child: ListTile(
-              title: Text(snapshot.contractorName),
-              subtitle: Text(
-                '提示総額: ${_yen(snapshot.totalAmountYen)}\n'
-                '見積内: ${snapshot.includedCategoryCount}カテゴリ / '
-                '別途: ${snapshot.separateCategoryNames.length}件 / '
-                '任意: ${snapshot.optionalCategoryNames.length}件\n'
-                '含有不明: ${snapshot.unknownCategoryNames.length}カテゴリ / '
-                '不確実点: ${snapshot.uncertaintyCount}件',
+              title: Semantics(
+                header: true,
+                child: Text(snapshot.contractorName),
+              ),
+              subtitle: Semantics(
+                label:
+                    '提示総額 ${_yen(snapshot.totalAmountYen)}。'
+                    '見積内 ${snapshot.includedCategoryCount}カテゴリ。'
+                    '別途 ${snapshot.separateCategoryNames.length}件。'
+                    '任意 ${snapshot.optionalCategoryNames.length}件。'
+                    '含有不明 ${snapshot.unknownCategoryNames.length}カテゴリ。'
+                    '不確実点 ${snapshot.uncertaintyCount}件。',
+                child: ExcludeSemantics(
+                  child: Text(
+                    '提示総額: ${_yen(snapshot.totalAmountYen)}\n'
+                    '見積内: ${snapshot.includedCategoryCount}カテゴリ / '
+                    '別途: ${snapshot.separateCategoryNames.length}件 / '
+                    '任意: ${snapshot.optionalCategoryNames.length}件\n'
+                    '含有不明: ${snapshot.unknownCategoryNames.length}カテゴリ / '
+                    '不確実点: ${snapshot.uncertaintyCount}件',
+                  ),
+                ),
               ),
               isThreeLine: true,
             ),
@@ -590,7 +633,10 @@ class _BadgeLegend extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('表示の見方', style: TextStyle(fontWeight: FontWeight.bold)),
+            Semantics(
+              header: true,
+              child: Text('表示の見方', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
             SizedBox(height: 8),
             Text('未入力: 金額・数量・仕様が見積書に記載されていません。'),
             Text('別途: 提示総額には含まれず、追加費用になる可能性があります。'),
@@ -617,18 +663,38 @@ class _CategoryComparisonList extends StatelessWidget {
         for (final comparison in report.categoryComparisons)
           Card(
             child: ExpansionTile(
-              title: Text(comparison.category.nameJa),
+              title: Semantics(
+                header: true,
+                child: Text(comparison.category.nameJa),
+              ),
               children: [
                 for (final cell in comparison.cells)
                   ListTile(
-                    title: Text(cell.contractorName),
-                    leading: Icon(_statusIcon(cell.inclusionStatus)),
-                    subtitle: Text(
-                      '${cell.inclusionStatus.labelJa}\n'
-                      '金額: ${_amount(cell.amountYen)} / '
-                      '数量: ${_quantity(cell.quantity, cell.unit)}\n'
-                      '仕様: ${cell.specification ?? "未入力"}'
-                      '${cell.uncertaintyReasons.isEmpty ? "" : "\n確認: ${cell.uncertaintyReasons.join(" / ")}"}',
+                    title: Semantics(
+                      header: true,
+                      child: Text(cell.contractorName),
+                    ),
+                    leading: Icon(
+                      _statusIcon(cell.inclusionStatus),
+                      semanticLabel: '',
+                    ),
+                    subtitle: Semantics(
+                      label:
+                          '${cell.contractorName}。'
+                          '${cell.inclusionStatus.labelJa}。'
+                          '金額 ${_amount(cell.amountYen)}。'
+                          '数量 ${_quantity(cell.quantity, cell.unit)}。'
+                          '仕様 ${cell.specification ?? "未入力"}。'
+                          '${cell.uncertaintyReasons.isEmpty ? "" : "確認 ${cell.uncertaintyReasons.join("、")}。"}',
+                      child: ExcludeSemantics(
+                        child: Text(
+                          '${cell.inclusionStatus.labelJa}\n'
+                          '金額: ${_amount(cell.amountYen)} / '
+                          '数量: ${_quantity(cell.quantity, cell.unit)}\n'
+                          '仕様: ${cell.specification ?? "未入力"}'
+                          '${cell.uncertaintyReasons.isEmpty ? "" : "\n確認: ${cell.uncertaintyReasons.join(" / ")}"}',
+                        ),
+                      ),
                     ),
                     isThreeLine: true,
                   ),
@@ -679,11 +745,14 @@ class _DetailUnlockCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            const Icon(Icons.table_chart_outlined, size: 40),
+            const Icon(Icons.table_chart_outlined, size: 40, semanticLabel: ''),
             const SizedBox(height: 8),
-            const Text(
-              '詳細比較を表示',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            const Semantics(
+              header: true,
+              child: Text(
+                '詳細比較を表示',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
             ),
             const SizedBox(height: 6),
             const Text('カテゴリ別の金額・仕様差と、業者への確認質問を表示します。'),
