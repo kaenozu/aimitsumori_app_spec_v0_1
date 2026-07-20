@@ -1,4 +1,7 @@
-/// 見積書の改訂履歴、差分、比較対象選択を表示する画面。
+/// ファイルパス: lib/screens/quote_revision_screen.dart
+/// 目的: 見積の改訂履歴、差分、比較対象を管理する。
+/// 存在理由: 同一業者の複数版を安全に選択・比較するため。
+/// 関連ファイル: quote_input_screen.dart, quote_revision_repository.dart, revision_comparison_screen.dart
 library;
 
 import 'package:flutter/material.dart';
@@ -176,7 +179,7 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
               final value = controller.text.trim();
               Navigator.pop(context, value.isEmpty ? '過去版を基に改訂' : value);
             },
-            child: const Text('見積書を取り込む'),
+            child: const Text('取り込む'),
           ),
         ],
       ),
@@ -223,12 +226,15 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
     final groups = _groups(_revisions);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('見積書の改訂履歴'),
+        title: const Text('改訂'),
         actions: [
           IconButton(
-            tooltip: '選択した改訂版を比較',
+            tooltip: '比較',
             onPressed: _loading ? null : _compareSelected,
-            icon: const Icon(Icons.compare_arrows_outlined),
+            icon: const Icon(
+              Icons.compare_arrows_outlined,
+              semanticLabel: '選択した改訂版を比較',
+            ),
           ),
         ],
       ),
@@ -240,9 +246,12 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 children: [
-                  Text(
-                    widget.project.name,
-                    style: Theme.of(context).textTheme.titleLarge,
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      widget.project.name,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   const Text('同一業者の見積を版として管理し、業者ごとに任意の版を比較対象へ選べます。'),
@@ -251,25 +260,43 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      OutlinedButton.icon(
-                        onPressed: _registerNewContractor,
-                        icon: const Icon(Icons.person_add_alt_outlined),
-                        label: const Text('新規業者として登録'),
+                      Semantics(
+                        button: true,
+                        label: '新規業者として登録',
+                        child: ExcludeSemantics(
+                          child: OutlinedButton.icon(
+                            onPressed: _registerNewContractor,
+                            icon: const Icon(Icons.person_add_alt_outlined),
+                            label: const Text('新規'),
+                          ),
+                        ),
                       ),
-                      FilledButton.icon(
-                        onPressed: _revisions.isEmpty
-                            ? null
-                            : _registerExistingRevision,
-                        icon: const Icon(Icons.history_outlined),
-                        label: const Text('既存見積の改訂版として登録'),
+                      Semantics(
+                        button: true,
+                        label: '既存見積の改訂版として登録',
+                        child: ExcludeSemantics(
+                          child: FilledButton.icon(
+                            onPressed: _revisions.isEmpty
+                                ? null
+                                : _registerExistingRevision,
+                            icon: const Icon(Icons.history_outlined),
+                            label: const Text('改訂'),
+                          ),
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  FilledButton.icon(
-                    onPressed: groups.isEmpty ? null : _compareSelected,
-                    icon: const Icon(Icons.compare_arrows_outlined),
-                    label: Text('選択した${_selectedRevisions.length}件を比較'),
+                  Semantics(
+                    button: true,
+                    label: '選択した${_selectedRevisions.length}件を比較',
+                    child: ExcludeSemantics(
+                      child: FilledButton.icon(
+                        onPressed: groups.isEmpty ? null : _compareSelected,
+                        icon: const Icon(Icons.compare_arrows_outlined),
+                        label: Text('比較（${_selectedRevisions.length}件）'),
+                      ),
+                    ),
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
@@ -333,8 +360,11 @@ class _RevisionGroupCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ExpansionTile(
-        leading: const Icon(Icons.history_outlined),
-        title: Text(latest.contractorName),
+        leading: const Icon(Icons.history_outlined, semanticLabel: ''),
+        title: Semantics(
+          header: true,
+          child: Text(latest.contractorName),
+        ),
         subtitle: Text(
           '最新: 第${latest.revisionNumber}版 / ${_date(latest.importedAt)}',
         ),
@@ -347,8 +377,14 @@ class _RevisionGroupCard extends StatelessWidget {
                 selectedRevisionId == ordered[index].id
                     ? Icons.radio_button_checked
                     : Icons.radio_button_unchecked,
+                semanticLabel: selectedRevisionId == ordered[index].id
+                    ? '比較対象に選択済み'
+                    : '比較対象に未選択',
               ),
-              title: Text('第${ordered[index].revisionNumber}版'),
+              title: Semantics(
+                header: true,
+                child: Text('第${ordered[index].revisionNumber}版'),
+              ),
               subtitle: Text(
                 [
                   _date(ordered[index].importedAt),
@@ -360,9 +396,12 @@ class _RevisionGroupCard extends StatelessWidget {
                 ].join(' / '),
               ),
               trailing: IconButton(
-                tooltip: 'この版から新しい改訂版を作成',
+                tooltip: '改訂',
                 onPressed: () => onCreateRevision(ordered[index]),
-                icon: const Icon(Icons.note_add_outlined),
+                icon: const Icon(
+                  Icons.note_add_outlined,
+                  semanticLabel: 'この版から新しい改訂版を作成',
+                ),
               ),
               onTap: () => onSelected(ordered[index].id),
             ),
@@ -405,10 +444,13 @@ class _DiffView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '第${diff.before.revisionNumber}版 → '
-            '第${diff.after.revisionNumber}版',
-            style: const TextStyle(fontWeight: FontWeight.bold),
+          Semantics(
+            header: true,
+            child: Text(
+              '第${diff.before.revisionNumber}版 → '
+              '第${diff.after.revisionNumber}版',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -424,7 +466,7 @@ class _DiffView extends StatelessWidget {
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                leading: Icon(_icon(change.type)),
+                leading: Icon(_icon(change.type), semanticLabel: ''),
                 title: Text(
                   CategoryMaster.find(change.categoryId)?.nameJa ??
                       change.label,
