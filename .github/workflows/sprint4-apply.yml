@@ -1,0 +1,69 @@
+name: Sprint 4 apply and verify
+
+on:
+  push:
+    branches:
+      - feature/sprint4-validation-and-tests
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sprint4-apply
+  cancel-in-progress: false
+
+jobs:
+  apply-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/sprint4-validation-and-tests
+          fetch-depth: 0
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Apply quote input patch
+        run: python tool/apply_sprint4_patch.py
+
+      - name: Format changed Dart files
+        run: |
+          dart format \
+            lib/screens/quote_input_screen.dart \
+            lib/validation/input_validators.dart \
+            lib/repositories/estimate_repository.dart \
+            test/validation/input_validators_test.dart \
+            test/widgets/sprint4_widget_test.dart \
+            test/integration/sprint4_integration_test.dart
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Commit verified implementation
+        shell: bash
+        run: |
+          rm tool/apply_sprint4_patch.py
+          rm .github/workflows/sprint4-apply.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            lib/screens/quote_input_screen.dart \
+            lib/validation/input_validators.dart \
+            lib/repositories/estimate_repository.dart \
+            test/validation/input_validators_test.dart \
+            test/widgets/sprint4_widget_test.dart \
+            test/integration/sprint4_integration_test.dart \
+            tool/apply_sprint4_patch.py \
+            .github/workflows/sprint4-apply.yml
+          git commit -m "Sprint 4: integrate validation and tests"
+          git push origin HEAD:feature/sprint4-validation-and-tests
