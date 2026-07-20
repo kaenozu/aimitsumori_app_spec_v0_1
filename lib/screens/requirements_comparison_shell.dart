@@ -1,4 +1,7 @@
-/// 見積比較、要望差異、改訂履歴を切り替えるプロジェクト比較シェル。
+/// ファイルパス: lib/screens/requirements_comparison_shell.dart
+/// 目的: 比較、要望差異、改訂履歴の3画面を切り替える。
+/// 存在理由: 1案件に関する確認機能を共通ナビゲーションへ集約するため。
+/// 関連ファイル: comparison_screen.dart, requirements_comparison_screen.dart, quote_revision_screen.dart
 library;
 
 import 'package:flutter/material.dart';
@@ -75,17 +78,17 @@ class _RequirementsComparisonShellState
           NavigationDestination(
             icon: Icon(Icons.compare_arrows_outlined),
             selectedIcon: Icon(Icons.compare_arrows),
-            label: '見積比較',
+            label: '比較',
           ),
           NavigationDestination(
             icon: Icon(Icons.rule_outlined),
             selectedIcon: Icon(Icons.rule),
-            label: '要望差異',
+            label: '要望',
           ),
           NavigationDestination(
             icon: Icon(Icons.history_outlined),
             selectedIcon: Icon(Icons.history),
-            label: '改訂履歴',
+            label: '改訂',
           ),
         ],
       ),
