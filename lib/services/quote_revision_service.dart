@@ -97,56 +97,55 @@ class QuoteRevisionService {
         : _quoteHash(quote);
     final db = await _databaseService.database;
     await _ensureSchema(db);
-    final existingRows = await db.query(
-      'quote_revisions',
-      where: 'quote_id = ?',
-      whereArgs: [quote.id],
-      limit: 1,
-    );
-    if (existingRows.isNotEmpty) {
-      // QuoteInputScreenの保存再試行で履歴を二重登録しない。
-      return _fromRow(existingRows.first);
-    }
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final groupId = currentIntent.isRevision
-        ? currentIntent.quoteGroupId!
-        : 'group-$projectId-'
-              '${_stableHash('${quote.id}|${quote.contractorName}|$now')}';
-    final previousRows = await db.query(
-      'quote_revisions',
-      where: 'quote_group_id = ?',
-      whereArgs: [groupId],
-      orderBy: 'revision_number DESC',
-      limit: 1,
-    );
-    final latestRevisionId = previousRows.isEmpty
-        ? null
-        : previousRows.first['id'] as String;
-    final revisionNumber = previousRows.isEmpty
-        ? 1
-        : (previousRows.first['revision_number'] as int) + 1;
-    final parentRevisionId = currentIntent.isRevision
-        ? currentIntent.parentRevisionId ?? latestRevisionId
-        : null;
-    final revision = QuoteRevision(
-      id: 'revision-$groupId-$revisionNumber',
-      projectId: projectId,
-      quoteId: quote.id,
-      contractorName: quote.contractorName,
-      quoteGroupId: groupId,
-      revisionNumber: revisionNumber,
-      parentRevisionId: parentRevisionId,
-      sourceFileHash: sourceFileHash,
-      importedAt: now,
-      changeReason: currentIntent.changeReason,
-      quoteSnapshot: quote,
-    );
-    await db.insert(
-      'quote_revisions',
-      _toRow(revision),
-      conflictAlgorithm: ConflictAlgorithm.abort,
-    );
-    return revision;
+    return await db.transaction((txn) async {
+      final existingRows = await txn.query(
+        'quote_revisions',
+        where: 'quote_id = ?',
+        whereArgs: [quote.id],
+        limit: 1,
+      );
+      if (existingRows.isNotEmpty) {
+        return _fromRow(existingRows.first);
+      }
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final groupId = currentIntent.isRevision
+          ? currentIntent.quoteGroupId!
+          : 'group-$projectId-'
+                '${_stableHash('${quote.id}|${quote.contractorName}|$now')}';
+      final previousRows = await txn.query(
+        'quote_revisions',
+        where: 'quote_group_id = ?',
+        whereArgs: [groupId],
+        orderBy: 'revision_number DESC',
+        limit: 1,
+      );
+      final revisionNumber = previousRows.isEmpty
+          ? 1
+          : (previousRows.first['revision_number'] as int) + 1;
+      final parentRevisionId = currentIntent.isRevision
+          ? currentIntent.parentRevisionId ??
+                (previousRows.isEmpty ? null : previousRows.first['id'] as String)
+          : null;
+      final revision = QuoteRevision(
+        id: 'revision-$groupId-$revisionNumber',
+        projectId: projectId,
+        quoteId: quote.id,
+        contractorName: quote.contractorName,
+        quoteGroupId: groupId,
+        revisionNumber: revisionNumber,
+        parentRevisionId: parentRevisionId,
+        sourceFileHash: sourceFileHash,
+        importedAt: now,
+        changeReason: currentIntent.changeReason,
+        quoteSnapshot: quote,
+      );
+      await txn.insert(
+        'quote_revisions',
+        _toRow(revision),
+        conflictAlgorithm: ConflictAlgorithm.abort,
+      );
+      return revision;
+    });
   }
 
   Future<void> ensureInitialRevisions({

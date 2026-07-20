@@ -168,18 +168,25 @@ class DatabaseService {
   Future<void> saveProject(Project project) async {
     final db = await database;
     await db.transaction((txn) async {
-      await txn.insert(
+      final existing = await txn.query(
         'projects',
-        _projectToRow(project),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-      await txn.delete(
-        'contractor_quotes',
-        where: 'project_id = ?',
+        columns: ['id'],
+        where: 'id = ?',
         whereArgs: [project.id],
+        limit: 1,
       );
+      if (existing.isEmpty) {
+        await txn.insert('projects', _projectToRow(project));
+      } else {
+        await txn.update(
+          'projects',
+          _projectToRow(project),
+          where: 'id = ?',
+          whereArgs: [project.id],
+        );
+      }
       for (final quote in project.quotes) {
-        await _insertQuote(txn, project.id, quote);
+        await _upsertQuote(txn, project.id, quote);
       }
       await txn.delete(
         'comparison_results',
@@ -234,7 +241,7 @@ class DatabaseService {
         throw StateError('保存先の案件が見つかりません: $projectId');
       }
 
-      await _insertQuote(txn, projectId, quote);
+      await _upsertQuote(txn, projectId, quote);
       await txn.update(
         'projects',
         {
@@ -252,19 +259,40 @@ class DatabaseService {
     });
   }
 
-  Future<void> _insertQuote(
+  Future<void> _upsertQuote(
     DatabaseExecutor db,
     String projectId,
     ContractorQuote quote,
   ) async {
-    await db.insert('contractor_quotes', {
-      'id': quote.id,
-      'project_id': projectId,
-      'contractor_name': quote.contractorName,
-      'total_amount_yen': quote.totalAmountYen,
-      'note': quote.note,
-      'created_at': quote.createdAtEpochMillis,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    final existing = await db.query(
+      'contractor_quotes',
+      columns: ['id'],
+      where: 'id = ?',
+      whereArgs: [quote.id],
+      limit: 1,
+    );
+    if (existing.isEmpty) {
+      await db.insert('contractor_quotes', {
+        'id': quote.id,
+        'project_id': projectId,
+        'contractor_name': quote.contractorName,
+        'total_amount_yen': quote.totalAmountYen,
+        'note': quote.note,
+        'created_at': quote.createdAtEpochMillis,
+      });
+    } else {
+      await db.update(
+        'contractor_quotes',
+        {
+          'contractor_name': quote.contractorName,
+          'total_amount_yen': quote.totalAmountYen,
+          'note': quote.note,
+          'created_at': quote.createdAtEpochMillis,
+        },
+        where: 'id = ?',
+        whereArgs: [quote.id],
+      );
+    }
     await db.delete('line_items', where: 'quote_id = ?', whereArgs: [quote.id]);
     for (final item in quote.lineItems) {
       await db.insert('line_items', {
@@ -279,7 +307,7 @@ class DatabaseService {
         'specification': item.specification,
         'note': item.note,
         'sort_order': item.sortOrder,
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      });
     }
   }
 
@@ -292,12 +320,30 @@ class DatabaseService {
   };
 
   Future<void> saveComparisonResult(ComparisonReport report) async {
+    if (report.isHistorical) return;
     final db = await database;
-    await db.insert('comparison_results', {
+    final existing = await db.query(
+      'comparison_results',
+      columns: ['project_id'],
+      where: 'project_id = ?',
+      whereArgs: [report.projectId],
+      limit: 1,
+    );
+    final row = {
       'project_id': report.projectId,
       'payload_json': jsonEncode(_reportToJson(report)),
       'saved_at': DateTime.now().millisecondsSinceEpoch,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    };
+    if (existing.isEmpty) {
+      await db.insert('comparison_results', row);
+    } else {
+      await db.update(
+        'comparison_results',
+        row,
+        where: 'project_id = ?',
+        whereArgs: [report.projectId],
+      );
+    }
   }
 
   Future<ComparisonReport?> loadComparisonResult(String projectId) async {

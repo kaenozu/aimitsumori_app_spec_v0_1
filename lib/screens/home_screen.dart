@@ -226,7 +226,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final filteredProjects = _filteredProjects;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('相見積もり比較'),
+        title: Semantics(
+          header: true,
+          label: '比較アプリ ホーム',
+          child: const Text('比較'),
+        ),
         actions: [
           PopupMenuButton<_HomeMenuAction>(
             tooltip: 'メニュー',
@@ -260,19 +264,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 children: [
-                  const Text(
-                    '総合点や順位ではなく、価格・範囲・要望との差・不明点を並べて確認します。',
-                    style: TextStyle(fontSize: 14),
+                  Semantics(
+                    label: '総合点や順位ではなく、価格・範囲・要望との差・不明点を並べて確認します。',
+                    child: const Text(
+                      '総合点や順位ではなく、価格・範囲・要望との差・不明点を並べて確認します。',
+                      style: TextStyle(fontSize: 14),
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  FilledButton.icon(
-                    key: const ValueKey('create-project-button'),
-                    onPressed: () async {
-                      await HapticService.lightImpact();
-                      if (mounted) await _showCreateDialog();
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('新しい案件を作成'),
+                  Semantics(
+                    button: true,
+                    label: '新しい案件を作成',
+                    child: FilledButton.icon(
+                      key: const ValueKey('create-project-button'),
+                      onPressed: () async {
+                        await HapticService.lightImpact();
+                        if (mounted) await _showCreateDialog();
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('新しい案件を作成'),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -433,29 +444,41 @@ class _EmptyProjectsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const Icon(Icons.folder_open_outlined, size: 40),
-            const SizedBox(height: 8),
-            const Text(
-              '案件はまだありません。',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              '「新しい案件を作成」から要望を整理し、PDFまたは写真の見積書を追加してください。',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onTrySample,
-              icon: const Icon(Icons.play_arrow_outlined),
-              label: const Text('サンプル比較を試す'),
-            ),
-          ],
+    return Semantics(
+      container: true,
+      label: '案件はまだありません。新しい案件を作成して見積を追加してください。',
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              const Icon(Icons.folder_open_outlined, size: 40, semanticLabel: ''),
+              const SizedBox(height: 8),
+              Semantics(
+                header: true,
+                label: '案件はまだありません',
+                child: const Text(
+                  '案件はまだありません。',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                '「新しい案件を作成」から要望を整理し、PDFまたは写真の見積書を追加してください。',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Semantics(
+                button: true,
+                label: 'サンプル比較を試す',
+                child: FilledButton.icon(
+                  onPressed: onTrySample,
+                  icon: const Icon(Icons.play_arrow_outlined),
+                  label: const Text('サンプル比較を試す'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -469,15 +492,19 @@ class _EmptySearchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const Icon(Icons.search_off_outlined, size: 40),
-            const SizedBox(height: 8),
-            Text('「$query」に一致する案件はありません。', textAlign: TextAlign.center),
-          ],
+    return Semantics(
+      container: true,
+      label: '「$query」に一致する案件はありません。',
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              const Icon(Icons.search_off_outlined, size: 40, semanticLabel: ''),
+              const SizedBox(height: 8),
+              Text('「$query」に一致する案件はありません。', textAlign: TextAlign.center),
+            ],
+          ),
         ),
       ),
     );
@@ -492,21 +519,25 @@ class _ProjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        onTap: onTap,
-        leading: const CircleAvatar(child: Icon(Icons.folder_outlined)),
-        title: Text(
-          project.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+    return Semantics(
+      button: true,
+      label: '${project.name}。${project.status.labelJa}。見積 ${project.quotes.length}社。',
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: ListTile(
+          onTap: onTap,
+          leading: const CircleAvatar(child: Icon(Icons.folder_outlined)),
+          title: Text(
+            project.name,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          subtitle: Text(
+            '${project.status.labelJa}・見積 ${project.quotes.length}社\n'
+            '要望差異と不明点を確認',
+          ),
+          isThreeLine: true,
+          trailing: const Icon(Icons.chevron_right),
         ),
-        subtitle: Text(
-          '${project.status.labelJa}・見積 ${project.quotes.length}社\n'
-          '要望差異と不明点を確認',
-        ),
-        isThreeLine: true,
-        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }

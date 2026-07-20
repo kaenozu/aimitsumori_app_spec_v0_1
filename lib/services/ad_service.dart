@@ -88,8 +88,8 @@ class AdService {
       },
     );
 
-    // 課金は広告設定の不備に引きずられないよう、広告初期化と分離する。
-    // 片方の広告枠だけが無効でも、広告削除購入・復元は利用できる必要がある。
+    await restorePurchases();
+
     if (hasAdConfiguration) {
       try {
         await MobileAds.instance.initialize();

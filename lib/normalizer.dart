@@ -5,6 +5,7 @@ library;
 
 import 'data/category_master.dart';
 import 'models.dart';
+import 'unit_normalizer.dart';
 
 class Normalizer {
   List<NormalizedQuote> normalize(Project project) {
@@ -66,8 +67,8 @@ class Normalizer {
         .toSet()
         .toList();
     final unitValues = items
-        .where((item) => item.unit?.trim().isNotEmpty == true)
-        .map((item) => item.unit!.trim())
+        .map((item) => UnitNormalizer.normalize(item.unit))
+        .whereType<String>()
         .toSet()
         .toList();
     final quantity = quantityValues.length == 1 ? quantityValues.first : null;

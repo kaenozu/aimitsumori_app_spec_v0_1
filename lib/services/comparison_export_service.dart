@@ -200,7 +200,12 @@ class ComparisonExportService {
       values.map(_encodeCsvCell).join(',');
 
   static String _encodeCsvCell(Object? value) {
-    final text = value?.toString() ?? '';
+    var text = value?.toString() ?? '';
+
+    if (RegExp(r'^[\t\r\n ]*[=+\-@]').hasMatch(text)) {
+      text = "'$text";
+    }
+
     if (!text.contains(RegExp(r'[,"\r\n]'))) return text;
     return '"${text.replaceAll('"', '""')}"';
   }

@@ -322,18 +322,27 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     final ocrSupported = OcrService.isSupportedPlatform;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('見積書を取り込む'),
+        title: Semantics(
+          header: true,
+          label: '編集画面',
+          child: const Text('編集'),
+        ),
         actions: [
-          IconButton(
-            key: const ValueKey('quote-save-button'),
-            tooltip: '確認して保存',
-            onPressed: rawQuote == null || _saving ? null : _save,
-            icon: _saving
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.save_outlined),
+          Semantics(
+            button: true,
+            enabled: rawQuote != null || _processing,
+            label: _saving ? '保存中' : '確認して保存',
+            child: IconButton(
+              key: const ValueKey('quote-save-button'),
+              tooltip: '確認して保存',
+              onPressed: rawQuote == null || _saving ? null : _save,
+              icon: _saving
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_outlined),
+            ),
           ),
         ],
       ),

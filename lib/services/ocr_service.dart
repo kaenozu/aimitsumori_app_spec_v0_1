@@ -42,6 +42,17 @@ class OcrService {
     );
   }
 
+  @visibleForTesting
+  static double pdfRenderScaleForPageCount(int pageCount) {
+    if (pageCount <= 0) {
+      throw RangeError.range(pageCount, 1, _maxPdfPages, 'pageCount');
+    }
+    if (pageCount <= 5) return 2.0;
+    if (pageCount <= 15) return 1.5;
+    if (pageCount <= 30) return 1.25;
+    return 1.0;
+  }
+
   final TextRecognizer _recognizer;
   final OcrConfidenceEngine confidenceEngine;
   final List<String> _temporaryReviewImagePaths = [];
@@ -119,6 +130,7 @@ class OcrService {
       if (pageCount > _maxPdfPages) {
         throw const OcrException('PDFのページ数が多すぎます。50ページ以下のPDFを選択してください。');
       }
+      final renderScale = pdfRenderScaleForPageCount(pageCount);
       for (var pageIndex = 0; pageIndex < pageCount; pageIndex++) {
         await renderer.openPage(pageIndex: pageIndex);
         try {
@@ -129,7 +141,7 @@ class OcrService {
             y: 0,
             width: size.width,
             height: size.height,
-            scale: 2,
+            scale: renderScale,
           );
           if (bytes == null || bytes.isEmpty) continue;
 

@@ -390,6 +390,7 @@ class ComparisonReport {
   final List<CategoryComparison> categoryComparisons;
   final List<String> summaryLines;
   final List<ClarificationQuestion> clarificationQuestions;
+  final bool isHistorical;
 
   const ComparisonReport({
     required this.projectId,
@@ -398,5 +399,18 @@ class ComparisonReport {
     required this.categoryComparisons,
     required this.summaryLines,
     required this.clarificationQuestions,
+    this.isHistorical = false,
   });
+
+  ComparisonReport copyWithHistorical() {
+    return ComparisonReport(
+      projectId: projectId,
+      projectName: projectName,
+      quoteSnapshots: quoteSnapshots,
+      categoryComparisons: categoryComparisons,
+      summaryLines: summaryLines,
+      clarificationQuestions: clarificationQuestions,
+      isHistorical: true,
+    );
+  }
 }
