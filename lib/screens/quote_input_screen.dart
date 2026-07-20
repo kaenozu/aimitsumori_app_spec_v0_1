@@ -363,7 +363,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   )
-                : const Icon(Icons.save_outlined, semanticLabel: '保存'),
+                : const Icon(Icons.save_outlined, semanticLabel: ''),
           ),
         ],
       ),
@@ -394,6 +394,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
                 child: Semantics(
                   button: true,
                   label: 'PDFを読み込み',
+                  onTap: _processing ? null : _pickPdf,
                   child: ExcludeSemantics(
                     child: FilledButton.icon(
                       key: const ValueKey('quote-pdf-button'),
@@ -409,6 +410,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
                 child: Semantics(
                   button: true,
                   label: '写真を読み込み',
+                  onTap: _processing ? null : _pickPhoto,
                   child: ExcludeSemantics(
                     child: OutlinedButton.icon(
                       key: const ValueKey('quote-photo-button'),
@@ -519,12 +521,9 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
                   ),
                 ),
                 IconButton(
-                  tooltip: '追加',
+                  tooltip: '明細を追加',
                   onPressed: _addLineItem,
-                  icon: const Icon(
-                    Icons.add_circle_outline,
-                    semanticLabel: '明細を追加',
-                  ),
+                  icon: const Icon(Icons.add_circle_outline, semanticLabel: ''),
                 ),
               ],
             ),
@@ -540,6 +539,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
                       Semantics(
                         button: true,
                         label: '明細を追加',
+                        onTap: _addLineItem,
                         child: ExcludeSemantics(
                           child: OutlinedButton.icon(
                             onPressed: _addLineItem,
@@ -601,6 +601,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
             Semantics(
               button: true,
               label: '見積を保存',
+              onTap: _saving ? null : _save,
               child: ExcludeSemantics(
                 child: FilledButton.icon(
                   onPressed: _saving ? null : _save,
@@ -661,6 +662,7 @@ class _EditableLineCardState extends State<_EditableLineCard> {
             Semantics(
               button: true,
               label: '明細 ${widget.index + 1}を削除',
+              onTap: widget.onRemove,
               child: ExcludeSemantics(
                 child: IconButton(
                   tooltip: '削除',
