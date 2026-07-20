@@ -1,4 +1,7 @@
-/// ホーム画面 - 案件一覧、新規作成、検索、削除。
+/// ファイルパス: lib/screens/home_screen.dart
+/// 目的: 案件一覧、検索、追加、削除への入口を提供する。
+/// 存在理由: 利用者が比較対象の案件を選ぶ起点画面のため。
+/// 関連ファイル: requirements_comparison_shell.dart, settings_screen.dart, project_repository.dart
 library;
 
 import 'package:flutter/material.dart';
@@ -280,7 +283,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final filteredProjects = _filteredProjects;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('相見積もり比較'),
+        title: const Text('比較'),
         actions: [
           PopupMenuButton<_HomeMenuAction>(
             tooltip: 'メニュー',
@@ -316,14 +319,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   const Text('総合点や順位ではなく、価格・範囲・要望との差・不明点を並べて確認します。'),
                   const SizedBox(height: 12),
-                  FilledButton.icon(
-                    key: const ValueKey('create-project-button'),
-                    onPressed: () async {
-                      await HapticService.lightImpact();
-                      if (mounted) await _showCreateDialog();
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('新しい案件を作成'),
+                  Semantics(
+                    button: true,
+                    label: '案件を追加',
+                    child: ExcludeSemantics(
+                      child: FilledButton.icon(
+                        key: const ValueKey('create-project-button'),
+                        onPressed: () async {
+                          await HapticService.lightImpact();
+                          if (mounted) await _showCreateDialog();
+                        },
+                        icon: const Icon(Icons.add),
+                        label: const Text('追加'),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -333,14 +342,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     decoration: InputDecoration(
                       labelText: '案件を検索',
                       hintText: '案件名または業者名',
-                      prefixIcon: const Icon(Icons.search),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        semanticLabel: '検索',
+                      ),
                       suffixIcon: _searchQuery.isEmpty
                           ? null
                           : IconButton(
                               key: const ValueKey('project-search-clear'),
                               tooltip: '検索をクリア',
                               onPressed: _clearSearch,
-                              icon: const Icon(Icons.clear),
+                              icon: const Icon(
+                                Icons.clear,
+                                semanticLabel: '検索をクリア',
+                              ),
                             ),
                       border: const OutlineInputBorder(),
                     ),
@@ -350,12 +365,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     Card(
                       color: Theme.of(context).colorScheme.errorContainer,
                       child: ListTile(
-                        leading: const Icon(Icons.error_outline),
+                        leading: const Icon(
+                          Icons.error_outline,
+                          semanticLabel: 'エラー',
+                        ),
                         title: Text(_error!),
                         trailing: IconButton(
                           tooltip: '再読み込み',
                           onPressed: _loadProjects,
-                          icon: const Icon(Icons.refresh),
+                          icon: const Icon(
+                            Icons.refresh,
+                            semanticLabel: '再読み込み',
+                          ),
                         ),
                       ),
                     ),
@@ -382,6 +403,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           child: Icon(
                             Icons.delete_outline,
+                            semanticLabel: '削除',
                             color: Theme.of(
                               context,
                             ).colorScheme.onErrorContainer,
@@ -417,7 +439,7 @@ class _EmptyProjectsCard extends StatelessWidget {
             Text('案件はまだありません。', style: TextStyle(fontWeight: FontWeight.bold)),
             SizedBox(height: 4),
             Text(
-              '「新しい案件を作成」から要望を整理し、PDFまたは写真の見積書を追加してください。',
+              '「追加」から要望を整理し、PDFまたは写真の見積書を追加してください。',
               textAlign: TextAlign.center,
             ),
           ],
@@ -457,21 +479,30 @@ class _ProjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        onTap: onTap,
-        leading: const CircleAvatar(child: Icon(Icons.folder_outlined)),
-        title: Text(
-          project.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+    return Semantics(
+      button: true,
+      label:
+          '${project.name}。${project.status.labelJa}。'
+          '見積 ${project.quotes.length}社。'
+          '開く。左にスワイプして削除できます。',
+      child: ExcludeSemantics(
+        child: Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ListTile(
+            onTap: onTap,
+            leading: const CircleAvatar(child: Icon(Icons.folder_outlined)),
+            title: Text(
+              project.name,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(
+              '${project.status.labelJa}・見積 ${project.quotes.length}社\n'
+              '要望差異と不明点を確認',
+            ),
+            isThreeLine: true,
+            trailing: const Icon(Icons.chevron_right),
+          ),
         ),
-        subtitle: Text(
-          '${project.status.labelJa}・見積 ${project.quotes.length}社\n'
-          '要望差異と不明点を確認',
-        ),
-        isThreeLine: true,
-        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }
