@@ -1,5 +1,7 @@
 /// ファイルパス: lib/screens/quote_input_screen.dart
-/// PDF・カメラ・写真から見積を取り込み、OCR結果を確認して保存する画面
+/// 目的: 見積を取り込み、OCR結果と明細を編集して保存する。
+/// 存在理由: OCR結果を利用者が確認・修正する編集画面のため。
+/// 関連ファイル: ocr_service.dart, project_repository.dart, quote_revision_screen.dart
 library;
 
 import 'dart:async';
@@ -347,20 +349,21 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     final reviewBundle = _reviewBundle;
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.revisionIntent.isRevision ? '改訂見積書を取り込む' : '見積書を取り込む',
-        ),
+        title: const Text('編集'),
         actions: [
           IconButton(
             key: const ValueKey('quote-save-button'),
-            tooltip: '確認して保存',
+            tooltip: '保存',
             onPressed: rawQuote == null || _saving ? null : _save,
             icon: _saving
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                ? const Semantics(
+                    label: '保存中',
+                    child: SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   )
-                : const Icon(Icons.save_outlined),
+                : const Icon(Icons.save_outlined, semanticLabel: '保存'),
           ),
         ],
       ),
@@ -368,9 +371,12 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
-          Text(
-            widget.project.name,
-            style: Theme.of(context).textTheme.titleMedium,
+          Semantics(
+            header: true,
+            child: Text(
+              widget.project.name,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
           ),
           if (widget.revisionIntent.isRevision) ...[
             const SizedBox(height: 6),
@@ -385,20 +391,32 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
           Row(
             children: [
               Expanded(
-                child: FilledButton.icon(
-                  key: const ValueKey('quote-pdf-button'),
-                  onPressed: _processing ? null : _pickPdf,
-                  icon: const Icon(Icons.picture_as_pdf_outlined),
-                  label: const Text('PDFを読み込み'),
+                child: Semantics(
+                  button: true,
+                  label: 'PDFを読み込み',
+                  child: ExcludeSemantics(
+                    child: FilledButton.icon(
+                      key: const ValueKey('quote-pdf-button'),
+                      onPressed: _processing ? null : _pickPdf,
+                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                      label: const Text('PDF'),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: OutlinedButton.icon(
-                  key: const ValueKey('quote-photo-button'),
-                  onPressed: _processing ? null : _pickPhoto,
-                  icon: const Icon(Icons.add_a_photo_outlined),
-                  label: const Text('写真を読み込み'),
+                child: Semantics(
+                  button: true,
+                  label: '写真を読み込み',
+                  child: ExcludeSemantics(
+                    child: OutlinedButton.icon(
+                      key: const ValueKey('quote-photo-button'),
+                      onPressed: _processing ? null : _pickPhoto,
+                      icon: const Icon(Icons.add_a_photo_outlined),
+                      label: const Text('写真'),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -429,6 +447,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
                   children: [
                     Icon(
                       Icons.error_outline,
+                      semanticLabel: 'エラー',
                       color: Theme.of(context).colorScheme.onErrorContainer,
                     ),
                     const SizedBox(width: 8),
@@ -454,7 +473,10 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
                 onStatusChanged: _setReviewStatus,
               ),
             const SizedBox(height: 16),
-            Text('基本情報', style: Theme.of(context).textTheme.titleMedium),
+            Semantics(
+              header: true,
+              child: Text('基本情報', style: Theme.of(context).textTheme.titleMedium),
+            ),
             const SizedBox(height: 8),
             TextField(
               key: const ValueKey('quote-contractor-field'),
@@ -482,9 +504,12 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        '抽出明細 (${_editableItems.length}件)',
-                        style: Theme.of(context).textTheme.titleMedium,
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          '抽出明細 (${_editableItems.length}件)',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                       ),
                       const Text(
                         'カテゴリはOCR結果から自動判定しています。必要に応じて変更してください。',
@@ -494,9 +519,12 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
                   ),
                 ),
                 IconButton(
-                  tooltip: '明細を追加',
+                  tooltip: '追加',
                   onPressed: _addLineItem,
-                  icon: const Icon(Icons.add_circle_outline),
+                  icon: const Icon(
+                    Icons.add_circle_outline,
+                    semanticLabel: '明細を追加',
+                  ),
                 ),
               ],
             ),
@@ -509,10 +537,16 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
                     children: [
                       const Text('カテゴリ明細を自動判定できませんでした。'),
                       const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: _addLineItem,
-                        icon: const Icon(Icons.add),
-                        label: const Text('明細を手動追加'),
+                      Semantics(
+                        button: true,
+                        label: '明細を追加',
+                        child: ExcludeSemantics(
+                          child: OutlinedButton.icon(
+                            onPressed: _addLineItem,
+                            icon: const Icon(Icons.add),
+                            label: const Text('追加'),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -564,15 +598,21 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
               ],
             ),
             const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: _saving ? null : _save,
-              icon: _saving
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save_outlined),
-              label: Text(_saving ? '保存中…' : '確認して保存'),
+            Semantics(
+              button: true,
+              label: '見積を保存',
+              child: ExcludeSemantics(
+                child: FilledButton.icon(
+                  onPressed: _saving ? null : _save,
+                  icon: _saving
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: Text(_saving ? '保存中…' : '保存'),
+                ),
+              ),
             ),
           ],
         ],
@@ -610,15 +650,24 @@ class _EditableLineCardState extends State<_EditableLineCard> {
       children: [
         Row(
           children: [
-            Text(
-              '明細 ${widget.index + 1}',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+            Semantics(
+              header: true,
+              child: Text(
+                '明細 ${widget.index + 1}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
             const Spacer(),
-            IconButton(
-              tooltip: '明細を削除',
-              onPressed: widget.onRemove,
-              icon: const Icon(Icons.delete_outline),
+            Semantics(
+              button: true,
+              label: '明細 ${widget.index + 1}を削除',
+              child: ExcludeSemantics(
+                child: IconButton(
+                  tooltip: '削除',
+                  onPressed: widget.onRemove,
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ),
             ),
           ],
         ),
