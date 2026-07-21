@@ -1,10 +1,22 @@
 # リリースチェックリスト
 
+## Sprint 5 マージ基準
+
+- [ ] `flutter analyze --no-fatal-infos` がエラーなしで完了する
+- [ ] `flutter test` が全件成功する
+- [ ] `flutter test -d <android-device> test/integration/sprint5_e2e_test.dart -r expanded` が成功する
+- [ ] `flutter build apk --release` 相当のCIジョブが成功し、`app-release.apk`が生成される
+- [ ] GitHub Actionsの`Analyze and test`、`Android emulator E2E`、`Release APK compile`がすべて成功する
+- [ ] 既存テスト、SQLiteスキーマ、公開済み画面仕様を壊す変更がない
+
+`Release APK compile`は、コンパイル可能性だけを検証するために一時署名鍵とCI用IDを使用します。生成物はGoogle Playへ提出せず、公開時は本番署名鍵・本番AdMob ID・本番課金商品IDで改めてビルドしてください。
+
 ## 自動検証
 
-- [ ] `flutter analyze --no-pub`
+- [ ] `flutter analyze --no-pub --no-fatal-infos`
 - [ ] `flutter test --no-pub`
 - [ ] `flutter test --no-pub -d <device> integration_test/app_test.dart -r expanded`
+- [ ] `flutter test --no-pub -d <android-device> test/integration/sprint5_e2e_test.dart -r expanded`
 - [ ] `tool/build_android_release.ps1 -Artifact appbundle` が成功する
 - [ ] `tool/audit_android_release.ps1` が成功する（端末受入用APK）
 - [ ] AABが本番用署名鍵で署名されている
@@ -14,10 +26,14 @@
 
 - [ ] 初回起動とオンボーディング
 - [ ] 案件作成、要望チェック、案件削除
+- [ ] 不正な金額・数量が保存されず、入力エラーが表示される
+- [ ] 2社以上の見積を保存し、比較結果・金額・数量・単位を確認できる
+- [ ] アプリ再起動後も案件と見積が残っている
 - [ ] PDF読込と写真読込
 - [ ] 日本語OCR結果の確認・修正・保存
 - [ ] OCRの重大な未確認項目を保存前に警告できる
 - [ ] 複数社比較、比較結果の更新、共有
+- [ ] 順位や総合点を付けず、条件差と不明点を比較する方針が維持されている
 - [ ] 広告表示、広告削除購入、購入復元
 - [ ] 「全データを削除」で案件・見積・比較結果・OCR確認状態が消える
 
@@ -38,4 +54,4 @@
 
 ## 現在のリポジトリで未完了の項目
 
-本チェックリストのうち、本番署名鍵、本番AdMob・課金ID、公開URL、実機OCR・購入確認は、運営者のストア設定と実機が必要です。検証用鍵やダミーIDで作成したAABは公開物として使用しません。
+本チェックリストのうち、本番署名鍵、本番AdMob・課金ID、公開URL、実機OCR・購入確認は、運営者のストア設定と実機が必要です。検証用鍵やダミーIDで作成したAPK・AABは公開物として使用しません。
