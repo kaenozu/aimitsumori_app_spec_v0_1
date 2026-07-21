@@ -84,7 +84,7 @@ jobs:
     name: Release APK compile
     needs: quality
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
     env:
       ADMOB_APP_ID: ca-app-pub-1234567890123456~1234567890
       ADMOB_ANDROID_BANNER_ID: ca-app-pub-1234567890123456/1234567890
@@ -98,6 +98,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
