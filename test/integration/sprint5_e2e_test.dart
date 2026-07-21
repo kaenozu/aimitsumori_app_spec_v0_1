@@ -80,12 +80,13 @@ void main() {
 
     final reloaded = await repository.getProject(project.id);
     expect(reloaded, isNotNull);
-    expect(reloaded!.quotes, hasLength(2));
+    final persistedProject = reloaded!;
+    expect(persistedProject.quotes, hasLength(2));
 
-    final quoteA = reloaded.quotes.singleWhere(
+    final quoteA = persistedProject.quotes.singleWhere(
       (quote) => quote.contractorName == 'A社',
     );
-    final quoteB = reloaded.quotes.singleWhere(
+    final quoteB = persistedProject.quotes.singleWhere(
       (quote) => quote.contractorName == 'B社',
     );
     expect(_unitPrice(quoteA), 96000);
@@ -93,7 +94,7 @@ void main() {
 
     await _openAndVerifyComparison(
       tester,
-      project: reloaded,
+      project: persistedProject,
       repository: repository,
     );
 
