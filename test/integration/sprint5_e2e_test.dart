@@ -4,6 +4,8 @@
 /// 関連ファイル: lib/main.dart, lib/screens/quote_input_screen.dart, lib/services/database_service.dart
 library;
 
+import 'dart:io';
+
 import 'package:aimitsumori_app/data/category_master.dart';
 import 'package:aimitsumori_app/main.dart';
 import 'package:aimitsumori_app/models.dart';
@@ -20,7 +22,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../helpers/test_helpers.dart';
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  if (Platform.isAndroid) {
+    IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  } else {
+    TestWidgetsFlutterBinding.ensureInitialized();
+  }
 
   setUpAll(initializeDatabase);
   tearDownAll(DatabaseService.instance.close);
