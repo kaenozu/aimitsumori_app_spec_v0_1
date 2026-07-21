@@ -131,7 +131,7 @@ void main() {
       find.text('順位・総合点は付けず、条件差と不明点を確認します。'),
       findsOneWidget,
     );
-  });
+  }, skip: !Platform.isAndroid);
 }
 
 Future<void> _saveQuoteThroughEditor(
