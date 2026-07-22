@@ -14,73 +14,38 @@ class QuoteRevisionDiffEngine {
     final changes = <QuoteLineChange>[];
 
     for (final key in keys) {
-      final oldItem = beforeItems[key];
-      final newItem = afterItems[key];
-      if (oldItem == null && newItem != null) {
-        changes.add(
-          QuoteLineChange(
-            type: QuoteLineChangeType.added,
-            categoryId: newItem.categoryId,
-            label: newItem.rawLabel,
-            after: newItem,
-          ),
-        );
-        continue;
+      final oldItems = [...?beforeItems[key]]
+        ..sort((left, right) => left.sortOrder.compareTo(right.sortOrder));
+      final newItems = [...?afterItems[key]]
+        ..sort((left, right) => left.sortOrder.compareTo(right.sortOrder));
+      final pairedCount = oldItems.length < newItems.length
+          ? oldItems.length
+          : newItems.length;
+
+      for (var index = 0; index < pairedCount; index++) {
+        _compareItem(oldItems[index], newItems[index], changes);
       }
-      if (oldItem != null && newItem == null) {
+      for (var index = pairedCount; index < oldItems.length; index++) {
+        final item = oldItems[index];
         changes.add(
           QuoteLineChange(
             type: QuoteLineChangeType.removed,
-            categoryId: oldItem.categoryId,
-            label: oldItem.rawLabel,
-            before: oldItem,
+            categoryId: item.categoryId,
+            label: item.rawLabel,
+            before: item,
           ),
         );
-        continue;
       }
-      if (oldItem == null || newItem == null) continue;
-
-      void add(
-        QuoteLineChangeType type, {
-        double? beforeUnitPriceYen,
-        double? afterUnitPriceYen,
-      }) {
+      for (var index = pairedCount; index < newItems.length; index++) {
+        final item = newItems[index];
         changes.add(
           QuoteLineChange(
-            type: type,
-            categoryId: newItem.categoryId,
-            label: newItem.rawLabel,
-            before: oldItem,
-            after: newItem,
-            beforeUnitPriceYen: beforeUnitPriceYen,
-            afterUnitPriceYen: afterUnitPriceYen,
+            type: QuoteLineChangeType.added,
+            categoryId: item.categoryId,
+            label: item.rawLabel,
+            after: item,
           ),
         );
-      }
-
-      if (oldItem.amountYen != newItem.amountYen) {
-        add(QuoteLineChangeType.amount);
-      }
-      final oldUnitPrice = _unitPrice(oldItem);
-      final newUnitPrice = _unitPrice(newItem);
-      if (!_sameNullableDouble(oldUnitPrice, newUnitPrice)) {
-        add(
-          QuoteLineChangeType.unitPrice,
-          beforeUnitPriceYen: oldUnitPrice,
-          afterUnitPriceYen: newUnitPrice,
-        );
-      }
-      if (oldItem.quantity != newItem.quantity) {
-        add(QuoteLineChangeType.quantity);
-      }
-      if (oldItem.unit != newItem.unit) {
-        add(QuoteLineChangeType.unit);
-      }
-      if (oldItem.specification != newItem.specification) {
-        add(QuoteLineChangeType.specification);
-      }
-      if (oldItem.inclusionStatus != newItem.inclusionStatus) {
-        add(QuoteLineChangeType.inclusion);
       }
     }
 
@@ -89,10 +54,61 @@ class QuoteRevisionDiffEngine {
     return QuoteRevisionDiff(
       before: before,
       after: after,
-      totalDifferenceYen:
-          oldTotal == null || newTotal == null ? null : newTotal - oldTotal,
+      totalDifferenceYen: oldTotal == null || newTotal == null
+          ? null
+          : newTotal - oldTotal,
       changes: changes,
     );
+  }
+
+  void _compareItem(
+    QuoteLineItem oldItem,
+    QuoteLineItem newItem,
+    List<QuoteLineChange> changes,
+  ) {
+    void add(
+      QuoteLineChangeType type, {
+      double? beforeUnitPriceYen,
+      double? afterUnitPriceYen,
+    }) {
+      changes.add(
+        QuoteLineChange(
+          type: type,
+          categoryId: newItem.categoryId,
+          label: newItem.rawLabel,
+          before: oldItem,
+          after: newItem,
+          beforeUnitPriceYen: beforeUnitPriceYen,
+          afterUnitPriceYen: afterUnitPriceYen,
+        ),
+      );
+    }
+
+    if (oldItem.amountYen != newItem.amountYen) {
+      add(QuoteLineChangeType.amount);
+    }
+    final oldUnitPrice = _unitPrice(oldItem);
+    final newUnitPrice = _unitPrice(newItem);
+    if (!_sameNullableDouble(oldUnitPrice, newUnitPrice)) {
+      add(
+        QuoteLineChangeType.unitPrice,
+        beforeUnitPriceYen: oldUnitPrice,
+        afterUnitPriceYen: newUnitPrice,
+      );
+    }
+    if (!_sameNullableDouble(oldItem.quantity, newItem.quantity)) {
+      add(QuoteLineChangeType.quantity);
+    }
+    if (_normalized(oldItem.unit) != _normalized(newItem.unit)) {
+      add(QuoteLineChangeType.unit);
+    }
+    if (_normalized(oldItem.specification) !=
+        _normalized(newItem.specification)) {
+      add(QuoteLineChangeType.specification);
+    }
+    if (oldItem.inclusionStatus != newItem.inclusionStatus) {
+      add(QuoteLineChangeType.inclusion);
+    }
   }
 
   double? _unitPrice(QuoteLineItem item) {
@@ -104,15 +120,27 @@ class QuoteRevisionDiffEngine {
 
   bool _sameNullableDouble(double? left, double? right) {
     if (left == null || right == null) return left == right;
-    return (left - right).abs() < 0.01;
+    final tolerance = (left.abs() * 0.0001).clamp(0.01, 1000.0);
+    return (left - right).abs() <= tolerance;
   }
 
-  Map<String, QuoteLineItem> _group(List<QuoteLineItem> items) {
-    final grouped = <String, QuoteLineItem>{};
+  String? _normalized(String? value) {
+    final normalized = value
+        ?.trim()
+        .replaceAll(RegExp(r'\s+'), '')
+        .toLowerCase();
+    return normalized == null || normalized.isEmpty ? null : normalized;
+  }
+
+  Map<String, List<QuoteLineItem>> _group(List<QuoteLineItem> items) {
+    final grouped = <String, List<QuoteLineItem>>{};
     for (final item in items) {
-      final normalizedLabel =
-          item.rawLabel.replaceAll(RegExp(r'\s+'), '').toLowerCase();
-      grouped['${item.categoryId}|$normalizedLabel'] = item;
+      final normalizedLabel = item.rawLabel
+          .replaceAll(RegExp(r'\s+'), '')
+          .toLowerCase();
+      grouped
+          .putIfAbsent('${item.categoryId}|$normalizedLabel', () => [])
+          .add(item);
     }
     return grouped;
   }

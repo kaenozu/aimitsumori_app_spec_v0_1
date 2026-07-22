@@ -5,6 +5,7 @@ library;
 
 import 'data/category_master.dart';
 import 'models.dart';
+import 'unit_normalizer.dart';
 
 class Normalizer {
   List<NormalizedQuote> normalize(Project project) {
@@ -40,7 +41,10 @@ class Normalizer {
     }
 
     final reasons = <String>[];
-    final distinctStatuses = items.map((item) => item.inclusionStatus).toSet().toList();
+    final distinctStatuses = items
+        .map((item) => item.inclusionStatus)
+        .toSet()
+        .toList();
     final status = distinctStatuses.length == 1
         ? distinctStatuses.first
         : (() {
@@ -66,8 +70,8 @@ class Normalizer {
         .toSet()
         .toList();
     final unitValues = items
-        .where((item) => item.unit?.trim().isNotEmpty == true)
-        .map((item) => item.unit!.trim())
+        .map((item) => UnitNormalizer.normalize(item.unit))
+        .whereType<String>()
         .toSet()
         .toList();
     final quantity = quantityValues.length == 1 ? quantityValues.first : null;
@@ -84,7 +88,9 @@ class Normalizer {
         .map((item) => item.specification!.trim())
         .toSet()
         .toList();
-    final specification = specificationValues.length == 1 ? specificationValues.first : null;
+    final specification = specificationValues.length == 1
+        ? specificationValues.first
+        : null;
     if (category.specificationExpected && specification == null) {
       reasons.add('仕様・型番が不明です');
     }

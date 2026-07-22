@@ -1,24 +1,47 @@
-.PHONY: run test test-integration analyze icons splash build-apk release-prep
+.PHONY: run test test-integration test-sprint5-e2e analyze icons splash build-apk build-release-apk audit-release-apk release-prep
+
+DEVICE ?= windows
+EMULATOR_DEVICE ?= emulator-5554
 
 run:
 	flutter run
+
+format:
+	dart format lib test integration_test
 
 test:
 	flutter test
 
 test-integration:
-	flutter test integration_test
+	flutter test -d $(DEVICE) integration_test
+
+test-sprint5-e2e:
+	flutter test -d $(EMULATOR_DEVICE) test/integration/sprint5_e2e_test.dart -r expanded
 
 analyze:
 	flutter analyze
 
-icons:
-	dart run flutter_launcher_icons
+build-debug:
+	flutter build apk --debug
 
-splash:
-	dart run flutter_native_splash:create
+build-aab:
+	@test -f android/key.properties || (echo "android/key.properties が必要です" && exit 1)
+	@test -n "$(ADMOB_ANDROID_APP_ID)" || (echo "ADMOB_ANDROID_APP_ID が必要です" && exit 1)
+	@test -n "$(ADMOB_ANDROID_BANNER_ID)" || (echo "ADMOB_ANDROID_BANNER_ID が必要です" && exit 1)
+	@test -n "$(ADMOB_ANDROID_REWARDED_ID)" || (echo "ADMOB_ANDROID_REWARDED_ID が必要です" && exit 1)
+	@test -n "$(PURCHASE_VERIFICATION_URL)" || (echo "PURCHASE_VERIFICATION_URL が必要です" && exit 1)
+	ADMOB_ANDROID_APP_ID="$(ADMOB_ANDROID_APP_ID)" flutter build appbundle --release \
+		--dart-define=ADMOB_ANDROID_BANNER_ID="$(ADMOB_ANDROID_BANNER_ID)" \
+		--dart-define=ADMOB_ANDROID_REWARDED_ID="$(ADMOB_ANDROID_REWARDED_ID)" \
+		--dart-define=PURCHASE_VERIFICATION_URL="$(PURCHASE_VERIFICATION_URL)"
 
 build-apk:
-	flutter build apk --release
+	flutter build apk --debug
 
-release-prep: icons splash analyze test build-apk
+build-release-apk:
+	powershell -NoProfile -ExecutionPolicy Bypass -File tool/build_android_release.ps1 -Artifact apk
+
+audit-release-apk:
+	powershell -NoProfile -ExecutionPolicy Bypass -File tool/audit_android_release.ps1
+
+release-prep: icons splash analyze test build-release-apk

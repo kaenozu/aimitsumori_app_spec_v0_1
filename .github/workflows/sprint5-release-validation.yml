@@ -1,0 +1,134 @@
+# ファイルパス: .github/workflows/sprint5-release-validation.yml
+# 目的: Sprint 5の静的解析、全テスト、AndroidエミュレータE2E、Release APKコンパイルを自動検証する。
+# 存在理由: ローカル環境差に依存せず、mainへ統合するためのリリース基準をPR上で確定する。
+# 関連ファイル: test/integration/sprint5_e2e_test.dart, android/app/build.gradle.kts, RELEASE_CHECKLIST.md
+
+name: Sprint 5 Release Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sprint5-release-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Analyze and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+      - name: Run all tests
+        run: flutter test
+
+  emulator-e2e:
+    name: Android emulator E2E
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run Sprint 5 E2E
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: flutter test -d emulator-5554 test/integration/sprint5_e2e_test.dart -r expanded
+
+  release-apk:
+    name: Release APK compile
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ADMOB_APP_ID: ca-app-pub-1234567890123456~1234567890
+      ADMOB_ANDROID_BANNER_ID: ca-app-pub-1234567890123456/1234567890
+      ADMOB_ANDROID_REWARDED_ID: ca-app-pub-1234567890123456/0987654321
+      REMOVE_ADS_PRODUCT_ID: remove_ads_ci
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Create ephemeral CI signing key
+        run: |
+          keytool -genkeypair \
+            -storetype PKCS12 \
+            -keystore android/app/ci-release.keystore \
+            -storepass ciReleasePassword \
+            -keypass ciReleasePassword \
+            -alias ciRelease \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 2 \
+            -dname 'CN=CI Release Validation, OU=CI, O=aimitsumori, L=Tokyo, ST=Tokyo, C=JP'
+          cat > android/key.properties <<'EOF'
+          storePassword=ciReleasePassword
+          keyPassword=ciReleasePassword
+          keyAlias=ciRelease
+          storeFile=ci-release.keystore
+          EOF
+      - name: Build Release APK
+        run: |
+          flutter build apk --release --no-pub \
+            --dart-define=ADMOB_ANDROID_BANNER_ID="$ADMOB_ANDROID_BANNER_ID" \
+            --dart-define=ADMOB_ANDROID_REWARDED_ID="$ADMOB_ANDROID_REWARDED_ID" \
+            --dart-define=REMOVE_ADS_PRODUCT_ID="$REMOVE_ADS_PRODUCT_ID"
+          test -f build/app/outputs/flutter-apk/app-release.apk

@@ -6,8 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AppPreferences {
   AppPreferences({Future<SharedPreferences> Function()? preferencesLoader})
-      : _preferencesLoader =
-            preferencesLoader ?? SharedPreferences.getInstance;
+    : _preferencesLoader = preferencesLoader ?? SharedPreferences.getInstance;
 
   static final AppPreferences instance = AppPreferences();
 

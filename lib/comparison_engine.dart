@@ -15,7 +15,8 @@ class ComparisonEngine {
     required List<ClarificationQuestion> questions,
   }) {
     assert(
-      normalizedQuotes.map((quote) => quote.quoteId).toSet().length == normalizedQuotes.length,
+      normalizedQuotes.map((quote) => quote.quoteId).toSet().length ==
+          normalizedQuotes.length,
       'quoteId must be unique',
     );
 
@@ -93,7 +94,10 @@ class ComparisonEngine {
     }
 
     final totalText = snapshots
-        .map((snapshot) => '${snapshot.contractorName} ${_formatYen(snapshot.totalAmountYen)}')
+        .map(
+          (snapshot) =>
+              '${snapshot.contractorName} ${_formatYen(snapshot.totalAmountYen)}',
+        )
         .join(' / ');
     final knownTotals = snapshots
         .where((snapshot) => snapshot.totalAmountYen != null)

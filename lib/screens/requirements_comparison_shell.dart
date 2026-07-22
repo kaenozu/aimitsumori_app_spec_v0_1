@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../models.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/project_requirement_repository.dart';
+import '../repositories/quote_revision_repository.dart';
 import '../services/ad_service.dart';
 import 'comparison_screen.dart';
 import 'document_scanner_screen.dart';
@@ -18,12 +19,14 @@ class RequirementsComparisonShell extends StatefulWidget {
     required this.project,
     this.projectRepository,
     this.requirementRepository,
+    this.quoteRevisionRepository,
     this.adService,
   });
 
   final Project project;
   final ProjectRepository? projectRepository;
   final ProjectRequirementRepository? requirementRepository;
+  final QuoteRevisionRepository? quoteRevisionRepository;
   final AdService? adService;
 
   @override
@@ -94,8 +97,9 @@ class _RequirementsComparisonShellState
           ),
           QuoteRevisionScreen(
             key: ValueKey('quote-history-$_historyRevision'),
-            project: _project,
-            projectRepository: _projectRepository,
+            project: widget.project,?
+            projectRepository: widget.projectRepository,?
+            repository: widget.quoteRevisionRepository,
           ),
         ],
       ),

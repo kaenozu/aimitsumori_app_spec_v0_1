@@ -1,2 +1,4 @@
 #include "Generated.xcconfig"
 IPHONEOS_DEPLOYMENT_TARGET=15.5
+// Google Mobile Ads test application ID. Release.xcconfig must provide a production value.
+ADMOB_APP_ID=ca-app-pub-3940256099942544~1458002511

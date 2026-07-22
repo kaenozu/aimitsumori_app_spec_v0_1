@@ -49,10 +49,7 @@ void main() {
   });
 
   test('sanitizes project names for export file names', () {
-    expect(
-      ComparisonExportService.fileStem(' 見積 / A社:比較 '),
-      '見積_A社_比較',
-    );
+    expect(ComparisonExportService.fileStem(' 見積 / A社:比較 '), '見積_A社_比較');
     expect(ComparisonExportService.fileStem('   '), 'aimitsumori');
   });
 

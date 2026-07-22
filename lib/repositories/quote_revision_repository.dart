@@ -7,7 +7,7 @@ import '../services/quote_revision_service.dart';
 
 class QuoteRevisionRepository {
   QuoteRevisionRepository({QuoteRevisionService? service})
-      : _service = service ?? QuoteRevisionService.instance;
+    : _service = service ?? QuoteRevisionService.instance;
 
   static final QuoteRevisionRepository instance = QuoteRevisionRepository();
 

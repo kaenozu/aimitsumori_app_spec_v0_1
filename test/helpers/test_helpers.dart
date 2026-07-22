@@ -8,11 +8,12 @@ import 'package:aimitsumori_app/services/ad_service.dart';
 import 'package:aimitsumori_app/services/database_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:sqflite/sqflite.dart';
 
 class MockDatabaseService implements DatabaseService {
   MockDatabaseService({List<Project> initialProjects = const []})
-      : _projects = List<Project>.from(initialProjects);
+    : _projects = List<Project>.from(initialProjects);
 
   final List<Project> _projects;
   final Map<String, ComparisonReport> _reports = <String, ComparisonReport>{};
@@ -21,11 +22,12 @@ class MockDatabaseService implements DatabaseService {
   int getProjectCallCount = 0;
   int saveProjectCallCount = 0;
   int saveComparisonResultCallCount = 0;
+  int deleteAllDataCallCount = 0;
 
   @override
   Future<Database> get database => Future<Database>.error(
-        UnsupportedError('MockDatabaseService does not expose a SQLite database.'),
-      );
+    UnsupportedError('MockDatabaseService does not expose a SQLite database.'),
+  );
 
   @override
   Future<List<Project>> getProjects() async {
@@ -66,9 +68,17 @@ class MockDatabaseService implements DatabaseService {
   }
 
   @override
+  Future<void> deleteAllData() async {
+    deleteAllDataCallCount += 1;
+    _projects.clear();
+    _reports.clear();
+  }
+
+  @override
   Future<void> saveQuote(String projectId, ContractorQuote quote) async {
-    final projectIndex =
-        _projects.indexWhere((project) => project.id == projectId);
+    final projectIndex = _projects.indexWhere(
+      (project) => project.id == projectId,
+    );
     if (projectIndex == -1) {
       throw StateError('保存先の案件が見つかりません: $projectId');
     }
@@ -91,6 +101,13 @@ class MockDatabaseService implements DatabaseService {
   }
 
   @override
+  Future<void> saveQuoteInTransaction(
+    DatabaseExecutor transaction,
+    String projectId,
+    ContractorQuote quote,
+  ) => saveQuote(projectId, quote);
+
+  @override
   Future<void> saveComparisonResult(ComparisonReport report) async {
     saveComparisonResultCallCount += 1;
     _reports[report.projectId] = report;
@@ -104,13 +121,31 @@ class MockDatabaseService implements DatabaseService {
   Future<void> close() async {}
 }
 
-class MockAdMobService extends AdService {
-  MockAdMobService({super.adFree = true}) : super.testing();
+class MockAdMobService implements AdService {
+  MockAdMobService({bool adFree = true}) : adFree = ValueNotifier<bool>(adFree);
+
+  @override
+  final ValueNotifier<bool> adFree;
 
   int bannerRequestCount = 0;
   int rewardedRequestCount = 0;
   int purchaseRequestCount = 0;
   int restoreRequestCount = 0;
+
+  @override
+  bool get isSupportedPlatform => false;
+
+  @override
+  ProductDetails? get removeAdsProduct => null;
+
+  @override
+  String get bannerAdUnitId => 'test-banner';
+
+  @override
+  String get rewardedAdUnitId => 'test-rewarded';
+
+  @override
+  Future<void> initialize() async {}
 
   @override
   BannerAd? createBannerAd({
@@ -136,6 +171,11 @@ class MockAdMobService extends AdService {
   @override
   Future<void> restorePurchases() async {
     restoreRequestCount += 1;
+  }
+
+  @override
+  Future<void> dispose() async {
+    adFree.dispose();
   }
 }
 

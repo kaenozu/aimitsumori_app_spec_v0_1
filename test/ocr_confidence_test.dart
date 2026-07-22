@@ -25,6 +25,24 @@ void main() {
     expect(result.recognizedLine.initialStatus, OcrReviewStatus.autoConfirmed);
   });
 
+  test('thousands separated quantities are not parsed as decimals', () {
+    final result = engine.analyze(
+      rawText: '土間コンクリート 1,200㎡ 500,000円',
+      pageNumber: 1,
+      boundingRect: rect,
+      sourceImagePath: '/tmp/quote.png',
+    );
+
+    expect(result.quantity, 1200);
+    expect(result.unit, '㎡');
+  });
+
+  test('explicit yen values below four digits are extracted', () {
+    expect(OcrConfidenceEngine.extractAmountCandidates('部材 500円'), [500]);
+    expect(OcrConfidenceEngine.extractAmountCandidates('部材 ￥99'), [99]);
+    expect(OcrConfidenceEngine.extractAmountCandidates('数量 500個'), isEmpty);
+  });
+
   test('native OCR confidence below threshold requires review', () {
     final result = engine.analyze(
       rawText: 'フェンス 100,000円',
@@ -42,9 +60,9 @@ void main() {
     expect(result.recognizedLine.initialStatus, OcrReviewStatus.pending);
   });
 
-  test('multiple candidates and suspicious characters require review', () {
+  test('multiple categories and amounts require review', () {
     final result = engine.analyze(
-      rawText: 'フェンス 門柱 ??? 100,000円 120,000円',
+      rawText: 'フェンス 門柱 ??? 100,000円 120,000円 130,000円',
       pageNumber: 1,
       boundingRect: rect,
       sourceImagePath: '/tmp/quote.png',
@@ -87,7 +105,7 @@ void main() {
     expect(issues.single.severity, OcrReviewSeverity.critical);
   });
 
-  test('recognized line id is stable across temporary image paths', () {
+  test('recognized line id is stable and uses a full SHA-256 digest', () {
     const first = OcrRecognizedLine(
       pageNumber: 2,
       boundingRect: rect,
@@ -108,18 +126,19 @@ void main() {
     );
 
     expect(first.id, second.id);
+    expect(first.id, hasLength(64));
   });
 
-  test('review state is persisted per source document', () async {
+  test('review state is persisted per document hash', () async {
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();
     final store = OcrReviewStore(preferences: preferences);
 
-    await store.save('/tmp/quote.png', {
+    await store.save('document-sha-256', {
       'line-1': OcrReviewStatus.confirmed,
       'line-2': OcrReviewStatus.autoConfirmed,
     });
-    final loaded = await store.load('/tmp/quote.png');
+    final loaded = await store.load('document-sha-256');
 
     expect(loaded['line-1'], OcrReviewStatus.confirmed);
     expect(loaded['line-2'], OcrReviewStatus.autoConfirmed);

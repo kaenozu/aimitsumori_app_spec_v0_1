@@ -15,22 +15,21 @@ void main() {
     String? unit = 'm',
     String? specification = '暗渠排水 VP100',
     List<String> sourceIds = const ['line-1'],
-  }) =>
-      NormalizedQuote(
-        quoteId: 'quote-1',
-        contractorName: 'A社',
-        lines: [
-          NormalizedLine(
-            category: drainage,
-            inclusionStatus: status,
-            amountYen: amountYen,
-            quantity: quantity,
-            unit: unit,
-            specification: specification,
-            sourceLineItemIds: sourceIds,
-          ),
-        ],
-      );
+  }) => NormalizedQuote(
+    quoteId: 'quote-1',
+    contractorName: 'A社',
+    lines: [
+      NormalizedLine(
+        category: drainage,
+        inclusionStatus: status,
+        amountYen: amountYen,
+        quantity: quantity,
+        unit: unit,
+        specification: specification,
+        sourceLineItemIds: sourceIds,
+      ),
+    ],
+  );
 
   test('required included is reported without a ranking or score', () {
     final result = engine.evaluate(
@@ -86,10 +85,7 @@ void main() {
       quotes: [quote()],
     );
 
-    expect(
-      result.single.status,
-      RequirementCoverageStatus.unnecessaryIncluded,
-    );
+    expect(result.single.status, RequirementCoverageStatus.unnecessaryIncluded);
   });
 
   test('quantity, unit, and specification differences are reported', () {

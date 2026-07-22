@@ -15,10 +15,8 @@ enum InclusionStatus {
   final String labelJa;
   const InclusionStatus(this.code, this.labelJa);
 
-  static InclusionStatus fromCode(String code) => InclusionStatus.values.firstWhere(
-        (e) => e.code == code,
-        orElse: () => InclusionStatus.unknown,
-      );
+  static InclusionStatus fromCode(String code) => InclusionStatus.values
+      .firstWhere((e) => e.code == code, orElse: () => InclusionStatus.unknown);
 }
 
 enum ProjectStatus {
@@ -35,9 +33,9 @@ enum ProjectStatus {
   const ProjectStatus(this.code, this.labelJa);
 
   static ProjectStatus fromCode(String code) => ProjectStatus.values.firstWhere(
-        (e) => e.code == code,
-        orElse: () => ProjectStatus.draft,
-      );
+    (e) => e.code == code,
+    orElse: () => ProjectStatus.draft,
+  );
 }
 
 enum QuestionStatus {
@@ -47,10 +45,8 @@ enum QuestionStatus {
   final String code;
   const QuestionStatus(this.code);
 
-  static QuestionStatus fromCode(String code) => QuestionStatus.values.firstWhere(
-        (e) => e.code == code,
-        orElse: () => QuestionStatus.open,
-      );
+  static QuestionStatus fromCode(String code) => QuestionStatus.values
+      .firstWhere((e) => e.code == code, orElse: () => QuestionStatus.open);
 }
 
 class CategoryDefinition {
@@ -127,17 +123,20 @@ class RawQuoteData {
   }
 
   ContractorQuote toContractorQuote({String? id}) {
-    final quoteId = id ?? 'quote-$createdAtEpochMillis';
+    // OCR完了時刻はミリ秒精度のため、短時間に複数保存しても衝突しないIDを生成する。
+    final quoteId = id ?? 'quote-${DateTime.now().microsecondsSinceEpoch}';
     return ContractorQuote(
-      id: quoteId,
+      id: id,
       contractorName: contractorName,
       totalAmountYen: totalAmountYen,
-      note: 'OCR取込: $sourcePath',
+      // 元ファイルの絶対パスは端末のユーザー名や保存場所を含むため、
+      // 見積データへ保存しない。OCRの確認状態はsourcePathのハッシュで別管理する。
+      note: 'OCR取込',
       createdAtEpochMillis: createdAtEpochMillis,
       lineItems: [
         for (var index = 0; index < lineItems.length; index++)
           QuoteLineItem(
-            id: '$quoteId-line-${index + 1}',
+            id: '$id-line-${index + 1}',
             categoryId: lineItems[index].categoryId,
             rawLabel: lineItems[index].rawLabel,
             amountYen: lineItems[index].amountYen,
@@ -179,17 +178,19 @@ class QuoteLineItem {
   });
 
   factory QuoteLineItem.fromJson(Map<String, dynamic> json) => QuoteLineItem(
-        id: json['id'] as String,
-        categoryId: json['categoryId'] as String,
-        rawLabel: json['rawLabel'] as String,
-        amountYen: json['amountYen'] as int?,
-        inclusionStatus: InclusionStatus.fromCode(json['inclusionStatus'] as String? ?? 'unknown'),
-        quantity: (json['quantity'] as num?)?.toDouble(),
-        unit: json['unit'] as String?,
-        specification: json['specification'] as String?,
-        note: json['note'] as String?,
-        sortOrder: json['sortOrder'] as int? ?? 0,
-      );
+    id: json['id'] as String,
+    categoryId: json['categoryId'] as String,
+    rawLabel: json['rawLabel'] as String,
+    amountYen: json['amountYen'] as int?,
+    inclusionStatus: InclusionStatus.fromCode(
+      json['inclusionStatus'] as String? ?? 'unknown',
+    ),
+    quantity: (json['quantity'] as num?)?.toDouble(),
+    unit: json['unit'] as String?,
+    specification: json['specification'] as String?,
+    note: json['note'] as String?,
+    sortOrder: json['sortOrder'] as int? ?? 0,
+  );
 }
 
 class ContractorQuote {
@@ -209,13 +210,15 @@ class ContractorQuote {
     this.lineItems = const [],
   });
 
-  factory ContractorQuote.fromJson(Map<String, dynamic> json) => ContractorQuote(
+  factory ContractorQuote.fromJson(Map<String, dynamic> json) =>
+      ContractorQuote(
         id: json['id'] as String,
         contractorName: json['contractorName'] as String,
         totalAmountYen: json['totalAmountYen'] as int?,
         note: json['note'] as String?,
         createdAtEpochMillis: json['createdAtEpochMillis'] as int,
-        lineItems: (json['lineItems'] as List<dynamic>?)
+        lineItems:
+            (json['lineItems'] as List<dynamic>?)
                 ?.map((e) => QuoteLineItem.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
@@ -240,16 +243,17 @@ class Project {
   });
 
   factory Project.fromJson(Map<String, dynamic> json) => Project(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        status: ProjectStatus.fromCode(json['status'] as String? ?? 'draft'),
-        createdAtEpochMillis: json['createdAtEpochMillis'] as int,
-        updatedAtEpochMillis: json['updatedAtEpochMillis'] as int,
-        quotes: (json['quotes'] as List<dynamic>?)
-                ?.map((e) => ContractorQuote.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            [],
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    status: ProjectStatus.fromCode(json['status'] as String? ?? 'draft'),
+    createdAtEpochMillis: json['createdAtEpochMillis'] as int,
+    updatedAtEpochMillis: json['updatedAtEpochMillis'] as int,
+    quotes:
+        (json['quotes'] as List<dynamic>?)
+            ?.map((e) => ContractorQuote.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [],
+  );
 
   Project copyWith({
     String? name,
@@ -376,10 +380,7 @@ class CategoryComparison {
   final CategoryDefinition category;
   final List<ComparisonCell> cells;
 
-  const CategoryComparison({
-    required this.category,
-    required this.cells,
-  });
+  const CategoryComparison({required this.category, required this.cells});
 }
 
 class ComparisonReport {
@@ -389,6 +390,7 @@ class ComparisonReport {
   final List<CategoryComparison> categoryComparisons;
   final List<String> summaryLines;
   final List<ClarificationQuestion> clarificationQuestions;
+  final bool isHistorical;
 
   const ComparisonReport({
     required this.projectId,
@@ -397,5 +399,18 @@ class ComparisonReport {
     required this.categoryComparisons,
     required this.summaryLines,
     required this.clarificationQuestions,
+    this.isHistorical = false,
   });
+
+  ComparisonReport copyWithHistorical() {
+    return ComparisonReport(
+      projectId: projectId,
+      projectName: projectName,
+      quoteSnapshots: quoteSnapshots,
+      categoryComparisons: categoryComparisons,
+      summaryLines: summaryLines,
+      clarificationQuestions: clarificationQuestions,
+      isHistorical: true,
+    );
+  }
 }

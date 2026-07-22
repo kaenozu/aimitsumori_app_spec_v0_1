@@ -11,8 +11,8 @@ import '../repositories/project_repository.dart';
 import '../repositories/quote_revision_repository.dart';
 import '../services/quote_revision_diff_engine.dart';
 import '../services/quote_revision_import_coordinator.dart';
-import 'comparison_screen.dart';
 import 'quote_input_screen.dart';
+import 'revision_comparison_screen.dart';
 
 class QuoteRevisionScreen extends StatefulWidget {
   const QuoteRevisionScreen({
@@ -51,8 +51,9 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
   Future<void> _load() async {
     try {
       await _repository.ensureInitialRevisions(widget.project);
-      final revisions =
-          await _repository.getProjectRevisions(widget.project.id);
+      final revisions = await _repository.getProjectRevisions(
+        widget.project.id,
+      );
       final groups = _groups(revisions);
       for (final entry in groups.entries) {
         final ordered = [...entry.value]
@@ -102,7 +103,7 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
     }
     final comparisonProject = widget.project.copyWith(
       quotes: [for (final revision in selected) revision.quoteSnapshot],
-      updatedAtEpochMillis: DateTime.now().millisecondsSinceEpoch,
+      updatedAtEpochMillis: widget.project.updatedAtEpochMillis,
     );
     await Navigator.push<void>(
       context,
@@ -110,15 +111,14 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
         builder: (_) => ComparisonScreen(
           project: comparisonProject,
           repository: widget.projectRepository,
+          isHistorical: true,
         ),
       ),
     );
   }
 
-  Future<void> _registerNewContractor() async {
-    _importCoordinator.beginNewQuote();
-    await _openQuoteInput();
-  }
+  Future<void> _registerNewContractor() =>
+      _openQuoteInput(_importCoordinator.newQuote());
 
   Future<void> _registerExistingRevision() async {
     if (_revisions.isEmpty) return;
@@ -160,9 +160,7 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
     final reason = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(
-          '${parent.contractorName} 第${parent.revisionNumber}版から改訂',
-        ),
+        title: Text('${parent.contractorName} 第${parent.revisionNumber}版から改訂'),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -180,10 +178,7 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
           FilledButton(
             onPressed: () {
               final value = controller.text.trim();
-              Navigator.pop(
-                context,
-                value.isEmpty ? '過去版を基に改訂' : value,
-              );
+              Navigator.pop(context, value.isEmpty ? '過去版を基に改訂' : value);
             },
             child: const Text('見積書を取り込む'),
           ),
@@ -193,14 +188,14 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
     controller.dispose();
     if (reason == null || !mounted) return;
 
-    _importCoordinator.beginRevisionFromHistory(
+    final intent = _importCoordinator.revisionFromHistory(
       parentRevision: parent,
       changeReason: reason,
     );
-    await _openQuoteInput();
+    await _openQuoteInput(intent);
   }
 
-  Future<void> _openQuoteInput() async {
+  Future<void> _openQuoteInput(QuoteImportIntent intent) async {
     try {
       final saved = await Navigator.push<bool>(
         context,
@@ -208,16 +203,12 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
           builder: (_) => QuoteInputScreen(
             project: widget.project,
             repository: widget.projectRepository,
+            revisionIntent: intent,
           ),
         ),
       );
-      if (saved == true) {
-        await _load();
-      } else {
-        _importCoordinator.cancel();
-      }
+      if (saved == true) await _load();
     } catch (error, stackTrace) {
-      _importCoordinator.cancel();
       debugPrint('Quote revision import failed: $error\n$stackTrace');
       if (mounted) {
         _showMessage('見積書の取り込み画面を開けませんでした。');
@@ -226,9 +217,9 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -236,12 +227,21 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
     final groups = _groups(_revisions);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('見積書の改訂履歴'),
+        title: Semantics(
+          header: true,
+          label: '改訂履歴画面',
+          child: const Text('改訂履歴'),
+        ),
         actions: [
-          IconButton(
-            tooltip: '選択した改訂版を比較',
-            onPressed: _loading ? null : _compareSelected,
-            icon: const Icon(Icons.compare_arrows_outlined),
+          Semantics(
+            button: true,
+            enabled: !_loading,
+            label: '選択した改訂版を比較',
+            child: IconButton(
+              tooltip: '選択した改訂版を比較',
+              onPressed: _loading ? null : _compareSelected,
+              icon: const Icon(Icons.compare_arrows_outlined),
+            ),
           ),
         ],
       ),
@@ -258,9 +258,7 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    '同一業者の見積を版として管理し、業者ごとに任意の版を比較対象へ選べます。',
-                  ),
+                  const Text('同一業者の見積を版として管理し、業者ごとに任意の版を比較対象へ選べます。'),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
@@ -364,14 +362,16 @@ class _RevisionGroupCard extends StatelessWidget {
                     : Icons.radio_button_unchecked,
               ),
               title: Text('第${ordered[index].revisionNumber}版'),
-              subtitle: Text([
-                _date(ordered[index].importedAt),
-                if (ordered[index].changeReason?.isNotEmpty == true)
-                  ordered[index].changeReason!,
-                if (ordered[index].parentRevisionId != null)
-                  '親版: 第${byId[ordered[index].parentRevisionId]?.revisionNumber ?? '-'}版',
-                '総額: ${_yen(ordered[index].quoteSnapshot.totalAmountYen)}',
-              ].join(' / ')),
+              subtitle: Text(
+                [
+                  _date(ordered[index].importedAt),
+                  if (ordered[index].changeReason?.isNotEmpty == true)
+                    ordered[index].changeReason!,
+                  if (ordered[index].parentRevisionId != null)
+                    '親版: 第${byId[ordered[index].parentRevisionId]?.revisionNumber ?? '-'}版',
+                  '総額: ${_yen(ordered[index].quoteSnapshot.totalAmountYen)}',
+                ].join(' / '),
+              ),
               trailing: IconButton(
                 tooltip: 'この版から新しい改訂版を作成',
                 onPressed: () => onCreateRevision(ordered[index]),
@@ -380,9 +380,7 @@ class _RevisionGroupCard extends StatelessWidget {
               onTap: () => onSelected(ordered[index].id),
             ),
             if (_parentFor(ordered, byId, index) case final parent?)
-              _DiffView(
-                diff: diffEngine.compare(parent, ordered[index]),
-              ),
+              _DiffView(diff: diffEngine.compare(parent, ordered[index])),
             if (index < ordered.length - 1) const Divider(),
           ],
         ],
@@ -430,7 +428,7 @@ class _DiffView extends StatelessWidget {
             total == null
                 ? '総額差: 比較不可'
                 : '総額差: ${total >= 0 ? '+' : ''}'
-                    '${NumberFormat('#,##0', 'ja_JP').format(total)}円',
+                      '${NumberFormat('#,##0', 'ja_JP').format(total)}円',
           ),
           if (diff.changes.isEmpty)
             const Text('明細変更なし')
@@ -452,50 +450,47 @@ class _DiffView extends StatelessWidget {
   }
 
   static IconData _icon(QuoteLineChangeType type) => switch (type) {
-        QuoteLineChangeType.added => Icons.add_circle_outline,
-        QuoteLineChangeType.removed => Icons.remove_circle_outline,
-        QuoteLineChangeType.amount => Icons.currency_yen,
-        QuoteLineChangeType.unitPrice => Icons.price_change_outlined,
-        QuoteLineChangeType.quantity => Icons.straighten,
-        QuoteLineChangeType.unit => Icons.square_foot,
-        QuoteLineChangeType.specification => Icons.description_outlined,
-        QuoteLineChangeType.inclusion => Icons.rule_outlined,
-      };
+    QuoteLineChangeType.added => Icons.add_circle_outline,
+    QuoteLineChangeType.removed => Icons.remove_circle_outline,
+    QuoteLineChangeType.amount => Icons.currency_yen,
+    QuoteLineChangeType.unitPrice => Icons.price_change_outlined,
+    QuoteLineChangeType.quantity => Icons.straighten,
+    QuoteLineChangeType.unit => Icons.square_foot,
+    QuoteLineChangeType.specification => Icons.description_outlined,
+    QuoteLineChangeType.inclusion => Icons.rule_outlined,
+  };
 
   static String _description(QuoteLineChange change) => switch (change.type) {
-        QuoteLineChangeType.added =>
-          '明細を追加: ${change.after?.rawLabel ?? ''}',
-        QuoteLineChangeType.removed =>
-          '明細を削除: ${change.before?.rawLabel ?? ''}',
-        QuoteLineChangeType.amount =>
-          '金額: ${change.before?.amountYen ?? '未入力'} → '
-              '${change.after?.amountYen ?? '未入力'}',
-        QuoteLineChangeType.unitPrice =>
-          '単価: ${_unitPrice(change.beforeUnitPriceYen)} → '
-              '${_unitPrice(change.afterUnitPriceYen)}',
-        QuoteLineChangeType.quantity =>
-          '数量: ${change.before?.quantity ?? '未入力'} → '
-              '${change.after?.quantity ?? '未入力'}',
-        QuoteLineChangeType.unit =>
-          '単位: ${change.before?.unit ?? '未入力'} → '
-              '${change.after?.unit ?? '未入力'}',
-        QuoteLineChangeType.specification =>
-          '仕様: ${change.before?.specification ?? '未入力'} → '
-              '${change.after?.specification ?? '未入力'}',
-        QuoteLineChangeType.inclusion =>
-          '状態: ${change.before?.inclusionStatus.labelJa ?? '未入力'} → '
-              '${change.after?.inclusionStatus.labelJa ?? '未入力'}',
-      };
+    QuoteLineChangeType.added => '明細を追加: ${change.after?.rawLabel ?? ''}',
+    QuoteLineChangeType.removed => '明細を削除: ${change.before?.rawLabel ?? ''}',
+    QuoteLineChangeType.amount =>
+      '金額: ${change.before?.amountYen ?? '未入力'} → '
+          '${change.after?.amountYen ?? '未入力'}',
+    QuoteLineChangeType.unitPrice =>
+      '単価: ${_unitPrice(change.beforeUnitPriceYen)} → '
+          '${_unitPrice(change.afterUnitPriceYen)}',
+    QuoteLineChangeType.quantity =>
+      '数量: ${change.before?.quantity ?? '未入力'} → '
+          '${change.after?.quantity ?? '未入力'}',
+    QuoteLineChangeType.unit =>
+      '単位: ${change.before?.unit ?? '未入力'} → '
+          '${change.after?.unit ?? '未入力'}',
+    QuoteLineChangeType.specification =>
+      '仕様: ${change.before?.specification ?? '未入力'} → '
+          '${change.after?.specification ?? '未入力'}',
+    QuoteLineChangeType.inclusion =>
+      '状態: ${change.before?.inclusionStatus.labelJa ?? '未入力'} → '
+          '${change.after?.inclusionStatus.labelJa ?? '未入力'}',
+  };
 
   static String _unitPrice(double? value) => value == null
       ? '算出不可'
       : '${NumberFormat('#,##0.##', 'ja_JP').format(value)}円';
 }
 
-String _date(int epoch) => DateFormat('yyyy/MM/dd HH:mm').format(
-      DateTime.fromMillisecondsSinceEpoch(epoch),
-    );
+String _date(int epoch) => DateFormat(
+  'yyyy/MM/dd HH:mm',
+).format(DateTime.fromMillisecondsSinceEpoch(epoch));
 
-String _yen(int? value) => value == null
-    ? '未入力'
-    : '${NumberFormat('#,##0', 'ja_JP').format(value)}円';
+String _yen(int? value) =>
+    value == null ? '未入力' : '${NumberFormat('#,##0', 'ja_JP').format(value)}円';
