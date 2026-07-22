@@ -370,23 +370,6 @@ class DatabaseService {
       );
     }
     await db.delete('line_items', where: 'quote_id = ?', whereArgs: [quote.id]);
-    for (final item in quote.lineItems) {
-      await db.insert('line_items', {
-        'id': item.id,
-        'quote_id': quote.id,
-        'category_id': item.categoryId,
-        'raw_label': item.rawLabel,
-        'amount_yen': item.amountYen,
-        'inclusion_status': item.inclusionStatus.code,
-        'quantity': item.quantity,
-        'unit': item.unit,
-        'specification': item.specification,
-        'note': item.note,
-        'sort_order': item.sortOrder,
-      });
-    }
-
-    await db.delete('line_items', where: 'quote_id = ?', whereArgs: [quote.id]);
     final ids = <String>{};
     for (final item in quote.lineItems) {
       if (!ids.add(item.id)) {
