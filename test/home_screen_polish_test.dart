@@ -1,5 +1,6 @@
 import 'package:aimitsumori_app/main.dart';
 import 'package:aimitsumori_app/repositories/project_repository.dart';
+import 'package:aimitsumori_app/repositories/project_requirement_repository.dart';
 import 'package:aimitsumori_app/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +9,27 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'helpers/test_helpers.dart';
 
 void main() {
+  testWidgets('empty home offers a sample comparison as the first action', (
+    tester,
+  ) async {
+    final database = MockDatabaseService();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HomeScreen(
+          repository: ProjectRepository(databaseService: database),
+          requirementRepository: ProjectRequirementRepository(
+            databaseService: database,
+          ),
+          adService: MockAdMobService(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('サンプル比較を試す'), findsOneWidget);
+  });
+
   testWidgets('project search filters by project and contractor name', (
     tester,
   ) async {
@@ -103,6 +125,13 @@ void main() {
     await tester.tap(find.byTooltip('メニュー'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('設定'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('privacy-summary-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('データとプライバシー'), findsNWidgets(2));
+    expect(find.textContaining('案件、見積、OCR結果、確認状態は端末内に保存されます。'), findsOneWidget);
+    await tester.tap(find.text('閉じる'));
     await tester.pumpAndSettle();
 
     final switchTile = tester.widget<SwitchListTile>(

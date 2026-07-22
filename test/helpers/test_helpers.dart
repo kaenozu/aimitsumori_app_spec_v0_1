@@ -22,14 +22,12 @@ class MockDatabaseService implements DatabaseService {
   int getProjectCallCount = 0;
   int saveProjectCallCount = 0;
   int saveComparisonResultCallCount = 0;
+  int deleteAllDataCallCount = 0;
 
   @override
   Future<Database> get database => Future<Database>.error(
     UnsupportedError('MockDatabaseService does not expose a SQLite database.'),
   );
-
-  @override
-  Future<void> initializeSchemaForTesting() async {}
 
   @override
   Future<List<Project>> getProjects() async {
@@ -71,21 +69,13 @@ class MockDatabaseService implements DatabaseService {
 
   @override
   Future<void> deleteAllData() async {
+    deleteAllDataCallCount += 1;
     _projects.clear();
     _reports.clear();
   }
 
   @override
-  Future<void> saveQuote(
-    String projectId,
-    ContractorQuote quote, {
-    DatabaseTransactionCallback? afterQuoteSaved,
-  }) async {
-    if (afterQuoteSaved != null) {
-      throw UnsupportedError(
-        'MockDatabaseService does not provide transaction callbacks.',
-      );
-    }
+  Future<void> saveQuote(String projectId, ContractorQuote quote) async {
     final projectIndex = _projects.indexWhere(
       (project) => project.id == projectId,
     );

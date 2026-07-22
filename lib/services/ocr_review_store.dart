@@ -40,6 +40,26 @@ class OcrReviewStore {
     await storage.setString('$_prefix${_sourceKey(documentKey)}', payload);
   }
 
-  static String _sourceKey(String value) =>
-      sha256.convert(utf8.encode(value)).toString();
+  /// 「全データを削除」に合わせてOCR確認状態も消去する。
+  Future<void> clearAll() async {
+    final storage = preferences ?? await SharedPreferences.getInstance();
+    final keys = storage
+        .getKeys()
+        .where((key) => key.startsWith(_prefix))
+        .toList(growable: false);
+    for (final key in keys) {
+      final removed = await storage.remove(key);
+      if (!removed) {
+        throw StateError('OCR確認状態を削除できませんでした。');
+      }
+    }
+  }
+
+  static String _sourceKey(String value) {
+    var hash = 0x811C9DC5;
+    for (final codeUnit in value.codeUnits) {
+      hash = ((hash ^ codeUnit) * 0x01000193) & 0xFFFFFFFF;
+    }
+    return hash.toUnsigned(32).toRadixString(16).padLeft(8, '0');
+  }
 }

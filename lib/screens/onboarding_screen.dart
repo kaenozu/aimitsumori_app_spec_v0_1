@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/sample_data.dart';
 import '../repositories/project_repository.dart';
+import '../repositories/project_requirement_repository.dart';
+import '../repositories/quote_revision_repository.dart';
 import '../services/ad_service.dart';
 import '../services/haptic_service.dart';
 import 'home_screen.dart';
@@ -15,12 +17,16 @@ class FirstRunGate extends StatefulWidget {
   const FirstRunGate({
     super.key,
     this.repository,
+    this.requirementRepository,
+    this.quoteRevisionRepository,
     this.adService,
     this.darkModeEnabled = false,
     this.onDarkModeChanged,
   });
 
   final ProjectRepository? repository;
+  final ProjectRequirementRepository? requirementRepository;
+  final QuoteRevisionRepository? quoteRevisionRepository;
   final AdService? adService;
   final bool darkModeEnabled;
   final ValueChanged<bool>? onDarkModeChanged;
@@ -90,6 +96,8 @@ class _FirstRunGateState extends State<FirstRunGate> {
     if (completed) {
       return HomeScreen(
         repository: _repository,
+        requirementRepository: widget.requirementRepository,
+        quoteRevisionRepository: widget.quoteRevisionRepository,
         adService: widget.adService,
         darkModeEnabled: widget.darkModeEnabled,
         onDarkModeChanged: widget.onDarkModeChanged,

@@ -118,13 +118,26 @@ class _RequirementsChecklistScreenState
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 6),
-                const Text(
-                  '18カテゴリを「必須・あればよい・不要・未設定」に分類します。数量・単位・希望仕様も必要な範囲だけ入力してください。',
+                Text(
+                  widget.creationFlow
+                      ? '要望は後からでも入力できます。まず見積を追加して比較を始められます。'
+                      : '必要な項目だけ、必須・任意・不要に設定します。',
                 ),
                 const SizedBox(height: 8),
                 Text(
                   '設定済み $_configuredCount / ${CategoryMaster.categories.length}',
                 ),
+                if (widget.creationFlow) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    key: const ValueKey('skip-requirements-button'),
+                    onPressed: _saving
+                        ? null
+                        : () => Navigator.pop(context, true),
+                    icon: const Icon(Icons.document_scanner_outlined),
+                    label: const Text('要望は後で、見積を追加する'),
+                  ),
+                ],
                 if (_error != null) ...[
                   const SizedBox(height: 12),
                   Card(
@@ -174,8 +187,8 @@ class _RequirementsChecklistScreenState
                   TextButton(
                     onPressed: _saving
                         ? null
-                        : () => Navigator.pop(context, false),
-                    child: const Text('未設定のまま後で入力'),
+                        : () => Navigator.pop(context, true),
+                    child: const Text('要望は後で設定する'),
                   ),
                 ],
                 const SizedBox(height: 24),

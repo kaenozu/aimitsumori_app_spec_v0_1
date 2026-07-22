@@ -49,30 +49,14 @@ class ProjectRepository {
   Future<void> deleteAllData() =>
       _run(operation: '全データの削除', action: _databaseService.deleteAllData);
 
-  Future<void> saveQuote(
-    String projectId,
-    ContractorQuote quote, {
-    QuoteImportIntent? revisionIntent,
-    String? sourceFileHash,
-  }) => _run(
+  Future<void> saveQuote(String projectId, ContractorQuote quote) => _run(
     operation: '見積の保存',
     action: () async {
+      await _databaseService.saveQuote(projectId, quote);
       final revisionService = _revisionService;
-      final intent = revisionIntent ?? const QuoteImportIntent.newQuote();
-      await _databaseService.saveQuote(
-        projectId,
-        quote,
-        afterQuoteSaved: revisionService == null
-            ? null
-            : (transaction) => revisionService.recordQuoteInTransaction(
-                transaction,
-                projectId: projectId,
-                quote: quote,
-                intent: intent,
-                sourceFileHash: sourceFileHash,
-                replaceCurrentQuote: intent.isRevision,
-              ),
-      );
+      if (revisionService != null) {
+        await revisionService.recordQuote(projectId: projectId, quote: quote);
+      }
     },
   );
 

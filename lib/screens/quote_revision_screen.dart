@@ -108,7 +108,11 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
-        builder: (_) => RevisionComparisonScreen(project: comparisonProject),
+        builder: (_) => ComparisonScreen(
+          project: comparisonProject,
+          repository: widget.projectRepository,
+          isHistorical: true,
+        ),
       ),
     );
   }
@@ -223,12 +227,21 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
     final groups = _groups(_revisions);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('見積書の改訂履歴'),
+        title: Semantics(
+          header: true,
+          label: '改訂履歴画面',
+          child: const Text('改訂履歴'),
+        ),
         actions: [
-          IconButton(
-            tooltip: '選択した改訂版を比較',
-            onPressed: _loading ? null : _compareSelected,
-            icon: const Icon(Icons.compare_arrows_outlined),
+          Semantics(
+            button: true,
+            enabled: !_loading,
+            label: '選択した改訂版を比較',
+            child: IconButton(
+              tooltip: '選択した改訂版を比較',
+              onPressed: _loading ? null : _compareSelected,
+              icon: const Icon(Icons.compare_arrows_outlined),
+            ),
           ),
         ],
       ),

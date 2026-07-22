@@ -5,6 +5,7 @@ library;
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -15,11 +16,41 @@ import '../ocr_models.dart';
 import 'ocr_confidence_engine.dart';
 
 class OcrService {
+  static const _maxInputBytes = 30 * 1024 * 1024;
+  static const _maxPdfPages = 50;
+
+  static bool get isSupportedPlatform =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
   OcrService({
     TextRecognizer? recognizer,
     this.confidenceEngine = const OcrConfidenceEngine(),
   }) : _recognizer =
            recognizer ?? TextRecognizer(script: TextRecognitionScript.japanese);
+
+  @visibleForTesting
+  static RawQuoteData parseTextForTesting(String text) {
+    final lines = _normalizedTextLines(text);
+    return RawQuoteData(
+      contractorName: _parseContractorName(lines),
+      totalAmountYen: _parseTotalAmount(lines),
+      extractedText: text.trim(),
+      sourcePath: 'test://ocr-text',
+      createdAtEpochMillis: 0,
+    );
+  }
+
+  @visibleForTesting
+  static double pdfRenderScaleForPageCount(int pageCount) {
+    if (pageCount <= 0) {
+      throw RangeError.range(pageCount, 1, _maxPdfPages, 'pageCount');
+    }
+    if (pageCount <= 5) return 2.0;
+    if (pageCount <= 15) return 1.5;
+    if (pageCount <= 30) return 1.25;
+    return 1.0;
+  }
 
   final TextRecognizer _recognizer;
   final OcrConfidenceEngine confidenceEngine;
@@ -29,19 +60,23 @@ class OcrService {
   String? lastSourceFileHash;
 
   Future<RawQuoteData> extractQuote(String filePath) async {
+    if (!isSupportedPlatform) {
+      throw const OcrException('OCR取込はAndroid・iOSで利用できます。');
+    }
+
     await _clearTemporaryReviewImages();
     lastReviewBundle = null;
     lastSourceFileHash = null;
 
     final sourceFile = File(filePath);
-    if (!await sourceFile.exists()) {
-      throw const OcrException('選択したファイルが見つかりません。もう一度選択してください。');
+    final inputBytes = await sourceFile.length();
+    if (inputBytes > _maxInputBytes) {
+      throw const OcrException('ファイルが大きすぎます。30MB以下のPDFまたは画像を選択してください。');
     }
     final sourceBytes = await sourceFile.readAsBytes();
-    if (sourceBytes.isEmpty) {
-      throw const OcrException('選択したファイルが空です。別のファイルを選択してください。');
-    }
-    lastSourceFileHash = sha256.convert(sourceBytes).toString();
+    QuoteRevisionSession.instance.setSourceFileHash(
+      sha256.convert(sourceBytes).toString(),
+    );
 
     final extension = p.extension(filePath).toLowerCase();
     final document = extension == '.pdf'
@@ -93,12 +128,10 @@ class OcrService {
     await renderer.open();
     try {
       final pageCount = await renderer.getPageCount();
-      if (pageCount <= 0) {
-        throw const OcrException('PDFに読み取れるページがありません。');
+      if (pageCount > _maxPdfPages) {
+        throw const OcrException('PDFのページ数が多すぎます。50ページ以下のPDFを選択してください。');
       }
-      if (pageCount > 100) {
-        throw const OcrException('PDFのページ数が多すぎます。100ページ以下に分割してください。');
-      }
+      final renderScale = pdfRenderScaleForPageCount(pageCount);
       for (var pageIndex = 0; pageIndex < pageCount; pageIndex++) {
         await renderer.openPage(pageIndex: pageIndex);
         try {
@@ -113,7 +146,7 @@ class OcrService {
             y: 0,
             width: size.width,
             height: size.height,
-            scale: scale,
+            scale: renderScale,
           );
           if (bytes == null || bytes.isEmpty) continue;
 
@@ -162,11 +195,7 @@ class OcrService {
     required _RecognizedDocument document,
     required String sourcePath,
   }) {
-    final textLines = document.text
-        .split(RegExp(r'\r?\n'))
-        .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
+    final textLines = _normalizedTextLines(document.text);
 
     final contractorName = _parseContractorName(textLines);
     final totalAmount = _parseTotalAmount(textLines);
@@ -214,7 +243,13 @@ class OcrService {
     );
   }
 
-  String _parseContractorName(List<String> lines) {
+  static List<String> _normalizedTextLines(String text) => text
+      .split(RegExp(r'\r?\n'))
+      .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
+      .where((line) => line.isNotEmpty)
+      .toList();
+
+  static String _parseContractorName(List<String> lines) {
     final companyPattern = RegExp(r'(株式会社|有限会社|合同会社|工務店|建設|建築|外構|エクステリア|造園)');
     final excluded = RegExp(r'(御?見積|見積書|請求|合計|工事名|お客様|様$)');
 
@@ -232,7 +267,7 @@ class OcrService {
     );
   }
 
-  int? _parseTotalAmount(List<String> lines) {
+  static int? _parseTotalAmount(List<String> lines) {
     const totalKeywords = [
       '御見積金額',
       '見積金額',
@@ -274,7 +309,14 @@ class OcrService {
   }
 
   Future<void> dispose() async {
-    await _recognizer.close();
+    if (isSupportedPlatform) {
+      try {
+        await _recognizer.close();
+      } catch (error) {
+        // ネイティブ実装がない環境でも一時ファイルの削除を継続する。
+        debugPrint('OCR recognizer close failed: $error');
+      }
+    }
     await _clearTemporaryReviewImages();
   }
 }

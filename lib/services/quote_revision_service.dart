@@ -65,110 +65,55 @@ class QuoteRevisionService {
   }) async {
     final db = await _databaseService.database;
     await _ensureSchema(db);
-    return db.transaction(
-      (transaction) => recordQuoteInTransaction(
-        transaction,
+    return await db.transaction((txn) async {
+      final existingRows = await txn.query(
+        'quote_revisions',
+        where: 'quote_id = ?',
+        whereArgs: [quote.id],
+        limit: 1,
+      );
+      if (existingRows.isNotEmpty) {
+        return _fromRow(existingRows.first);
+      }
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final groupId = currentIntent.isRevision
+          ? currentIntent.quoteGroupId!
+          : 'group-$projectId-'
+                '${_stableHash('${quote.id}|${quote.contractorName}|$now')}';
+      final previousRows = await txn.query(
+        'quote_revisions',
+        where: 'quote_group_id = ?',
+        whereArgs: [groupId],
+        orderBy: 'revision_number DESC',
+        limit: 1,
+      );
+      final revisionNumber = previousRows.isEmpty
+          ? 1
+          : (previousRows.first['revision_number'] as int) + 1;
+      final parentRevisionId = currentIntent.isRevision
+          ? currentIntent.parentRevisionId ??
+                (previousRows.isEmpty ? null : previousRows.first['id'] as String)
+          : null;
+      final revision = QuoteRevision(
+        id: 'revision-$groupId-$revisionNumber',
         projectId: projectId,
-        quote: quote,
-        intent: intent,
+        quoteId: quote.id,
+        contractorName: quote.contractorName,
+        quoteGroupId: groupId,
+        revisionNumber: revisionNumber,
+        parentRevisionId: parentRevisionId,
         sourceFileHash: sourceFileHash,
-        replaceCurrentQuote: replaceCurrentQuote,
-      ),
-    );
-  }
-
-  Future<QuoteRevision> recordQuoteInTransaction(
-    DatabaseExecutor transaction, {
-    required String projectId,
-    required ContractorQuote quote,
-    QuoteImportIntent intent = const QuoteImportIntent.newQuote(),
-    String? sourceFileHash,
-    bool replaceCurrentQuote = false,
-  }) async {
-    final resolvedSourceHash = sourceFileHash ?? _quoteHash(quote);
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final groupId = intent.isRevision
-        ? intent.quoteGroupId!
-        : IdGenerator.prefixed('group');
-
-    if (intent.isRevision) {
-      final groupRows = await transaction.query(
-        'quote_revisions',
-        columns: ['id'],
-        where: 'quote_group_id = ? AND project_id = ?',
-        whereArgs: [groupId, projectId],
-        limit: 1,
+        importedAt: now,
+        changeReason: currentIntent.changeReason,
+        quoteSnapshot: quote,
       );
-      if (groupRows.isEmpty) {
-        throw StateError('改訂元の見積グループが見つかりません。');
-      }
-    }
-
-    final previousRows = await transaction.query(
-      'quote_revisions',
-      where: 'quote_group_id = ?',
-      whereArgs: [groupId],
-      orderBy: 'revision_number DESC',
-      limit: 1,
-    );
-    final latestRevisionId = previousRows.isEmpty
-        ? null
-        : previousRows.first['id'] as String;
-    final latestQuoteId = previousRows.isEmpty
-        ? null
-        : previousRows.first['quote_id'] as String;
-    final revisionNumber = previousRows.isEmpty
-        ? 1
-        : (previousRows.first['revision_number'] as int) + 1;
-    final parentRevisionId = intent.isRevision
-        ? intent.parentRevisionId ?? latestRevisionId
-        : null;
-
-    if (parentRevisionId != null) {
-      final parentRows = await transaction.query(
+      await txn.insert(
         'quote_revisions',
-        columns: ['id'],
-        where: 'id = ? AND quote_group_id = ?',
-        whereArgs: [parentRevisionId, groupId],
-        limit: 1,
+        _toRow(revision),
+        conflictAlgorithm: ConflictAlgorithm.abort,
       );
-      if (parentRows.isEmpty) {
-        throw StateError('指定された親版が同じ見積グループに存在しません。');
-      }
-    }
-
-    if (replaceCurrentQuote && intent.isRevision) {
-      if (latestQuoteId == null) {
-        throw StateError('置換対象の現在版が見つかりません。');
-      }
-      if (latestQuoteId != quote.id) {
-        await transaction.delete(
-          'contractor_quotes',
-          where: 'id = ? AND project_id = ?',
-          whereArgs: [latestQuoteId, projectId],
-        );
-      }
-    }
-
-    final revision = QuoteRevision(
-      id: IdGenerator.prefixed('revision'),
-      projectId: projectId,
-      quoteId: quote.id,
-      contractorName: quote.contractorName,
-      quoteGroupId: groupId,
-      revisionNumber: revisionNumber,
-      parentRevisionId: parentRevisionId,
-      sourceFileHash: resolvedSourceHash,
-      importedAt: now,
-      changeReason: intent.changeReason,
-      quoteSnapshot: quote,
-    );
-    await transaction.insert(
-      'quote_revisions',
-      _toRow(revision),
-      conflictAlgorithm: ConflictAlgorithm.abort,
-    );
-    return revision;
+      return revision;
+    });
   }
 
   Future<void> ensureInitialRevisions({

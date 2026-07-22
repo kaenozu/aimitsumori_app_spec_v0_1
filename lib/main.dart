@@ -6,12 +6,16 @@ library;
 import 'package:flutter/material.dart';
 
 import 'repositories/project_repository.dart';
+import 'repositories/project_requirement_repository.dart';
+import 'repositories/quote_revision_repository.dart';
 import 'screens/onboarding_screen.dart';
 import 'services/ad_service.dart';
 import 'services/app_preferences.dart';
+import 'services/database_initializer.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDatabase();
   try {
     await AdService.instance.initialize();
   } catch (error) {
@@ -24,11 +28,15 @@ class AimitsumoriApp extends StatefulWidget {
   const AimitsumoriApp({
     super.key,
     this.repository,
+    this.requirementRepository,
+    this.quoteRevisionRepository,
     this.adService,
     this.preferences,
   });
 
   final ProjectRepository? repository;
+  final ProjectRequirementRepository? requirementRepository;
+  final QuoteRevisionRepository? quoteRevisionRepository;
   final AdService? adService;
   final AppPreferences? preferences;
 
@@ -86,6 +94,8 @@ class _AimitsumoriAppState extends State<AimitsumoriApp> {
       themeMode: _darkModeEnabled ? ThemeMode.dark : ThemeMode.light,
       home: FirstRunGate(
         repository: widget.repository,
+        requirementRepository: widget.requirementRepository,
+        quoteRevisionRepository: widget.quoteRevisionRepository,
         adService: widget.adService,
         darkModeEnabled: _darkModeEnabled,
         onDarkModeChanged: _setDarkMode,

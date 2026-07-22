@@ -122,11 +122,15 @@ class RawQuoteData {
     );
   }
 
-  ContractorQuote toContractorQuote({required String id}) {
+  ContractorQuote toContractorQuote({String? id}) {
+    // OCR完了時刻はミリ秒精度のため、短時間に複数保存しても衝突しないIDを生成する。
+    final quoteId = id ?? 'quote-${DateTime.now().microsecondsSinceEpoch}';
     return ContractorQuote(
       id: id,
       contractorName: contractorName,
       totalAmountYen: totalAmountYen,
+      // 元ファイルの絶対パスは端末のユーザー名や保存場所を含むため、
+      // 見積データへ保存しない。OCRの確認状態はsourcePathのハッシュで別管理する。
       note: 'OCR取込',
       createdAtEpochMillis: createdAtEpochMillis,
       lineItems: [
@@ -386,6 +390,7 @@ class ComparisonReport {
   final List<CategoryComparison> categoryComparisons;
   final List<String> summaryLines;
   final List<ClarificationQuestion> clarificationQuestions;
+  final bool isHistorical;
 
   const ComparisonReport({
     required this.projectId,
@@ -394,5 +399,18 @@ class ComparisonReport {
     required this.categoryComparisons,
     required this.summaryLines,
     required this.clarificationQuestions,
+    this.isHistorical = false,
   });
+
+  ComparisonReport copyWithHistorical() {
+    return ComparisonReport(
+      projectId: projectId,
+      projectName: projectName,
+      quoteSnapshots: quoteSnapshots,
+      categoryComparisons: categoryComparisons,
+      summaryLines: summaryLines,
+      clarificationQuestions: clarificationQuestions,
+      isHistorical: true,
+    );
+  }
 }

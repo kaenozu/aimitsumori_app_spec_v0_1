@@ -30,7 +30,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Platform share channels are not invoked; this test verifies the chooser UI.
-    await tester.tap(find.byTooltip('比較結果を共有'));
+    await tester.tap(find.byTooltip('共有'));
     await tester.pumpAndSettle();
 
     expect(find.text('PDF'), findsOneWidget);

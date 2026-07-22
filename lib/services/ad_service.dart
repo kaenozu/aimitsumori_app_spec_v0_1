@@ -9,8 +9,6 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'purchase_verification_service.dart';
-
 enum RewardedAdOutcome { rewarded, unavailable, dismissed }
 
 class AdService {
@@ -38,15 +36,19 @@ class AdService {
 
   static const String _configuredAndroidBannerId = String.fromEnvironment(
     'ADMOB_ANDROID_BANNER_ID',
+    defaultValue: '',
   );
   static const String _configuredIosBannerId = String.fromEnvironment(
     'ADMOB_IOS_BANNER_ID',
+    defaultValue: '',
   );
   static const String _configuredAndroidRewardedId = String.fromEnvironment(
     'ADMOB_ANDROID_REWARDED_ID',
+    defaultValue: '',
   );
   static const String _configuredIosRewardedId = String.fromEnvironment(
     'ADMOB_IOS_REWARDED_ID',
+    defaultValue: '',
   );
 
   static const String _androidTestBannerId =
@@ -69,6 +71,9 @@ class AdService {
   bool get isSupportedPlatform =>
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;
+
+  bool get hasAdConfiguration =>
+      bannerAdUnitId.isNotEmpty && rewardedAdUnitId.isNotEmpty;
 
   ProductDetails? get removeAdsProduct => _removeAdsProduct;
 
@@ -117,18 +122,22 @@ class AdService {
     }
     if (!isSupportedPlatform) return;
 
-    try {
-      await MobileAds.instance.initialize();
-    } catch (error) {
-      debugPrint('Mobile Ads initialization failed: $error');
-    }
-
     _purchaseSubscription ??= _inAppPurchase.purchaseStream.listen(
       _handlePurchaseUpdates,
       onError: (Object error, StackTrace stackTrace) {
         debugPrint('Purchase stream error: $error');
       },
     );
+
+    await restorePurchases();
+
+    if (hasAdConfiguration) {
+      try {
+        await MobileAds.instance.initialize();
+      } catch (error) {
+        debugPrint('Mobile Ads initialization failed: $error');
+      }
+    }
 
     try {
       await _loadRemoveAdsProduct();
@@ -160,7 +169,9 @@ class AdService {
     VoidCallback? onLoaded,
     ValueChanged<LoadAdError>? onFailed,
   }) {
-    if (!isSupportedPlatform || adFree.value) return null;
+    if (!isSupportedPlatform || !hasAdConfiguration || adFree.value) {
+      return null;
+    }
 
     return BannerAd(
       adUnitId: bannerAdUnitId,
@@ -178,7 +189,9 @@ class AdService {
 
   Future<RewardedAdOutcome> showRewardedAd() async {
     if (adFree.value) return RewardedAdOutcome.rewarded;
-    if (!isSupportedPlatform) return RewardedAdOutcome.unavailable;
+    if (!isSupportedPlatform || !hasAdConfiguration) {
+      return RewardedAdOutcome.unavailable;
+    }
 
     final completer = Completer<RewardedAdOutcome>();
     Timer? timeout;

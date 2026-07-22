@@ -23,21 +23,14 @@ PDFまたは写真から見積書を取り込み、端末内OCRで抽出した�
 - ダークモード
 - 端末内データの一括削除
 
-## データとプライバシー
+データの保存・OCR・共有・広告の概要は[PRIVACY.md](PRIVACY.md)を参照してください。ストア公開時は、正式なプライバシーポリシーURLを別途用意してください。
+公開前の確認項目は[RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)にまとめています。
 
-- OCRは端末内で実行します。
-- 見積の原本ファイルパスはCSV・テキスト共有へ含めません。
-- 購入検証用データ以外の見積内容を外部サーバーへ送信する実装はありません。
-- 購入検証エンドポイントは、ストアの検証データを受け取り、購入の有効性だけを返す構成を想定しています。
+## スクリーンショット
 
-## 必要環境
-
-- Flutter SDK 3.44.0
-- Dart SDKはFlutter同梱版
-- Java 17
-- Android Studio / Android SDK
-- iOSビルド時はXcodeとCocoaPods
-- GNU Make（任意）
+| ホーム | 見積取込 | 比較結果 |
+| --- | --- | --- |
+| ![ホーム](docs/screenshots/home.png) | ![見積取込](docs/screenshots/quote-input.png) | ![比較結果](docs/screenshots/comparison.png) |
 
 ## セットアップ
 
@@ -73,13 +66,15 @@ flutter run
 | コマンド | 内容 |
 | --- | --- |
 | `make run` | アプリを起動 |
-| `make format` | `lib`・`test`・`integration_test`を整形 |
+| `make test` | ユニット・Widgetテストを実行 |
+| `make test-integration` | `DEVICE`で指定したデバイス（既定: `windows`）で統合テストを実行 |
 | `make analyze` | 静的解析を実行 |
-| `make test` | ユニット・Widget・実SQLiteテストを実行 |
-| `make test-integration` | 接続済み端末またはエミュレーターで統合テストを実行 |
-| `make build-debug` | Debug APKを作成 |
-| `make build-aab` | 本番設定を検証してRelease AABを作成 |
-| `make release-prep` | 整形、解析、テスト、Release AAB作成を実行 |
+| `make icons` | ランチャーアイコンを生成 |
+| `make splash` | ネイティブスプラッシュを生成 |
+| `make build-apk` | 開発用Debug APKを作成 |
+| `make build-release-apk` | 本番設定を使ってRelease APKを作成 |
+| `make audit-release-apk` | Release APKのパッケージ、AdMobテストID、署名を監査 |
+| `make release-prep` | アイコン・スプラッシュ生成、解析、テスト、APK作成を順番に実行 |
 
 ## Android Release設定
 
@@ -201,33 +196,51 @@ make test
 Androidエミュレーターまたは実機:
 
 ```bash
-make test-integration
+make test-integration DEVICE=emulator-5554
 ```
 
-主要な回帰テスト:
+Windowsで実行する場合は`make test-integration`（`DEVICE=windows`）を使用します。接続先が複数ある場合は、必ず`DEVICE`を明示してください。
 
-- SQLite更新時に要望・改訂履歴がCASCADE削除されない
-- 見積と改訂履歴の保存が同一トランザクションでロールバックされる
-- 改訂番号が順番に採番される
-- `1,200`が`1.2`へ誤変換されない
-- `500円`等の小額をOCR候補として抽出する
-- m/mm、㎡/m²等を正規化する
-- CSV数式注入を防止する
-- 過去版比較が現在の比較結果を保存しない
-- 同一名称の複数明細を改訂差分から欠落させない
+## リリースビルド
+
+Android向けの開発用APKを作成します。
 
 ## CI
 
 GitHub Actionsは次を実行します。
 
-- Flutter 3.44.0固定
-- `dart format --set-exit-if-changed`
-- `flutter analyze`
-- `flutter test`
-- Android Debug APK
-- 一時署名鍵を用いたRelease AAB smoke build
-- Androidエミュレーター統合テスト
-- iOS `--no-codesign` Release build
+Google Play提出用にはAABを使用します。
+
+### 本番リリースの必須設定
+
+本番ビルドは、debug署名やAdMobのテストIDでは作成できません。
+
+1. `android/key.properties.example`を`android/key.properties`へコピーし、リリース用keystoreの情報を設定します。
+2. 本番AdMobアプリIDと広告ユニットIDを環境変数から渡します。
+3. Google Playの広告削除商品IDを`REMOVE_ADS_PRODUCT_ID`で渡します。
+
+iOSで広告を有効にする場合は、`ios/Runner/Info.plist`の`ADMOB_APP_ID`ビルド設定に本番AdMobアプリIDを渡し、`ADMOB_IOS_BANNER_ID`と`ADMOB_IOS_REWARDED_ID`を`--dart-define`で渡します。未設定のまま本番広告を初期化しないでください。
+
+AndroidのReleaseビルドでは、AdMob IDは`ca-app-pub-...`形式、課金商品IDはGoogle Playで作成した商品ID形式であることも検証されます。
+
+```powershell
+$env:ADMOB_APP_ID='ca-app-pub-XXXXXXXX~YYYYYYYY'
+$env:ADMOB_ANDROID_BANNER_ID='ca-app-pub-XXXXXXXX/BBBBBBBB'
+$env:ADMOB_ANDROID_REWARDED_ID='ca-app-pub-XXXXXXXX/RRRRRRRR'
+$env:REMOVE_ADS_PRODUCT_ID='remove_ads_pro'
+.\tool\build_android_release.ps1 -Artifact appbundle
+```
+
+スクリプトが環境変数を検証し、GradleとDartの両方へ同じ値を渡します。署名情報、本番広告ID、または課金商品IDが未設定・不正の場合は、ビルドを意図的に停止します。
+生成物は通常、`build/app/outputs/bundle/release/app-release.aab`に出力されます。
+
+APKのAdMob Application IDと本番設定値まで照合する場合は、次のように指定します。
+
+```powershell
+.\tool\audit_android_release.ps1 -ExpectedAdMobAppId $env:ADMOB_APP_ID
+```
+
+アイコンやスプラッシュ素材を変更した場合は、ビルド前に次を実行してください。
 
 CI内の広告ID、署名鍵、購入検証URLはビルド経路を検査する一時値であり、本番用ではありません。
 
