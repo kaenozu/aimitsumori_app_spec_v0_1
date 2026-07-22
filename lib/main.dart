@@ -76,22 +76,40 @@ class _AimitsumoriAppState extends State<AimitsumoriApp> {
     }
   }
 
+  ThemeData _theme(Brightness brightness) => ThemeData(
+        colorSchemeSeed: Colors.indigo,
+        useMaterial3: true,
+        brightness: brightness,
+        materialTapTargetSize: MaterialTapTargetSize.padded,
+        visualDensity: VisualDensity.standard,
+        iconButtonTheme: const IconButtonThemeData(
+          style: ButtonStyle(
+            minimumSize: WidgetStatePropertyAll(Size.square(48)),
+            tapTargetSize: MaterialTapTargetSize.padded,
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '相見積もり比較',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: Colors.indigo,
-        useMaterial3: true,
-        brightness: Brightness.light,
-      ),
-      darkTheme: ThemeData(
-        colorSchemeSeed: Colors.indigo,
-        useMaterial3: true,
-        brightness: Brightness.dark,
-      ),
+      theme: _theme(Brightness.light),
+      darkTheme: _theme(Brightness.dark),
       themeMode: _darkModeEnabled ? ThemeMode.dark : ThemeMode.light,
+      builder: (context, child) {
+        final mediaQuery = MediaQuery.of(context);
+        return MediaQuery(
+          data: mediaQuery.copyWith(
+            textScaler: mediaQuery.textScaler.clamp(
+              minScaleFactor: 1,
+              maxScaleFactor: 2,
+            ),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: FirstRunGate(
         repository: widget.repository,
         requirementRepository: widget.requirementRepository,
