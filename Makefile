@@ -1,6 +1,7 @@
-.PHONY: run test test-integration analyze icons splash build-apk build-release-apk audit-release-apk release-prep
+.PHONY: run test test-integration test-sprint5-e2e analyze icons splash build-apk build-release-apk audit-release-apk release-prep
 
 DEVICE ?= windows
+EMULATOR_DEVICE ?= emulator-5554
 
 run:
 	flutter run
@@ -13,6 +14,9 @@ test:
 
 test-integration:
 	flutter test -d $(DEVICE) integration_test
+
+test-sprint5-e2e:
+	flutter test -d $(EMULATOR_DEVICE) test/integration/sprint5_e2e_test.dart -r expanded
 
 analyze:
 	flutter analyze
