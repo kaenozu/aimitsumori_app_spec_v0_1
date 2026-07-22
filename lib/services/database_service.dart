@@ -4,18 +4,25 @@ library;
 
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import '../data/category_master.dart';
 import '../models.dart';
 
+typedef DatabaseTransactionCallback =
+    Future<void> Function(DatabaseExecutor transaction);
+
 class DatabaseService {
   DatabaseService._();
 
+  @visibleForTesting
+  DatabaseService.testing(Database database) : _database = database;
+
   static final DatabaseService instance = DatabaseService._();
   static const _databaseName = 'aimitsumori.db';
-  static const _databaseVersion = 1;
+  static const _databaseVersion = 3;
 
   Database? _database;
 
@@ -29,14 +36,36 @@ class DatabaseService {
       version: _databaseVersion,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: _createSchema,
+      onUpgrade: _upgradeSchema,
     );
     _database = opened;
     return opened;
   }
 
+  @visibleForTesting
+  Future<void> initializeSchemaForTesting() async {
+    final db = await database;
+    await _createSchema(db, _databaseVersion);
+  }
+
   Future<void> _createSchema(Database db, int version) async {
+    await _createCoreSchema(db);
+    await _createRequirementsSchema(db);
+    await _createRevisionSchema(db);
+  }
+
+  Future<void> _upgradeSchema(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
+    if (oldVersion < 2) await _createRequirementsSchema(db);
+    if (oldVersion < 3) await _createRevisionSchema(db);
+  }
+
+  Future<void> _createCoreSchema(DatabaseExecutor db) async {
     await db.execute('''
-      CREATE TABLE projects (
+      CREATE TABLE IF NOT EXISTS projects (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         status TEXT NOT NULL,
@@ -45,7 +74,7 @@ class DatabaseService {
       )
     ''');
     await db.execute('''
-      CREATE TABLE contractor_quotes (
+      CREATE TABLE IF NOT EXISTS contractor_quotes (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
         contractor_name TEXT NOT NULL,
@@ -56,7 +85,7 @@ class DatabaseService {
       )
     ''');
     await db.execute('''
-      CREATE TABLE line_items (
+      CREATE TABLE IF NOT EXISTS line_items (
         id TEXT PRIMARY KEY,
         quote_id TEXT NOT NULL,
         category_id TEXT NOT NULL,
@@ -72,7 +101,7 @@ class DatabaseService {
       )
     ''');
     await db.execute('''
-      CREATE TABLE comparison_results (
+      CREATE TABLE IF NOT EXISTS comparison_results (
         project_id TEXT PRIMARY KEY,
         payload_json TEXT NOT NULL,
         saved_at INTEGER NOT NULL,
@@ -87,13 +116,40 @@ class DatabaseService {
 
   Future<List<Project>> getProjects() async {
     final db = await database;
-    final rows = await db.query('projects', orderBy: 'updated_at DESC');
-    final projects = <Project>[];
-    for (final row in rows) {
-      final project = await _loadProject(db, row['id'] as String);
-      if (project != null) projects.add(project);
+    final projectRows = await db.query('projects', orderBy: 'updated_at DESC');
+    if (projectRows.isEmpty) return const [];
+
+    final quoteRows = await db.query(
+      'contractor_quotes',
+      orderBy: 'created_at ASC',
+    );
+    final itemRows = await db.query('line_items', orderBy: 'sort_order ASC');
+    final itemsByQuote = <String, List<QuoteLineItem>>{};
+    for (final row in itemRows) {
+      final quoteId = row['quote_id'] as String;
+      itemsByQuote.putIfAbsent(quoteId, () => []).add(_lineItemFromRow(row));
     }
-    return projects;
+    final quotesByProject = <String, List<ContractorQuote>>{};
+    for (final row in quoteRows) {
+      final quoteId = row['id'] as String;
+      final projectId = row['project_id'] as String;
+      quotesByProject
+          .putIfAbsent(projectId, () => [])
+          .add(
+            ContractorQuote(
+              id: quoteId,
+              contractorName: row['contractor_name'] as String,
+              totalAmountYen: row['total_amount_yen'] as int?,
+              note: row['note'] as String?,
+              createdAtEpochMillis: row['created_at'] as int,
+              lineItems: itemsByQuote[quoteId] ?? const [],
+            ),
+          );
+    }
+    return [
+      for (final row in projectRows)
+        _projectFromRow(row, quotesByProject[row['id'] as String] ?? const []),
+    ];
   }
 
   Future<Project?> getProject(String projectId) async {
@@ -132,21 +188,24 @@ class DatabaseService {
           totalAmountYen: quoteRow['total_amount_yen'] as int?,
           note: quoteRow['note'] as String?,
           createdAtEpochMillis: quoteRow['created_at'] as int,
-          lineItems: itemRows.map(_lineItemFromRow).toList(),
+          lineItems: itemRows.map(_lineItemFromRow).toList(growable: false),
         ),
       );
     }
-
-    final row = projectRows.first;
-    return Project(
-      id: row['id'] as String,
-      name: row['name'] as String,
-      status: ProjectStatus.fromCode(row['status'] as String),
-      createdAtEpochMillis: row['created_at'] as int,
-      updatedAtEpochMillis: row['updated_at'] as int,
-      quotes: quotes,
-    );
+    return _projectFromRow(projectRows.first, quotes);
   }
+
+  Project _projectFromRow(
+    Map<String, Object?> row,
+    List<ContractorQuote> quotes,
+  ) => Project(
+    id: row['id'] as String,
+    name: row['name'] as String,
+    status: ProjectStatus.fromCode(row['status'] as String),
+    createdAtEpochMillis: row['created_at'] as int,
+    updatedAtEpochMillis: row['updated_at'] as int,
+    quotes: quotes,
+  );
 
   QuoteLineItem _lineItemFromRow(Map<String, Object?> row) {
     return QuoteLineItem(
@@ -197,6 +256,23 @@ class DatabaseService {
   }
 
   Future<void> updateProject(Project project) async => saveProject(project);
+
+  Future<void> _upsertProject(DatabaseExecutor db, Project project) async {
+    final row = _projectToRow(project);
+    final updated = await db.update(
+      'projects',
+      row,
+      where: 'id = ?',
+      whereArgs: [project.id],
+    );
+    if (updated == 0) {
+      await db.insert(
+        'projects',
+        row,
+        conflictAlgorithm: ConflictAlgorithm.abort,
+      );
+    }
+  }
 
   Future<void> deleteProject(String projectId) async {
     final db = await database;
@@ -294,7 +370,11 @@ class DatabaseService {
       );
     }
     await db.delete('line_items', where: 'quote_id = ?', whereArgs: [quote.id]);
+    final ids = <String>{};
     for (final item in quote.lineItems) {
+      if (!ids.add(item.id)) {
+        throw StateError('同じ明細IDが重複しています: ${item.id}');
+      }
       await db.insert('line_items', {
         'id': item.id,
         'quote_id': quote.id,
@@ -307,7 +387,7 @@ class DatabaseService {
         'specification': item.specification,
         'note': item.note,
         'sort_order': item.sortOrder,
-      });
+      }, conflictAlgorithm: ConflictAlgorithm.abort);
     }
   }
 

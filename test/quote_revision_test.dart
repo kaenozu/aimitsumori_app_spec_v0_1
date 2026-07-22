@@ -1,7 +1,6 @@
 import 'package:aimitsumori_app/models.dart';
 import 'package:aimitsumori_app/quote_revision_models.dart';
 import 'package:aimitsumori_app/services/quote_revision_diff_engine.dart';
-import 'package:aimitsumori_app/services/quote_revision_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -61,24 +60,14 @@ void main() {
         number: 1,
         total: 100000,
         items: [
-          item(
-            id: 'i1',
-            amount: 100000,
-            quantity: 10,
-            specification: 'H800',
-          ),
+          item(id: 'i1', amount: 100000, quantity: 10, specification: 'H800'),
         ],
       );
       final after = revision(
         number: 2,
         total: 144000,
         items: [
-          item(
-            id: 'i2',
-            amount: 144000,
-            quantity: 12,
-            specification: 'H1000',
-          ),
+          item(id: 'i2', amount: 144000, quantity: 12, specification: 'H1000'),
         ],
       );
 
@@ -126,12 +115,7 @@ void main() {
           label: '門柱工事',
           inclusionStatus: InclusionStatus.separate,
         ),
-        item(
-          id: 'i4',
-          categoryId: 'drainage',
-          label: '排水工事',
-          amount: 50000,
-        ),
+        item(id: 'i4', categoryId: 'drainage', label: '排水工事', amount: 50000),
       ],
     );
 
@@ -159,29 +143,16 @@ void main() {
     expect(intent.isRevision, isTrue);
     expect(intent.parentRevisionId, 'r1');
     expect(intent.quoteGroupId, 'g1');
+    expect(intent.changeReason, '第1版の仕様を基に再見積');
   });
 
-  test('revision session and source hash are consumed once', () {
-    final parent = revision(number: 1, total: 100000, items: const []);
-    QuoteRevisionSession.instance.begin(
-      QuoteImportIntent.revision(
-        parentQuote: parent.quoteSnapshot,
-        quoteGroupId: parent.quoteGroupId,
-        parentRevisionId: parent.id,
-        changeReason: '変更',
-      ),
-    );
-    QuoteRevisionSession.instance.setSourceFileHash('source-hash');
+  test('new quote intents do not carry revision state', () {
+    const intent = QuoteImportIntent.newQuote();
 
-    final first = QuoteRevisionSession.instance.consume();
-    final second = QuoteRevisionSession.instance.consume();
-
-    expect(first.parentRevisionId, 'r1');
-    expect(second.isRevision, isFalse);
-    expect(
-      QuoteRevisionSession.instance.consumeSourceFileHash(),
-      'source-hash',
-    );
-    expect(QuoteRevisionSession.instance.consumeSourceFileHash(), isNull);
+    expect(intent.isRevision, isFalse);
+    expect(intent.parentQuote, isNull);
+    expect(intent.quoteGroupId, isNull);
+    expect(intent.parentRevisionId, isNull);
+    expect(intent.changeReason, isNull);
   });
 }

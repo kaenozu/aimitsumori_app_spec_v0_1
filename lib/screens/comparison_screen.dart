@@ -96,13 +96,12 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
   }
 
   Future<void> _saveReport({bool notifyOnError = false}) async {
+    if (!widget.persistReport) return;
     try {
       await _repository.saveComparisonResult(_report);
     } catch (error, stackTrace) {
       debugPrint('Comparison result save failed: $error\n$stackTrace');
-      if (notifyOnError && mounted) {
-        _showMessage(error.toString());
-      }
+      if (notifyOnError && mounted) _showMessage(error.toString());
     }
   }
 
@@ -144,6 +143,10 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
 
   Future<void> _refresh() async {
     try {
+      if (!widget.persistReport) {
+        setState(() => _report = _generateReport());
+        return;
+      }
       final refreshed = await _repository.getProject(_project.id);
       if (refreshed == null) {
         throw const ProjectRepositoryException('案件の再読み込み', 'project not found');
@@ -162,6 +165,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
   }
 
   Future<void> _addQuote() async {
+    if (!widget.allowQuoteEditing) return;
     try {
       final saved = await Navigator.push<bool>(
         context,
@@ -211,13 +215,8 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
   }
 
   Future<void> _restorePurchases() async {
-    try {
-      await _adService.restorePurchases();
-      if (mounted) _showMessage('購入履歴の復元を開始しました。');
-    } catch (error) {
-      debugPrint('Purchase restore failed: $error');
-      if (mounted) _showMessage('購入履歴を復元できませんでした。通信状態を確認してください。');
-    }
+    await _adService.restorePurchases();
+    if (mounted) _showMessage('購入履歴の復元を開始しました。');
   }
 
   Future<void> _showShareOptions(BuildContext shareContext) async {
@@ -286,9 +285,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
         ),
     );
 
-    if (format != null && mounted) {
-      await _shareComparison(format, origin);
-    }
+    if (format != null && mounted) await _shareComparison(format, origin);
   }
 
   Rect? _shareOrigin(BuildContext shareContext) {
@@ -354,7 +351,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
       }
     } catch (error, stackTrace) {
       debugPrint('Comparison share failed: $error\n$stackTrace');
-      if (mounted) _showMessage('比較結果を共有できませんでした。もう一度お試しください。');
+      if (mounted) _showMessage('比較結果を共有できませんでした。CSVまたはテキスト形式もお試しください。');
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -364,7 +361,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     await WidgetsBinding.instance.endOfFrame;
     final renderObject = _captureKey.currentContext?.findRenderObject();
-    if (renderObject is! RenderRepaintBoundary) {
+    if (renderObject is! RenderRepaintBoundary || renderObject.size.isEmpty) {
       throw StateError('比較画面のキャプチャ領域を取得できませんでした。');
     }
 
@@ -373,12 +370,18 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
       maxPixelDimension / renderObject.size.width,
       maxPixelDimension / renderObject.size.height,
     );
-    final pixelRatio = math
-        .min(devicePixelRatio, maxRatioForSize)
-        .clamp(0.5, 3.0)
-        .toDouble();
+    final pixelRatio = math.min(
+      3.0,
+      math.min(devicePixelRatio, maxRatioForSize),
+    );
+    if (!pixelRatio.isFinite || pixelRatio <= 0) {
+      throw StateError('比較画面が大きすぎるため画像化できませんでした。');
+    }
     final image = await renderObject.toImage(pixelRatio: pixelRatio);
     try {
+      if (image.width > maxPixelDimension || image.height > maxPixelDimension) {
+        throw StateError('比較画面の画像サイズが上限を超えました。');
+      }
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
         throw StateError('比較画面をPNGへ変換できませんでした。');
@@ -441,6 +444,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
           ),
           if (!_adService.adFree.value)
             PopupMenuButton<String>(
+              tooltip: '広告と購入の設定',
               onSelected: (value) {
                 if (value == 'purchase') _purchaseRemoveAds();
                 if (value == 'restore') _restorePurchases();
@@ -708,10 +712,13 @@ class _SnapshotCard extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
+      ],
     );
   }
+
+  String _yen(int? value) => value == null
+      ? '未入力'
+      : '${NumberFormat('#,##0', 'ja_JP').format(value)}円';
 }
 
 class _BadgeLegend extends StatelessWidget {
@@ -795,75 +802,34 @@ class _CategoryComparisonTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (report.quoteSnapshots.isEmpty) {
-      return const Card(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('比較する見積がありません。'),
-        ),
-      );
+      return const Card(child: ListTile(title: Text('比較する見積がありません。')));
     }
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          columnSpacing: 20,
-          headingRowHeight: 56,
-          dataRowMinHeight: 168,
-          dataRowMaxHeight: 200,
-          columns: [
-            const DataColumn(label: Text('カテゴリ')),
-            for (final snapshot in report.quoteSnapshots)
-              DataColumn(
-                label: SizedBox(
-                  width: 170,
-                  child: Text(
-                    snapshot.contractorName,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-          ],
-          rows: [
-            for (final comparison in report.categoryComparisons)
-              DataRow(
-                cells: [
-                  DataCell(
-                    SizedBox(
-                      width: 120,
-                      child: Text(
-                        comparison.category.nameJa,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
+    return Column(
+      children: [
+        for (final comparison in report.categoryComparisons)
+          Card(
+            child: ExpansionTile(
+              title: Text(comparison.category.nameJa),
+              children: [
+                for (final cell in comparison.cells)
+                  ListTile(
+                    title: Text(cell.contractorName),
+                    leading: Icon(_statusIcon(cell.inclusionStatus)),
+                    subtitle: Text(
+                      '${cell.inclusionStatus.labelJa}\n'
+                      '金額: ${_amount(cell.amountYen)} / '
+                      '数量: ${_quantity(cell.quantity, cell.unit)}\n'
+                      '仕様: ${cell.specification ?? "未入力"}'
+                      '${cell.uncertaintyReasons.isEmpty ? "" : "\n確認: ${cell.uncertaintyReasons.join(" / ")}"}',
                     ),
+                    isThreeLine: true,
                   ),
-                  for (final snapshot in report.quoteSnapshots)
-                    DataCell(
-                      _ComparisonCellView(
-                        cell: _findCell(comparison.cells, snapshot.quoteId),
-                      ),
-                    ),
-                ],
-              ),
-          ],
-        ),
-      ),
+              ],
+            ),
+          ),
+      ],
     );
   }
-
-  ComparisonCell? _findCell(List<ComparisonCell> cells, String quoteId) {
-    for (final cell in cells) {
-      if (cell.quoteId == quoteId) return cell;
-    }
-    return null;
-  }
-}
-
-class _ComparisonCellView extends StatelessWidget {
-  const _ComparisonCellView({required this.cell});
-
-  final ComparisonCell? cell;
 
   String _amount(int? value) => value == null
       ? '未入力'
@@ -877,47 +843,14 @@ class _ComparisonCellView extends StatelessWidget {
     return '$text${unit ?? ''}';
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final value = cell;
-    if (value == null) {
-      return const SizedBox(width: 170, child: Text('未入力'));
-    }
-
-    return SizedBox(
-      width: 170,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Chip(
-            visualDensity: VisualDensity.compact,
-            label: Text(
-              value.inclusionStatus.labelJa,
-              style: const TextStyle(fontSize: 11),
-            ),
-          ),
-          Text('金額: ${_amount(value.amountYen)}'),
-          Text('数量: ${_quantity(value.quantity, value.unit)}'),
-          Text(
-            '仕様: ${value.specification ?? "未入力"}',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (value.uncertaintyReasons.isNotEmpty)
-            Text(
-              '確認: ${value.uncertaintyReasons.join(" / ")}',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.error,
-                fontSize: 11,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
+  IconData _statusIcon(InclusionStatus status) => switch (status) {
+    InclusionStatus.included => Icons.check_circle_outline,
+    InclusionStatus.separate => Icons.add_circle_outline,
+    InclusionStatus.optional => Icons.info_outline,
+    InclusionStatus.excluded ||
+    InclusionStatus.notApplicable => Icons.remove_circle_outline,
+    InclusionStatus.unknown => Icons.help_outline,
+  };
 }
 
 class _DetailUnlockCard extends StatelessWidget {

@@ -1,48 +1,15 @@
-/// 見積改訂セッションとSQLite永続化を管理する。
+/// 見積改訂履歴のSQLite永続化を管理する。
 library;
 
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models.dart';
 import '../quote_revision_models.dart';
 import 'database_service.dart';
-
-class QuoteRevisionSession {
-  QuoteRevisionSession._();
-
-  static final QuoteRevisionSession instance = QuoteRevisionSession._();
-
-  QuoteImportIntent _intent = const QuoteImportIntent.newQuote();
-  String? _sourceFileHash;
-
-  QuoteImportIntent consume() {
-    final current = _intent;
-    _intent = const QuoteImportIntent.newQuote();
-    return current;
-  }
-
-  String? consumeSourceFileHash() {
-    final current = _sourceFileHash;
-    _sourceFileHash = null;
-    return current;
-  }
-
-  void begin(QuoteImportIntent intent) {
-    _intent = intent;
-    _sourceFileHash = null;
-  }
-
-  void setSourceFileHash(String sourceFileHash) {
-    _sourceFileHash = sourceFileHash;
-  }
-
-  void clear() {
-    _intent = const QuoteImportIntent.newQuote();
-    _sourceFileHash = null;
-  }
-}
+import 'id_generator.dart';
 
 class QuoteRevisionService {
   QuoteRevisionService({DatabaseService? databaseService})
@@ -83,18 +50,19 @@ class QuoteRevisionService {
       'CREATE INDEX IF NOT EXISTS idx_quote_revisions_project '
       'ON quote_revisions(project_id)',
     );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_quote_revisions_quote '
+      'ON quote_revisions(quote_id)',
+    );
   }
 
   Future<QuoteRevision> recordQuote({
     required String projectId,
     required ContractorQuote quote,
-    QuoteImportIntent? intent,
+    QuoteImportIntent intent = const QuoteImportIntent.newQuote(),
+    String? sourceFileHash,
+    bool replaceCurrentQuote = false,
   }) async {
-    final session = QuoteRevisionSession.instance;
-    final currentIntent = intent ?? session.consume();
-    final sourceFileHash = intent == null
-        ? session.consumeSourceFileHash() ?? _quoteHash(quote)
-        : _quoteHash(quote);
     final db = await _databaseService.database;
     await _ensureSchema(db);
     return await db.transaction((txn) async {
@@ -155,23 +123,26 @@ class QuoteRevisionService {
     if (quotes.isEmpty) return;
     final db = await _databaseService.database;
     await _ensureSchema(db);
-    final rows = await db.query(
-      'quote_revisions',
-      columns: ['quote_id'],
-      where: 'project_id = ?',
-      whereArgs: [projectId],
-    );
-    final existingQuoteIds = {
-      for (final row in rows) row['quote_id'] as String,
-    };
-    for (final quote in quotes) {
-      if (existingQuoteIds.contains(quote.id)) continue;
-      await recordQuote(
-        projectId: projectId,
-        quote: quote,
-        intent: const QuoteImportIntent.newQuote(),
+    await db.transaction((transaction) async {
+      final rows = await transaction.query(
+        'quote_revisions',
+        columns: ['quote_id'],
+        where: 'project_id = ?',
+        whereArgs: [projectId],
       );
-    }
+      final existingQuoteIds = {
+        for (final row in rows) row['quote_id'] as String,
+      };
+      for (final quote in quotes) {
+        if (existingQuoteIds.contains(quote.id)) continue;
+        await recordQuoteInTransaction(
+          transaction,
+          projectId: projectId,
+          quote: quote,
+          sourceFileHash: _quoteHash(quote),
+        );
+      }
+    });
   }
 
   Future<List<QuoteRevision>> getProjectRevisions(String projectId) async {
@@ -281,18 +252,6 @@ class QuoteRevisionService {
     ],
   );
 
-  String _quoteHash(ContractorQuote quote) {
-    return _stableHash(jsonEncode(_quoteToJson(quote)));
-  }
-
-  String _stableHash(String value) {
-    var a = 0x811C9DC5;
-    var b = 0x9E3779B9;
-    for (final unit in value.codeUnits) {
-      a = ((a ^ unit) * 0x01000193) & 0xFFFFFFFF;
-      b = ((b + unit) * 31) & 0xFFFFFFFF;
-    }
-    return '${a.toUnsigned(32).toRadixString(16).padLeft(8, '0')}'
-        '${b.toUnsigned(32).toRadixString(16).padLeft(8, '0')}';
-  }
+  String _quoteHash(ContractorQuote quote) =>
+      sha256.convert(utf8.encode(jsonEncode(_quoteToJson(quote)))).toString();
 }

@@ -38,7 +38,8 @@ class ProjectRequirement {
   final String? desiredSpecification;
   final String? note;
 
-  bool get isConfigured => priority != RequirementPriority.unset ||
+  bool get isConfigured =>
+      priority != RequirementPriority.unset ||
       expectedQuantity != null ||
       _hasText(expectedUnit) ||
       _hasText(desiredSpecification) ||
@@ -61,17 +62,10 @@ enum RequirementCoverageStatus {
   final String labelJa;
 }
 
-enum RequirementMismatchType {
-  quantity,
-  unit,
-  specification,
-}
+enum RequirementMismatchType { quantity, unit, specification }
 
 class RequirementMismatch {
-  const RequirementMismatch({
-    required this.type,
-    required this.message,
-  });
+  const RequirementMismatch({required this.type, required this.message});
 
   final RequirementMismatchType type;
   final String message;

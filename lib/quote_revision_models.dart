@@ -93,12 +93,12 @@ class QuoteImportIntent {
     String? parentRevisionId,
     required String changeReason,
   }) : this._(
-          isRevision: true,
-          parentQuote: parentQuote,
-          quoteGroupId: quoteGroupId,
-          parentRevisionId: parentRevisionId,
-          changeReason: changeReason,
-        );
+         isRevision: true,
+         parentQuote: parentQuote,
+         quoteGroupId: quoteGroupId,
+         parentRevisionId: parentRevisionId,
+         changeReason: changeReason,
+       );
 
   final bool isRevision;
   final ContractorQuote? parentQuote;

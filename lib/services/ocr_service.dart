@@ -14,7 +14,6 @@ import 'package:pdf_image_renderer/pdf_image_renderer.dart';
 import '../models.dart';
 import '../ocr_models.dart';
 import 'ocr_confidence_engine.dart';
-import 'quote_revision_service.dart';
 
 class OcrService {
   static const _maxInputBytes = 30 * 1024 * 1024;
@@ -58,6 +57,7 @@ class OcrService {
   final List<String> _temporaryReviewImagePaths = [];
 
   OcrReviewBundle? lastReviewBundle;
+  String? lastSourceFileHash;
 
   Future<RawQuoteData> extractQuote(String filePath) async {
     if (!isSupportedPlatform) {
@@ -66,6 +66,7 @@ class OcrService {
 
     await _clearTemporaryReviewImages();
     lastReviewBundle = null;
+    lastSourceFileHash = null;
 
     final sourceFile = File(filePath);
     final inputBytes = await sourceFile.length();
@@ -135,6 +136,10 @@ class OcrService {
         await renderer.openPage(pageIndex: pageIndex);
         try {
           final size = await renderer.getPageSize(pageIndex: pageIndex);
+          final scale = _renderScale(
+            size.width.toDouble(),
+            size.height.toDouble(),
+          );
           final bytes = await renderer.renderPage(
             pageIndex: pageIndex,
             x: 0,
@@ -148,7 +153,8 @@ class OcrService {
           final renderedFile = File(
             p.join(
               temporaryDirectory.path,
-              'aimitsumori-review-${DateTime.now().microsecondsSinceEpoch}-$pageIndex.png',
+              'aimitsumori-review-'
+              '${DateTime.now().microsecondsSinceEpoch}-$pageIndex.png',
             ),
           );
           await renderedFile.writeAsBytes(bytes, flush: true);
@@ -175,6 +181,14 @@ class OcrService {
       text: textBuffer.toString().trim(),
       lines: lines,
     );
+  }
+
+  double _renderScale(double width, double height) {
+    const targetScale = 2.0;
+    const maxDimension = 6000.0;
+    final longest = width > height ? width : height;
+    if (longest <= 0) return 1;
+    return (maxDimension / longest).clamp(1.0, targetScale).toDouble();
   }
 
   RawQuoteData _parse({

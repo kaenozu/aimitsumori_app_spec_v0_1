@@ -5,6 +5,7 @@ library;
 import 'package:flutter/foundation.dart';
 
 import '../models.dart';
+import '../quote_revision_models.dart';
 import '../services/database_service.dart';
 import '../services/quote_revision_service.dart';
 
@@ -48,16 +49,27 @@ class ProjectRepository {
   Future<void> deleteAllData() =>
       _run(operation: '全データの削除', action: _databaseService.deleteAllData);
 
-  Future<void> saveQuote(String projectId, ContractorQuote quote) => _run(
-    operation: '見積の保存',
-    action: () async {
-      await _databaseService.saveQuote(projectId, quote);
-      final revisionService = _revisionService;
-      if (revisionService != null) {
-        await revisionService.recordQuote(projectId: projectId, quote: quote);
-      }
-    },
-  );
+  Future<void> saveQuote(
+    String projectId,
+    ContractorQuote quote, {
+    QuoteImportIntent revisionIntent = const QuoteImportIntent.newQuote(),
+    String? sourceFileHash,
+  }) =>
+      _run(
+        operation: '見積の保存',
+        action: () async {
+          await _databaseService.saveQuote(projectId, quote);
+          final revisionService = _revisionService;
+          if (revisionService != null) {
+            await revisionService.recordQuote(
+              projectId: projectId,
+              quote: quote,
+              intent: revisionIntent,
+              sourceFileHash: sourceFileHash,
+            );
+          }
+        },
+      );
 
   Future<void> saveComparisonResult(ComparisonReport report) => _run(
     operation: '比較結果の保存',

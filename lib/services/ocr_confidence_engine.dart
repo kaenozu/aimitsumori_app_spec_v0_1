@@ -51,6 +51,9 @@ class OcrConfidenceEngine {
     'tax': ['消費税', '税額'],
   };
 
+  static const _quantityUnitPattern =
+      r'(?:㎡|m2|m²|㎥|m3|m³|mm|cm|m|本|基|台|式|一式|箇所|ヶ所|個)';
+
   OcrLineInterpretation analyze({
     required String rawText,
     required int pageNumber,
@@ -155,7 +158,9 @@ class OcrConfidenceEngine {
     var score = 0.96;
     final replacementCount = '�'.allMatches(text).length;
     score -= replacementCount * 0.22;
-    if (RegExp(r'[|]{2,}|[_]{3,}|[?]{3,}').hasMatch(text)) score -= 0.18;
+    if (RegExp(r'[|]{2,}|[_]{3,}|[?]{3,}').hasMatch(text)) {
+      score -= 0.18;
+    }
     final nonWord = RegExp(
       r'[^0-9A-Za-zぁ-んァ-ヶ一-龠々ー㎡㎥m²³¥￥,，.．:：/()（）\-\s]',
     ).allMatches(text).length;
@@ -173,7 +178,8 @@ class OcrConfidenceEngine {
   static double calculateAmountConfidence(List<int> candidates) {
     if (candidates.isEmpty) return 0;
     if (candidates.length == 1) return 0.96;
-    return 0.68;
+    if (candidates.length == 2) return 0.82;
+    return 0.58;
   }
 
   static final RegExp _amountTokenPattern = RegExp(

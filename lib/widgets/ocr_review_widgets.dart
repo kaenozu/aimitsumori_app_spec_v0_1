@@ -31,13 +31,20 @@ class OcrReviewOverview extends StatelessWidget {
       );
     }
 
-    final pending = reviewLines
-            .where((line) =>
-                (statuses[line.id] ?? line.initialStatus) == OcrReviewStatus.pending)
+    final pending =
+        reviewLines
+            .where(
+              (line) =>
+                  (statuses[line.id] ?? line.initialStatus) ==
+                  OcrReviewStatus.pending,
+            )
             .length +
         bundle.issues
-            .where((issue) =>
-                (statuses[issue.id] ?? issue.initialStatus) == OcrReviewStatus.pending)
+            .where(
+              (issue) =>
+                  (statuses[issue.id] ?? issue.initialStatus) ==
+                  OcrReviewStatus.pending,
+            )
             .length;
     return Card(
       color: Theme.of(context).colorScheme.tertiaryContainer,
@@ -111,15 +118,18 @@ class OcrLineReviewPanel extends StatelessWidget {
           runSpacing: 6,
           children: [
             _ConfidenceChip(label: 'OCR $confidence%', value: line.confidence),
-            _ConfidenceChip(label: 'カテゴリ $category%', value: line.categoryConfidence),
+            _ConfidenceChip(
+              label: 'カテゴリ $category%',
+              value: line.categoryConfidence,
+            ),
             _ConfidenceChip(label: '金額 $amount%', value: line.amountConfidence),
             Chip(
               avatar: Icon(
                 status == OcrReviewStatus.pending
                     ? Icons.help_outline
                     : status == OcrReviewStatus.confirmed
-                        ? Icons.check_circle_outline
-                        : Icons.auto_awesome_outlined,
+                    ? Icons.check_circle_outline
+                    : Icons.auto_awesome_outlined,
                 size: 18,
               ),
               label: Text(status.labelJa),
@@ -211,11 +221,8 @@ class _ConfidenceChip extends StatelessWidget {
     final icon = value >= 0.9
         ? Icons.check_circle_outline
         : value >= 0.75
-            ? Icons.info_outline
-            : Icons.warning_amber_outlined;
-    return Chip(
-      avatar: Icon(icon, size: 18),
-      label: Text(label),
-    );
+        ? Icons.info_outline
+        : Icons.warning_amber_outlined;
+    return Chip(avatar: Icon(icon, size: 18), label: Text(label));
   }
 }

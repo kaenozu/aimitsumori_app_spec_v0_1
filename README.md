@@ -1,17 +1,25 @@
 # 相見積もり比較
 
-複数社の見積書を、単純な総合点や順位ではなく、**価格・工事範囲・別途費用・オプション・不明点**の差として整理するFlutterアプリです。
+複数社の見積書を、単純な総合点や順位ではなく、**価格・工事範囲・別途費用・オプション・要望との差・不明点**として整理するFlutterアプリです。
 
-PDFまたは写真から見積書を取り込み、端末内OCRで抽出した内容を確認・修正したうえで、カテゴリ別の比較表と業者への確認質問を作成します。案件・見積・比較結果は端末内のSQLiteに保存されます。
+PDFまたは写真から見積書を取り込み、端末内OCRで抽出した内容を確認・修正したうえで、18カテゴリの比較、業者への確認質問、見積改訂履歴を作成します。案件・見積・比較結果・要望・改訂履歴は端末内SQLiteへ保存します。
+
+> 現在のFlutter実装は `main` ブランチです。リポジトリの既定ブランチが変更されるまでは、clone時に `-b main` を指定してください。
 
 ## 主な機能
 
 - 案件の作成、検索、スワイプ削除
+- 18カテゴリの「必須・あればよい・不要・未設定」チェックリスト
 - PDF・写真からの見積書取り込み
-- OCR結果の確認・修正
+- 日本語OCR結果、金額、数量、単位、仕様の確認・修正
+- OCR信頼度、合計不一致、数量×単価不一致のレビュー
 - 複数社のカテゴリ別比較
-- 別途費用、オプション、不明点の可視化
-- 比較結果の共有
+- 要望との差異と確認質問の生成
+- 同一業者の見積改訂履歴、親子関係、版間差分
+- 任意の改訂版を選択した読み取り専用比較
+- PDF・PNG・CSV・テキスト共有
+- AdMobバナー・リワード広告
+- 広告削除の非消費型購入・復元
 - ダークモード
 - 端末内データの一括削除
 
@@ -26,18 +34,10 @@ PDFまたは写真から見積書を取り込み、端末内OCRで抽出した�
 
 ## セットアップ
 
-### 必要環境
-
-- Flutter SDK（`pubspec.yaml`のSDK制約を満たすバージョン）
-- Android Studio、または接続済みAndroid端末
-- Android SDK
-- Java 17
-- GNU Make（Makefileを利用する場合）
-
-### 1. リポジトリを取得
+### 1. Flutter版を取得
 
 ```bash
-git clone https://github.com/kaenozu/aimitsumori_app_spec_v0_1.git
+git clone -b main https://github.com/kaenozu/aimitsumori_app_spec_v0_1.git
 cd aimitsumori_app_spec_v0_1
 ```
 
@@ -47,17 +47,19 @@ cd aimitsumori_app_spec_v0_1
 flutter pub get
 ```
 
-### 3. アプリを起動
+### 3. デバッグ起動
 
 ```bash
 make run
 ```
 
-Makeを使用しない場合は、次のコマンドでも起動できます。
+または:
 
 ```bash
 flutter run
 ```
+
+デバッグビルドではGoogle公式のテスト広告IDを使用します。
 
 ## 開発用コマンド
 
@@ -74,14 +76,124 @@ flutter run
 | `make audit-release-apk` | Release APKのパッケージ、AdMobテストID、署名を監査 |
 | `make release-prep` | アイコン・スプラッシュ生成、解析、テスト、APK作成を順番に実行 |
 
-## テストと静的解析
+## Android Release設定
+
+### 1. アップロードキーを作成
+
+例:
 
 ```bash
+keytool -genkeypair -v \
+  -keystore "$HOME/upload-keystore.jks" \
+  -keyalg RSA \
+  -keysize 2048 \
+  -validity 10000 \
+  -alias upload
+```
+
+### 2. `android/key.properties` を作成
+
+```bash
+cp android/key.properties.example android/key.properties
+```
+
+実値を設定します。
+
+```properties
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=upload
+storeFile=/absolute/path/to/upload-keystore.jks
+```
+
+`android/key.properties` とkeystoreはGit管理対象外です。
+
+### 3. 本番用環境変数を設定
+
+```bash
+export ADMOB_ANDROID_APP_ID='ca-app-pub-...~...'
+export ADMOB_ANDROID_BANNER_ID='ca-app-pub-.../...'
+export ADMOB_ANDROID_REWARDED_ID='ca-app-pub-.../...'
+export PURCHASE_VERIFICATION_URL='https://example.com/api/store/verify'
+```
+
+### 4. AABを作成
+
+```bash
+make build-aab
+```
+
+生成物:
+
+```text
+build/app/outputs/bundle/release/app-release.aab
+```
+
+Releaseビルドでは、署名、AdMobアプリID、広告ユニットID、購入検証URLのいずれかが未設定なら失敗します。テスト広告IDやデバッグ署名へ暗黙フォールバックしません。
+
+## iOS Release設定
+
+### 1. AdMobアプリID設定を作成
+
+```bash
+cp ios/Flutter/ReleaseSecrets.xcconfig.example \
+  ios/Flutter/ReleaseSecrets.xcconfig
+```
+
+```xcconfig
+ADMOB_APP_ID=ca-app-pub-...~...
+```
+
+`ReleaseSecrets.xcconfig` はGit管理対象外です。
+
+### 2. Releaseビルド時のDart define
+
+```bash
+flutter build ios --release \
+  --dart-define=ADMOB_IOS_BANNER_ID='ca-app-pub-.../...' \
+  --dart-define=ADMOB_IOS_REWARDED_ID='ca-app-pub-.../...' \
+  --dart-define=PURCHASE_VERIFICATION_URL='https://example.com/api/store/verify'
+```
+
+署名・Provisioning ProfileはXcode側で設定してください。
+
+## 購入検証API
+
+ReleaseではSharedPreferencesの値だけで広告削除権利を付与しません。購入または復元イベントを受けた後、`PURCHASE_VERIFICATION_URL`へHTTPS POSTし、検証成功時だけ権利を付与します。
+
+送信例:
+
+```json
+{
+  "productId": "remove_ads",
+  "purchaseId": "...",
+  "transactionDate": "...",
+  "source": "google_play_or_app_store",
+  "serverVerificationData": "...",
+  "localVerificationData": "..."
+}
+```
+
+成功応答例:
+
+```json
+{
+  "valid": true,
+  "productId": "remove_ads"
+}
+```
+
+サーバー側では、Google Play Developer APIまたはApp Store Server API等を使用して購入の真正性、商品ID、失効・返金状態を確認してください。
+
+## テスト
+
+```bash
+make format
 make analyze
 make test
 ```
 
-Androidエミュレーターまたは実機で統合テストを実行する場合:
+Androidエミュレーターまたは実機:
 
 ```bash
 make test-integration DEVICE=emulator-5554
@@ -93,11 +205,9 @@ Windowsで実行する場合は`make test-integration`（`DEVICE=windows`）を�
 
 Android向けの開発用APKを作成します。
 
-```bash
-make build-apk
-```
+## CI
 
-生成物は通常、`build/app/outputs/flutter-apk/app-release.apk`に出力されます。
+GitHub Actionsは次を実行します。
 
 Google Play提出用にはAABを使用します。
 
@@ -132,38 +242,46 @@ APKのAdMob Application IDと本番設定値まで照合する場合は、次の
 
 アイコンやスプラッシュ素材を変更した場合は、ビルド前に次を実行してください。
 
-```bash
-make icons
-make splash
-```
+CI内の広告ID、署名鍵、購入検証URLはビルド経路を検査する一時値であり、本番用ではありません。
 
-## アーキテクチャ概要
+## アーキテクチャ
 
 ### Models
 
-- `lib/models.dart`
-- 案件、業者見積、明細、比較結果、確認質問などのドメインモデルを定義します。
+- `lib/models.dart`: 案件、見積、明細、比較結果、確認質問
+- `lib/requirements_models.dart`: 案件要望と差異
+- `lib/quote_revision_models.dart`: 改訂履歴と差分
+- `lib/ocr_models.dart`: OCR行、矩形、レビュー状態
 
 ### Repositories
 
-- `lib/repositories/project_repository.dart`
-- UIとSQLite実装の間に入り、案件・見積・比較結果の保存操作をまとめます。
+- `lib/repositories/project_repository.dart`: 案件・見積・比較結果
+- `lib/repositories/project_requirement_repository.dart`: 要望チェックリスト
+- `lib/repositories/quote_revision_repository.dart`: 改訂履歴
 
 ### Services
 
-- `lib/services/database_service.dart`: SQLiteへの永続化
-- `lib/services/ocr_service.dart`: PDF・画像からのOCR処理
-- `lib/services/ad_service.dart`: 広告表示と広告削除課金
-- `lib/services/comparison_export_service.dart`: 比較結果の共有テキスト生成
-- `lib/services/app_preferences.dart`: ダークモード設定の保存
-- `lib/services/haptic_service.dart`: 主要操作の触覚フィードバック
+- `lib/services/database_service.dart`: SQLite v3、マイグレーション、トランザクション
+- `lib/services/ocr_service.dart`: PDF・画像のOCR
+- `lib/services/ocr_confidence_engine.dart`: OCR信頼度と数値抽出
+- `lib/services/requirements_engine.dart`: 要望との差異判定
+- `lib/services/quote_revision_service.dart`: 改訂履歴保存
+- `lib/services/quote_revision_diff_engine.dart`: 版間差分
+- `lib/services/comparison_export_service.dart`: PDF・CSV・共有データ
+- `lib/services/ad_service.dart`: 広告と広告削除購入
+- `lib/services/purchase_verification_service.dart`: サーバー購入検証
+- `lib/services/value_normalizer.dart`: 数値・単位・CSVセル正規化
 
 ### Screens
 
-- `lib/screens/onboarding_screen.dart`: 初回案内とサンプルデータ登録
-- `lib/screens/home_screen.dart`: 案件一覧、検索、スワイプ削除、設定画面への導線
-- `lib/screens/quote_input_screen.dart`: PDF・写真の取込と抽出結果の確認
-- `lib/screens/comparison_screen.dart`: カテゴリ別比較と確認質問の表示
-- `lib/screens/settings_screen.dart`: テーマ、アプリ情報、全データ削除
+- `lib/screens/onboarding_screen.dart`: 初回案内とサンプル登録
+- `lib/screens/home_screen.dart`: 案件一覧、検索、削除
+- `lib/screens/requirements_checklist_screen.dart`: 要望入力
+- `lib/screens/quote_input_screen.dart`: OCR取込と修正
+- `lib/screens/comparison_screen.dart`: 現在の見積比較
+- `lib/screens/requirements_comparison_screen.dart`: 要望との差異
+- `lib/screens/quote_revision_screen.dart`: 改訂履歴
+- `lib/screens/revision_comparison_screen.dart`: 過去版の読み取り専用比較
+- `lib/screens/settings_screen.dart`: テーマと全データ削除
 
 比較ロジックは`lib/normalizer.dart`、`lib/comparison_engine.dart`、`lib/question_generator.dart`に分離されています。

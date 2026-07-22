@@ -12,10 +12,13 @@ import 'package:intl/intl.dart';
 import '../data/category_master.dart';
 import '../models.dart';
 import '../ocr_models.dart';
+import '../quote_revision_models.dart';
 import '../repositories/project_repository.dart';
+import '../services/id_generator.dart';
 import '../services/ocr_review_store.dart';
 import '../validation/input_validators.dart';
 import '../services/ocr_service.dart';
+import '../services/value_normalizer.dart';
 import '../widgets/ocr_review_widgets.dart';
 
 class QuoteInputScreen extends StatefulWidget {
@@ -39,6 +42,7 @@ class QuoteInputScreen extends StatefulWidget {
 }
 
 class _QuoteInputScreenState extends State<QuoteInputScreen> {
+  late final bool _ownsOcrService = widget.ocrService == null;
   late final OcrService _ocrService = widget.ocrService ?? OcrService();
   late final OcrReviewStore _reviewStore =
       widget.reviewStore ?? OcrReviewStore();
@@ -49,6 +53,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
 
   RawQuoteData? _rawQuote;
   OcrReviewBundle? _reviewBundle;
+  String? _documentReviewKey;
   Map<String, OcrReviewStatus> _reviewStatuses = {};
   List<_EditableLineItem> _editableItems = [];
   String? _pendingQuoteId;
@@ -80,7 +85,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     for (final item in _editableItems) {
       item.dispose();
     }
-    unawaited(_ocrService.dispose());
+    if (_ownsOcrService) unawaited(_ocrService.dispose());
     super.dispose();
   }
 
@@ -115,6 +120,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
                 onTap: () => Navigator.pop(context, ImageSource.camera),
               ),
               ListTile(
+                key: const ValueKey('quote-gallery-option'),
                 leading: const Icon(Icons.photo_library_outlined),
                 title: const Text('写真ライブラリから選択'),
                 onTap: () => Navigator.pop(context, ImageSource.gallery),
@@ -144,6 +150,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
       _error = null;
       _rawQuote = null;
       _reviewBundle = null;
+      _documentReviewKey = null;
       _reviewStatuses = {};
       _pendingQuoteId = null;
       _replaceEditableItems(const [], const []);
@@ -154,7 +161,8 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
       final bundle =
           _ocrService.lastReviewBundle ??
           const OcrReviewBundle(lines: [], issues: []);
-      final persisted = await _reviewStore.load(result.sourcePath);
+      final documentKey = _ocrService.lastSourceFileHash ?? result.sourcePath;
+      final persisted = await _reviewStore.load(documentKey);
       final statuses = <String, OcrReviewStatus>{
         for (final line in bundle.lines) line.id: line.initialStatus,
         for (final issue in bundle.issues) issue.id: issue.initialStatus,
@@ -168,6 +176,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
       setState(() {
         _rawQuote = result;
         _reviewBundle = bundle;
+        _documentReviewKey = documentKey;
         _reviewStatuses = statuses;
         _replaceEditableItems(result.lineItems, bundle.lines);
       });
@@ -217,10 +226,10 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
       _reviewStatuses[line.id] ?? line.initialStatus;
 
   void _setReviewStatus(String id, OcrReviewStatus status) {
-    final sourcePath = _rawQuote?.sourcePath;
+    final documentKey = _documentReviewKey;
     setState(() => _reviewStatuses[id] = status);
-    if (sourcePath != null) {
-      unawaited(_reviewStore.save(sourcePath, _reviewStatuses));
+    if (documentKey != null) {
+      unawaited(_reviewStore.save(documentKey, _reviewStatuses));
     }
   }
 
@@ -631,6 +640,7 @@ class _EditableLineCardState extends State<_EditableLineCard> {
         TextFormField(
           key: ValueKey('quote-line-label-${widget.index}'),
           controller: item.rawLabelController,
+          maxLength: 300,
           decoration: const InputDecoration(
             labelText: '項目名・原文',
             border: OutlineInputBorder(),
@@ -676,7 +686,7 @@ class _EditableLineCardState extends State<_EditableLineCard> {
         TextFormField(
           key: ValueKey('quote-line-amount-${widget.index}'),
           controller: item.amountController,
-          keyboardType: TextInputType.number,
+          keyboardType: const TextInputType.numberWithOptions(signed: true),
           decoration: const InputDecoration(
             labelText: '金額（円・未記載は空欄）',
             border: OutlineInputBorder(),
@@ -722,6 +732,7 @@ class _EditableLineCardState extends State<_EditableLineCard> {
         const SizedBox(height: 10),
         TextField(
           controller: item.specificationController,
+          maxLength: 500,
           decoration: const InputDecoration(
             labelText: '仕様・備考',
             border: OutlineInputBorder(),
@@ -847,20 +858,30 @@ class _EditableLineItem {
     );
     final quantity = normalizedQuantity.isEmpty
         ? null
-        : double.tryParse(normalizedQuantity);
-    if (normalizedQuantity.isNotEmpty && quantity == null) {
-      throw FormatException('明細${index + 1}の数量を数値で入力してください。');
+        : LocalizedNumberParser.tryParseYen(
+            amountText,
+            allowNegative: allowNegative,
+          );
+    if (amountText.isNotEmpty && amount == null) {
+      throw FormatException(
+        allowNegative
+            ? '明細${index + 1}の金額を整数で入力してください。'
+            : '明細${index + 1}の金額は0以上の整数で入力してください。',
+      );
     }
 
     final unit = unitController.text.trim();
     final specification = specificationController.text.trim();
+    if (specification.length > 500) {
+      throw FormatException('明細${index + 1}の仕様は500文字以内で入力してください。');
+    }
     return RawQuoteLineItem(
       rawLabel: rawLabel,
       categoryId: categoryId,
       amountYen: amount,
       inclusionStatus: inclusionStatus,
       quantity: quantity,
-      unit: unit.isEmpty ? null : unit,
+      unit: unit,
       specification: specification.isEmpty ? null : specification,
       note: note,
     );

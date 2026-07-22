@@ -1,5 +1,9 @@
 library;
 
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
 enum OcrReviewStatus {
   pending('pending', '未確認'),
   confirmed('confirmed', '確認済み'),
@@ -9,7 +13,8 @@ enum OcrReviewStatus {
   final String code;
   final String labelJa;
 
-  static OcrReviewStatus fromCode(String code) => OcrReviewStatus.values.firstWhere(
+  static OcrReviewStatus fromCode(String code) =>
+      OcrReviewStatus.values.firstWhere(
         (value) => value.code == code,
         orElse: () => OcrReviewStatus.pending,
       );
@@ -43,13 +48,14 @@ class OcrBoundingRect {
   double get height => bottom - top;
 
   Map<String, Object?> toJson() => {
-        'left': left,
-        'top': top,
-        'right': right,
-        'bottom': bottom,
-      };
+    'left': left,
+    'top': top,
+    'right': right,
+    'bottom': bottom,
+  };
 
-  factory OcrBoundingRect.fromJson(Map<String, Object?> json) => OcrBoundingRect(
+  factory OcrBoundingRect.fromJson(Map<String, Object?> json) =>
+      OcrBoundingRect(
         left: (json['left'] as num).toDouble(),
         top: (json['top'] as num).toDouble(),
         right: (json['right'] as num).toDouble(),
@@ -105,16 +111,13 @@ class OcrRecognizedLine {
       boundingRect.bottom.round(),
       rawText,
     ].join('|');
-    var hash = 0x811C9DC5;
-    for (final codeUnit in stableValue.codeUnits) {
-      hash = ((hash ^ codeUnit) * 0x01000193) & 0xFFFFFFFF;
-    }
-    return hash.toUnsigned(32).toRadixString(16).padLeft(8, '0');
+    return sha256.convert(utf8.encode(stableValue)).toString();
   }
 
   bool get needsReview => reviewReasons.isNotEmpty;
 
-  OcrReviewSeverity get severity => reviewReasons.any(
+  OcrReviewSeverity get severity =>
+      reviewReasons.any(
         (reason) => reason == OcrReviewReason.quantityUnitPriceMismatch,
       )
       ? OcrReviewSeverity.critical
@@ -140,10 +143,7 @@ class OcrReviewIssue {
 }
 
 class OcrReviewBundle {
-  const OcrReviewBundle({
-    required this.lines,
-    required this.issues,
-  });
+  const OcrReviewBundle({required this.lines, required this.issues});
 
   final List<OcrRecognizedLine> lines;
   final List<OcrReviewIssue> issues;

@@ -126,7 +126,7 @@ class RawQuoteData {
     // OCR完了時刻はミリ秒精度のため、短時間に複数保存しても衝突しないIDを生成する。
     final quoteId = id ?? 'quote-${DateTime.now().microsecondsSinceEpoch}';
     return ContractorQuote(
-      id: quoteId,
+      id: id,
       contractorName: contractorName,
       totalAmountYen: totalAmountYen,
       // 元ファイルの絶対パスは端末のユーザー名や保存場所を含むため、
@@ -136,7 +136,7 @@ class RawQuoteData {
       lineItems: [
         for (var index = 0; index < lineItems.length; index++)
           QuoteLineItem(
-            id: '$quoteId-line-${index + 1}',
+            id: '$id-line-${index + 1}',
             categoryId: lineItems[index].categoryId,
             rawLabel: lineItems[index].rawLabel,
             amountYen: lineItems[index].amountYen,
