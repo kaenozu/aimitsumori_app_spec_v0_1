@@ -10,7 +10,8 @@ $requiredVariables = @(
     'ADMOB_APP_ID',
     'ADMOB_ANDROID_BANNER_ID',
     'ADMOB_ANDROID_REWARDED_ID',
-    'REMOVE_ADS_PRODUCT_ID'
+    'REMOVE_ADS_PRODUCT_ID',
+    'PURCHASE_VERIFICATION_URL'
 )
 foreach ($name in $requiredVariables) {
     $value = [Environment]::GetEnvironmentVariable($name)
@@ -42,12 +43,22 @@ if ($env:REMOVE_ADS_PRODUCT_ID -notmatch '^[A-Za-z0-9._-]{1,100}$') {
     throw 'REMOVE_ADS_PRODUCT_ID must be a valid Google Play product ID.'
 }
 
+[Uri]$verificationUri = $null
+if (-not [Uri]::TryCreate(
+        $env:PURCHASE_VERIFICATION_URL,
+        [UriKind]::Absolute,
+        [ref]$verificationUri
+    ) -or $verificationUri.Scheme -ne 'https' -or [string]::IsNullOrWhiteSpace($verificationUri.Host)) {
+    throw 'PURCHASE_VERIFICATION_URL must be an HTTPS URL.'
+}
+
 $buildTarget = $Artifact
 $dartDefines = @(
     "ADMOB_APP_ID=$($env:ADMOB_APP_ID)",
     "ADMOB_ANDROID_BANNER_ID=$($env:ADMOB_ANDROID_BANNER_ID)",
     "ADMOB_ANDROID_REWARDED_ID=$($env:ADMOB_ANDROID_REWARDED_ID)",
-    "REMOVE_ADS_PRODUCT_ID=$($env:REMOVE_ADS_PRODUCT_ID)"
+    "REMOVE_ADS_PRODUCT_ID=$($env:REMOVE_ADS_PRODUCT_ID)",
+    "PURCHASE_VERIFICATION_URL=$($env:PURCHASE_VERIFICATION_URL)"
 )
 
 & flutter build $buildTarget --release --no-pub @(
