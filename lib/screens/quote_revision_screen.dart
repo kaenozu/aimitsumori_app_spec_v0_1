@@ -57,7 +57,8 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
       final groups = _groups(revisions);
       for (final entry in groups.entries) {
         final ordered = [...entry.value]
-          ..sort((a, b) => a.revisionNumber.compareTo(b.revisionNumber));
+          ..sort((left, right) =>
+              left.revisionNumber.compareTo(right.revisionNumber));
         _selectedRevisionIds.putIfAbsent(entry.key, () => ordered.last.id);
       }
       _selectedRevisionIds.removeWhere(
@@ -108,11 +109,7 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
-        builder: (_) => ComparisonScreen(
-          project: comparisonProject,
-          repository: widget.projectRepository,
-          isHistorical: true,
-        ),
+        builder: (_) => RevisionComparisonScreen(project: comparisonProject),
       ),
     );
   }
@@ -340,7 +337,8 @@ class _RevisionGroupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ordered = [...revisions]
-      ..sort((a, b) => a.revisionNumber.compareTo(b.revisionNumber));
+      ..sort((left, right) =>
+          left.revisionNumber.compareTo(right.revisionNumber));
     final byId = {for (final revision in ordered) revision.id: revision};
     final latest = ordered.last;
     return Card(
@@ -492,5 +490,6 @@ String _date(int epoch) => DateFormat(
   'yyyy/MM/dd HH:mm',
 ).format(DateTime.fromMillisecondsSinceEpoch(epoch));
 
-String _yen(int? value) =>
-    value == null ? '未入力' : '${NumberFormat('#,##0', 'ja_JP').format(value)}円';
+String _yen(int? value) => value == null
+    ? '未入力'
+    : '${NumberFormat('#,##0', 'ja_JP').format(value)}円';
