@@ -1,5 +1,5 @@
 /// ファイルパス: lib/services/ad_service.dart
-/// AdMob広告と広告削除の非消費型課金を管理するサービス
+/// AdMob広告と広告削除の非消費型課金を管理するサービス。
 library;
 
 import 'dart:async';
@@ -8,6 +8,8 @@ import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'purchase_verification_service.dart';
 
 enum RewardedAdOutcome { rewarded, unavailable, dismissed }
 
@@ -72,9 +74,6 @@ class AdService {
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;
 
-  bool get hasAdConfiguration =>
-      bannerAdUnitId.isNotEmpty && rewardedAdUnitId.isNotEmpty;
-
   ProductDetails? get removeAdsProduct => _removeAdsProduct;
 
   String get bannerAdUnitId {
@@ -97,6 +96,14 @@ class AdService {
     return _adUnitId(configured: configured, testId: testId, kind: 'rewarded');
   }
 
+  bool get _hasAdConfiguration {
+    try {
+      return bannerAdUnitId.isNotEmpty && rewardedAdUnitId.isNotEmpty;
+    } on StateError {
+      return false;
+    }
+  }
+
   String _adUnitId({
     required String configured,
     required String testId,
@@ -111,7 +118,6 @@ class AdService {
     if (_initialized) return;
     _initialized = true;
 
-    // Releaseではローカルフラグを購入証明として信頼しない。
     if (!kReleaseMode) {
       try {
         final preferences = await SharedPreferences.getInstance();
@@ -125,13 +131,11 @@ class AdService {
     _purchaseSubscription ??= _inAppPurchase.purchaseStream.listen(
       _handlePurchaseUpdates,
       onError: (Object error, StackTrace stackTrace) {
-        debugPrint('Purchase stream error: $error');
+        debugPrint('Purchase stream error: $error\n$stackTrace');
       },
     );
 
-    await restorePurchases();
-
-    if (hasAdConfiguration) {
+    if (_hasAdConfiguration) {
       try {
         await MobileAds.instance.initialize();
       } catch (error) {
@@ -145,10 +149,7 @@ class AdService {
       debugPrint('Remove ads product load failed: $error');
     }
 
-    if (kReleaseMode) {
-      // 復元イベントもpurchaseStreamで検証してから権利付与する。
-      unawaited(restorePurchases());
-    }
+    await restorePurchases();
   }
 
   Future<void> _loadRemoveAdsProduct() async {
@@ -160,16 +161,16 @@ class AdService {
       debugPrint('Product query failed: ${response.error}');
       return;
     }
-    if (response.productDetails.isNotEmpty) {
-      _removeAdsProduct = response.productDetails.first;
-    }
+    _removeAdsProduct = response.productDetails
+        .where((value) => value.id == removeAdsProductId)
+        .firstOrNull;
   }
 
   BannerAd? createBannerAd({
     VoidCallback? onLoaded,
     ValueChanged<LoadAdError>? onFailed,
   }) {
-    if (!isSupportedPlatform || !hasAdConfiguration || adFree.value) {
+    if (!isSupportedPlatform || !_hasAdConfiguration || adFree.value) {
       return null;
     }
 
@@ -189,7 +190,7 @@ class AdService {
 
   Future<RewardedAdOutcome> showRewardedAd() async {
     if (adFree.value) return RewardedAdOutcome.rewarded;
-    if (!isSupportedPlatform || !hasAdConfiguration) {
+    if (!isSupportedPlatform || !_hasAdConfiguration) {
       return RewardedAdOutcome.unavailable;
     }
 
@@ -259,7 +260,6 @@ class AdService {
       _removeAdsProduct ??= await _queryRemoveAdsProduct();
       final product = _removeAdsProduct;
       if (product == null || product.id != removeAdsProductId) return false;
-
       return _inAppPurchase.buyNonConsumable(
         purchaseParam: PurchaseParam(productDetails: product),
       );
@@ -274,11 +274,11 @@ class AdService {
     final response = await _inAppPurchase.queryProductDetails({
       removeAdsProductId,
     });
-    if (response.error != null || response.productDetails.isEmpty) return null;
-    return response.productDetails.firstWhere(
-      (value) => value.id == removeAdsProductId,
-      orElse: () => response.productDetails.first,
-    );
+    if (response.error != null) return null;
+    for (final product in response.productDetails) {
+      if (product.id == removeAdsProductId) return product;
+    }
+    return null;
   }
 
   Future<void> restorePurchases() async {
@@ -294,21 +294,31 @@ class AdService {
     for (final purchase in purchases) {
       if (purchase.productID != removeAdsProductId) continue;
 
+      var completePurchase = true;
       try {
         if (purchase.status == PurchaseStatus.purchased ||
             purchase.status == PurchaseStatus.restored) {
-          final valid = await _verifier.verify(purchase);
-          if (valid) {
-            await _setAdFree(true);
-          } else {
-            debugPrint('Remove ads purchase verification failed.');
-            await _setAdFree(false);
+          final result = await _verifier.verify(purchase);
+          switch (result) {
+            case PurchaseVerificationResult.valid:
+              await _setAdFree(true);
+            case PurchaseVerificationResult.invalid:
+              debugPrint('Remove ads purchase verification rejected.');
+              await _setAdFree(false);
+            case PurchaseVerificationResult.retryable:
+              completePurchase = false;
+              debugPrint(
+                'Remove ads purchase verification is retryable; '
+                'preserving the current entitlement.',
+              );
           }
         } else if (purchase.status == PurchaseStatus.error) {
           debugPrint('Remove ads purchase failed: ${purchase.error}');
+        } else if (purchase.status == PurchaseStatus.pending) {
+          completePurchase = false;
         }
       } finally {
-        if (purchase.pendingCompletePurchase) {
+        if (completePurchase && purchase.pendingCompletePurchase) {
           await _inAppPurchase.completePurchase(purchase);
         }
       }
@@ -318,7 +328,8 @@ class AdService {
   Future<void> _setAdFree(bool value) async {
     try {
       final preferences = await SharedPreferences.getInstance();
-      await preferences.setBool(_adFreePreferenceKey, value);
+      final saved = await preferences.setBool(_adFreePreferenceKey, value);
+      if (!saved) debugPrint('Ad preference was not persisted.');
     } catch (error) {
       debugPrint('Ad preference save failed: $error');
     }
@@ -327,6 +338,7 @@ class AdService {
 
   Future<void> dispose() async {
     await _purchaseSubscription?.cancel();
+    _purchaseSubscription = null;
     adFree.dispose();
   }
 }
