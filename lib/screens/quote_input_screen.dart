@@ -93,7 +93,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
 
   Future<void> _pickPdf() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: const ['pdf'],
         allowMultiple: false,

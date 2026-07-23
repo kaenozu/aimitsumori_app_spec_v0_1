@@ -333,14 +333,14 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
   }
 
   Future<_CapturedComparison> _captureComparison() async {
+    final pixelRatio = MediaQuery.devicePixelRatioOf(
+      context,
+    ).clamp(1.0, 3.0).toDouble();
     await WidgetsBinding.instance.endOfFrame;
     final renderObject = _captureKey.currentContext?.findRenderObject();
     if (renderObject is! RenderRepaintBoundary || renderObject.size.isEmpty) {
       throw StateError('比較画面のキャプチャ領域を取得できませんでした。');
     }
-    final pixelRatio = MediaQuery.devicePixelRatioOf(
-      context,
-    ).clamp(1.0, 3.0).toDouble();
     final image = await renderObject.toImage(pixelRatio: pixelRatio);
     try {
       final data = await image.toByteData(format: ui.ImageByteFormat.png);

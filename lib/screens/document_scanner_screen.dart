@@ -331,7 +331,6 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
 
   void _reorder(int oldIndex, int newIndex) {
     setState(() {
-      if (newIndex > oldIndex) newIndex--;
       final page = _pages.removeAt(oldIndex);
       _pages.insert(newIndex, page);
       _retakeIndex = null;
@@ -489,7 +488,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.all(8),
                   itemCount: _pages.length,
-                  onReorder: _reorder,
+                  onReorderItem: _reorder,
                   itemBuilder: (context, index) {
                     final page = _pages[index];
                     return _PageThumbnail(
