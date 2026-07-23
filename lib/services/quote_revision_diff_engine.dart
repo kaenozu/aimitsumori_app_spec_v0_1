@@ -117,8 +117,7 @@ class QuoteRevisionDiffEngine {
     var cost = 0.0;
     if (before.inclusionStatus != after.inclusionStatus) cost += 8;
     if (_normalized(before.unit) != _normalized(after.unit)) cost += 4;
-    if (_normalized(before.specification) !=
-        _normalized(after.specification)) {
+    if (_normalized(before.specification) != _normalized(after.specification)) {
       cost += 2;
     }
     cost += _relativeDifference(before.amountYen, after.amountYen) * 2;
@@ -196,9 +195,7 @@ class QuoteRevisionDiffEngine {
 
   bool _sameNullableDouble(double? left, double? right) {
     if (left == null || right == null) return left == right;
-    final tolerance = (left.abs() * 0.0001)
-        .clamp(0.01, 1000.0)
-        .toDouble();
+    final tolerance = (left.abs() * 0.0001).clamp(0.01, 1000.0).toDouble();
     return (left - right).abs() <= tolerance;
   }
 

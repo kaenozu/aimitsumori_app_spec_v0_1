@@ -8,23 +8,27 @@ import 'unit_normalizer.dart';
 
 class Normalizer {
   List<NormalizedQuote> normalize(Project project) {
-    return project.quotes.map((quote) {
-      final itemsByCategory = <String, List<QuoteLineItem>>{};
-      for (final item in quote.lineItems) {
-        itemsByCategory.putIfAbsent(item.categoryId, () => []).add(item);
-      }
-      return NormalizedQuote(
-        quoteId: quote.id,
-        contractorName: quote.contractorName,
-        totalAmountYen: quote.totalAmountYen,
-        lines: CategoryMaster.categories.map((category) {
-          return _normalizeCategory(
-            category: category,
-            items: itemsByCategory[category.id] ?? const [],
+    return project.quotes
+        .map((quote) {
+          final itemsByCategory = <String, List<QuoteLineItem>>{};
+          for (final item in quote.lineItems) {
+            itemsByCategory.putIfAbsent(item.categoryId, () => []).add(item);
+          }
+          return NormalizedQuote(
+            quoteId: quote.id,
+            contractorName: quote.contractorName,
+            totalAmountYen: quote.totalAmountYen,
+            lines: CategoryMaster.categories
+                .map((category) {
+                  return _normalizeCategory(
+                    category: category,
+                    items: itemsByCategory[category.id] ?? const [],
+                  );
+                })
+                .toList(growable: false),
           );
-        }).toList(growable: false),
-      );
-    }).toList(growable: false);
+        })
+        .toList(growable: false);
   }
 
   NormalizedLine _normalizeCategory({
@@ -40,9 +44,7 @@ class Normalizer {
     }
 
     final reasons = <String>[];
-    final distinctStatuses = items
-        .map((item) => item.inclusionStatus)
-        .toSet();
+    final distinctStatuses = items.map((item) => item.inclusionStatus).toSet();
     final status = distinctStatuses.length == 1
         ? distinctStatuses.single
         : InclusionStatus.unknown;
@@ -64,9 +66,7 @@ class Normalizer {
 
     final quantityItems = items.where((item) => item.quantity != null).toList();
     final canonicalQuantities = quantityItems
-        .map(
-          (item) => UnitNormalizer.toCanonical(item.quantity!, item.unit),
-        )
+        .map((item) => UnitNormalizer.toCanonical(item.quantity!, item.unit))
         .whereType<CanonicalQuantity>()
         .toList(growable: false);
 

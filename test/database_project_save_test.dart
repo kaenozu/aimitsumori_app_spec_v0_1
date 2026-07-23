@@ -67,23 +67,26 @@ void main() {
     expect(loaded?.updatedAtEpochMillis, 99);
   });
 
-  test('saveProject removes current quotes omitted from the aggregate', () async {
-    await service.saveProject(
-      project(
-        status: ProjectStatus.needsReview,
-        quotes: [quote('quote-1'), quote('quote-2')],
-      ),
-    );
+  test(
+    'saveProject removes current quotes omitted from the aggregate',
+    () async {
+      await service.saveProject(
+        project(
+          status: ProjectStatus.needsReview,
+          quotes: [quote('quote-1'), quote('quote-2')],
+        ),
+      );
 
-    await service.saveProject(
-      project(
-        status: ProjectStatus.comparing,
-        updatedAt: 3,
-        quotes: [quote('quote-2')],
-      ),
-    );
+      await service.saveProject(
+        project(
+          status: ProjectStatus.comparing,
+          updatedAt: 3,
+          quotes: [quote('quote-2')],
+        ),
+      );
 
-    final loaded = await service.getProject('project-1');
-    expect(loaded?.quotes.map((value) => value.id), ['quote-2']);
-  });
+      final loaded = await service.getProject('project-1');
+      expect(loaded?.quotes.map((value) => value.id), ['quote-2']);
+    },
+  );
 }

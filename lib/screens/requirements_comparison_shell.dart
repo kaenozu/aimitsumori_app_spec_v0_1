@@ -72,9 +72,9 @@ class _RequirementsComparisonShellState
       _historyRevision += 1;
       _selectedIndex = 0;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('撮影した見積を保存しました。')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('撮影した見積を保存しました。')));
   }
 
   @override

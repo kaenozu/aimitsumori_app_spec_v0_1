@@ -24,9 +24,7 @@ void main() {
     await databaseService.initializeSchemaForTesting();
     repository = ProjectRepository(
       databaseService: databaseService,
-      revisionService: QuoteRevisionService(
-        databaseService: databaseService,
-      ),
+      revisionService: QuoteRevisionService(databaseService: databaseService),
     );
   });
 

@@ -216,16 +216,18 @@ class DatabaseService {
     for (final row in quoteRows) {
       final quoteId = row['id'] as String;
       final projectId = row['project_id'] as String;
-      quotesByProject.putIfAbsent(projectId, () => []).add(
-        ContractorQuote(
-          id: quoteId,
-          contractorName: row['contractor_name'] as String,
-          totalAmountYen: row['total_amount_yen'] as int?,
-          note: row['note'] as String?,
-          createdAtEpochMillis: row['created_at'] as int,
-          lineItems: itemsByQuote[quoteId] ?? const [],
-        ),
-      );
+      quotesByProject
+          .putIfAbsent(projectId, () => [])
+          .add(
+            ContractorQuote(
+              id: quoteId,
+              contractorName: row['contractor_name'] as String,
+              totalAmountYen: row['total_amount_yen'] as int?,
+              note: row['note'] as String?,
+              createdAtEpochMillis: row['created_at'] as int,
+              lineItems: itemsByQuote[quoteId] ?? const [],
+            ),
+          );
     }
 
     return [
@@ -479,34 +481,28 @@ class DatabaseService {
 
     await db.delete('line_items', where: 'quote_id = ?', whereArgs: [quote.id]);
     for (final item in quote.lineItems) {
-      await db.insert(
-        'line_items',
-        {
-          'id': item.id,
-          'quote_id': quote.id,
-          'category_id': item.categoryId,
-          'raw_label': item.rawLabel,
-          'amount_yen': item.amountYen,
-          'inclusion_status': item.inclusionStatus.code,
-          'quantity': item.quantity,
-          'unit': item.unit,
-          'specification': item.specification,
-          'note': item.note,
-          'sort_order': item.sortOrder,
-        },
-        conflictAlgorithm: ConflictAlgorithm.abort,
-      );
+      await db.insert('line_items', {
+        'id': item.id,
+        'quote_id': quote.id,
+        'category_id': item.categoryId,
+        'raw_label': item.rawLabel,
+        'amount_yen': item.amountYen,
+        'inclusion_status': item.inclusionStatus.code,
+        'quantity': item.quantity,
+        'unit': item.unit,
+        'specification': item.specification,
+        'note': item.note,
+        'sort_order': item.sortOrder,
+      }, conflictAlgorithm: ConflictAlgorithm.abort);
     }
   }
 
-  Future<void> _invalidateComparison(
-    DatabaseExecutor db,
-    String projectId,
-  ) => db.delete(
-    'comparison_results',
-    where: 'project_id = ?',
-    whereArgs: [projectId],
-  );
+  Future<void> _invalidateComparison(DatabaseExecutor db, String projectId) =>
+      db.delete(
+        'comparison_results',
+        where: 'project_id = ?',
+        whereArgs: [projectId],
+      );
 
   Map<String, Object?> _projectToRow(Project project) => {
     'id': project.id,
@@ -620,7 +616,8 @@ class DatabaseService {
 
   ComparisonReport _reportFromJson(Map<String, dynamic> json) {
     final comparisons = <CategoryComparison>[];
-    for (final raw in json['categoryComparisons'] as List<dynamic>? ?? const []) {
+    for (final raw
+        in json['categoryComparisons'] as List<dynamic>? ?? const []) {
       final value = Map<String, dynamic>.from(raw as Map);
       final category = CategoryMaster.find(value['categoryId'] as String);
       if (category == null) continue;

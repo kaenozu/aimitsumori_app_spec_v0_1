@@ -42,10 +42,7 @@ void main() {
 
     var repository = ProjectRepository(databaseService: database);
     await tester.pumpWidget(
-      AimitsumoriApp(
-        repository: repository,
-        adService: MockAdMobService(),
-      ),
+      AimitsumoriApp(repository: repository, adService: MockAdMobService()),
     );
     await tester.pumpAndSettle();
 
@@ -110,10 +107,7 @@ void main() {
 
     repository = ProjectRepository(databaseService: database);
     await tester.pumpWidget(
-      AimitsumoriApp(
-        repository: repository,
-        adService: MockAdMobService(),
-      ),
+      AimitsumoriApp(repository: repository, adService: MockAdMobService()),
     );
     await tester.pumpAndSettle();
 
@@ -127,10 +121,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('A社'), findsWidgets);
     expect(find.text('B社'), findsWidgets);
-    expect(
-      find.text('順位・総合点は付けず、条件差と不明点を確認します。'),
-      findsOneWidget,
-    );
+    expect(find.text('順位・総合点は付けず、条件差と不明点を確認します。'), findsOneWidget);
   }, skip: !Platform.isAndroid);
 }
 
@@ -176,11 +167,7 @@ Future<void> _saveQuoteThroughEditor(
   );
 
   if (verifyValidation) {
-    await _enterText(
-      tester,
-      const ValueKey('quote-total-field'),
-      '金額不正',
-    );
+    await _enterText(tester, const ValueKey('quote-total-field'), '金額不正');
     await _tapSave(tester);
     expect(find.text('金額を数値で入力してください。'), findsOneWidget);
     await _expectQuoteCount(
@@ -206,11 +193,7 @@ Future<void> _saveQuoteThroughEditor(
       project.id,
       expectedQuoteCountBeforeSave,
     );
-    await _enterText(
-      tester,
-      const ValueKey('quote-line-quantity-0'),
-      quantity,
-    );
+    await _enterText(tester, const ValueKey('quote-line-quantity-0'), quantity);
   }
 
   await _tapSave(tester);
@@ -247,10 +230,7 @@ Future<void> _openAndVerifyComparison(
   expect(find.text('金額: 1,350,000円'), findsOneWidget);
   expect(find.text('数量: 12.5㎡'), findsOneWidget);
   expect(find.text('数量: 13㎡'), findsOneWidget);
-  expect(
-    find.text('順位・総合点は付けず、条件差と不明点を確認します。'),
-    findsOneWidget,
-  );
+  expect(find.text('順位・総合点は付けず、条件差と不明点を確認します。'), findsOneWidget);
 }
 
 Future<void> _enterText(WidgetTester tester, Key key, String value) async {

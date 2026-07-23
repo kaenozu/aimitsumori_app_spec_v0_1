@@ -6,10 +6,7 @@ library;
 import 'package:flutter/material.dart';
 
 class ComparisonSummaryCard extends StatelessWidget {
-  const ComparisonSummaryCard({
-    super.key,
-    required this.lines,
-  });
+  const ComparisonSummaryCard({super.key, required this.lines});
 
   final List<String> lines;
 
@@ -35,10 +32,7 @@ class ComparisonSummaryCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               if (lines.isEmpty)
-                Semantics(
-                  label: '要約はありません',
-                  child: const Text('要約はありません。'),
-                )
+                Semantics(label: '要約はありません', child: const Text('要約はありません。'))
               else
                 for (var index = 0; index < lines.length; index++)
                   Padding(

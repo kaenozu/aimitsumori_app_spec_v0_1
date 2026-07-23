@@ -423,9 +423,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           child: Icon(
                             Icons.delete_outline,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onErrorContainer,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onErrorContainer,
                           ),
                         ),
                         child: _ProjectCard(
@@ -516,10 +516,7 @@ class _EmptySearchCard extends StatelessWidget {
                 semanticLabel: '',
               ),
               const SizedBox(height: 8),
-              Text(
-                '「$query」に一致する案件はありません。',
-                textAlign: TextAlign.center,
-              ),
+              Text('「$query」に一致する案件はありません。', textAlign: TextAlign.center),
             ],
           ),
         ),
@@ -529,11 +526,7 @@ class _EmptySearchCard extends StatelessWidget {
 }
 
 class _ProjectCard extends StatelessWidget {
-  const _ProjectCard({
-    super.key,
-    required this.project,
-    required this.onTap,
-  });
+  const _ProjectCard({super.key, required this.project, required this.onTap});
 
   final Project project;
   final VoidCallback onTap;

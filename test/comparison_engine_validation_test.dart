@@ -11,10 +11,7 @@ void main() {
       createdAtEpochMillis: 1,
       updatedAtEpochMillis: 1,
     );
-    const quote = NormalizedQuote(
-      quoteId: 'quote-1',
-      contractorName: 'A社',
-    );
+    const quote = NormalizedQuote(quoteId: 'quote-1', contractorName: 'A社');
 
     expect(
       () => ComparisonEngine().compare(

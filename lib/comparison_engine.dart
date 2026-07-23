@@ -24,60 +24,74 @@ class ComparisonEngine {
       }
     }
 
-    final snapshots = normalizedQuotes.map((quote) {
-      return QuoteSnapshot(
-        quoteId: quote.quoteId,
-        contractorName: quote.contractorName,
-        totalAmountYen: quote.totalAmountYen,
-        includedCategoryCount: quote.lines
-            .where((line) => line.inclusionStatus == InclusionStatus.included)
-            .length,
-        separateCategoryNames: quote.lines
-            .where((line) => line.inclusionStatus == InclusionStatus.separate)
-            .map((line) => line.category.nameJa)
-            .toList(growable: false),
-        optionalCategoryNames: quote.lines
-            .where((line) => line.inclusionStatus == InclusionStatus.optional)
-            .map((line) => line.category.nameJa)
-            .toList(growable: false),
-        unknownCategoryNames: quote.lines
-            .where((line) => line.inclusionStatus == InclusionStatus.unknown)
-            .map((line) => line.category.nameJa)
-            .toList(growable: false),
-        uncertaintyCount: quote.lines.fold<int>(
-          0,
-          (sum, line) => sum + line.uncertaintyReasons.length,
-        ),
-      );
-    }).toList(growable: false);
-
-    final comparisons = CategoryMaster.categories.map((category) {
-      return CategoryComparison(
-        category: category,
-        cells: normalizedQuotes.map((quote) {
-          final matching = quote.lines.where(
-            (value) => value.category.id == category.id,
-          );
-          final line = matching.isEmpty
-              ? NormalizedLine(
-                  category: category,
-                  inclusionStatus: InclusionStatus.unknown,
-                  uncertaintyReasons: const ['正規化結果にカテゴリがありません'],
-                )
-              : matching.single;
-          return ComparisonCell(
+    final snapshots = normalizedQuotes
+        .map((quote) {
+          return QuoteSnapshot(
             quoteId: quote.quoteId,
             contractorName: quote.contractorName,
-            inclusionStatus: line.inclusionStatus,
-            amountYen: line.amountYen,
-            quantity: line.quantity,
-            unit: line.unit,
-            specification: line.specification,
-            uncertaintyReasons: line.uncertaintyReasons,
+            totalAmountYen: quote.totalAmountYen,
+            includedCategoryCount: quote.lines
+                .where(
+                  (line) => line.inclusionStatus == InclusionStatus.included,
+                )
+                .length,
+            separateCategoryNames: quote.lines
+                .where(
+                  (line) => line.inclusionStatus == InclusionStatus.separate,
+                )
+                .map((line) => line.category.nameJa)
+                .toList(growable: false),
+            optionalCategoryNames: quote.lines
+                .where(
+                  (line) => line.inclusionStatus == InclusionStatus.optional,
+                )
+                .map((line) => line.category.nameJa)
+                .toList(growable: false),
+            unknownCategoryNames: quote.lines
+                .where(
+                  (line) => line.inclusionStatus == InclusionStatus.unknown,
+                )
+                .map((line) => line.category.nameJa)
+                .toList(growable: false),
+            uncertaintyCount: quote.lines.fold<int>(
+              0,
+              (sum, line) => sum + line.uncertaintyReasons.length,
+            ),
           );
-        }).toList(growable: false),
-      );
-    }).toList(growable: false);
+        })
+        .toList(growable: false);
+
+    final comparisons = CategoryMaster.categories
+        .map((category) {
+          return CategoryComparison(
+            category: category,
+            cells: normalizedQuotes
+                .map((quote) {
+                  final matching = quote.lines.where(
+                    (value) => value.category.id == category.id,
+                  );
+                  final line = matching.isEmpty
+                      ? NormalizedLine(
+                          category: category,
+                          inclusionStatus: InclusionStatus.unknown,
+                          uncertaintyReasons: const ['正規化結果にカテゴリがありません'],
+                        )
+                      : matching.single;
+                  return ComparisonCell(
+                    quoteId: quote.quoteId,
+                    contractorName: quote.contractorName,
+                    inclusionStatus: line.inclusionStatus,
+                    amountYen: line.amountYen,
+                    quantity: line.quantity,
+                    unit: line.unit,
+                    specification: line.specification,
+                    uncertaintyReasons: line.uncertaintyReasons,
+                  );
+                })
+                .toList(growable: false),
+          );
+        })
+        .toList(growable: false);
 
     final summary = _buildThreeLineSummary(snapshots, questions);
     if (summary.length != 3) {

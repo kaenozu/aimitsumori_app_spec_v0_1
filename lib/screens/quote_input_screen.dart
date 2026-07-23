@@ -143,9 +143,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     } catch (error, stackTrace) {
       debugPrint('Image picker failed: $error\n$stackTrace');
       if (mounted) {
-        setState(
-          () => _error = '写真を開けませんでした。カメラ・写真へのアクセス権限を確認してください。',
-        );
+        setState(() => _error = '写真を開けませんでした。カメラ・写真へのアクセス権限を確認してください。');
       }
     }
   }
@@ -191,9 +189,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     } catch (error, stackTrace) {
       debugPrint('OCR processing failed: $error\n$stackTrace');
       if (mounted) {
-        setState(
-          () => _error = '文字の読み取りに失敗しました。画像の明るさ・向き・解像度を確認してください。',
-        );
+        setState(() => _error = '文字の読み取りに失敗しました。画像の明るさ・向き・解像度を確認してください。');
       }
     } finally {
       if (mounted) setState(() => _processing = false);
@@ -208,15 +204,19 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
       item.dispose();
     }
     final remaining = List<OcrRecognizedLine>.from(recognizedLines);
-    _editableItems = items.map((item) {
-      final matchIndex = remaining.indexWhere(
-        (line) =>
-            line.rawText == item.rawLabel &&
-            line.categoryCandidates.contains(item.categoryId),
-      );
-      final sourceLine = matchIndex < 0 ? null : remaining.removeAt(matchIndex);
-      return _EditableLineItem.fromModel(item, sourceLine: sourceLine);
-    }).toList(growable: true);
+    _editableItems = items
+        .map((item) {
+          final matchIndex = remaining.indexWhere(
+            (line) =>
+                line.rawText == item.rawLabel &&
+                line.categoryCandidates.contains(item.categoryId),
+          );
+          final sourceLine = matchIndex < 0
+              ? null
+              : remaining.removeAt(matchIndex);
+          return _EditableLineItem.fromModel(item, sourceLine: sourceLine);
+        })
+        .toList(growable: true);
   }
 
   void _addLineItem() {
@@ -324,7 +324,8 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
         quote,
         revisionIntent: widget.revisionIntent,
         sourceFileHash:
-            documentKey != null && RegExp(r'^[0-9a-f]{64}$').hasMatch(documentKey)
+            documentKey != null &&
+                RegExp(r'^[0-9a-f]{64}$').hasMatch(documentKey)
             ? documentKey
             : null,
       );
@@ -339,9 +340,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     } catch (error, stackTrace) {
       debugPrint('Quote save failed: $error\n$stackTrace');
       if (mounted) {
-        setState(
-          () => _error = '見積の保存に失敗しました。入力内容を確認して、もう一度お試しください。',
-        );
+        setState(() => _error = '見積の保存に失敗しました。入力内容を確認して、もう一度お試しください。');
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -450,15 +449,15 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
               TextFormField(
                 key: const ValueKey('quote-total-field'),
                 controller: _totalController,
-                keyboardType: const TextInputType.numberWithOptions(signed: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  signed: true,
+                ),
                 decoration: const InputDecoration(
                   labelText: '提示総額（税込・円）',
                   border: OutlineInputBorder(),
                 ),
-                validator: (value) => validateAmount(
-                  value,
-                  maxDecimalPlaces: 0,
-                ),
+                validator: (value) =>
+                    validateAmount(value, maxDecimalPlaces: 0),
               ),
               if (bundle != null &&
                   (bundle.lines.isNotEmpty || bundle.issues.isNotEmpty)) ...[
@@ -561,9 +560,8 @@ class _LineItemEditor extends StatelessWidget {
             labelText: '項目名',
             border: OutlineInputBorder(),
           ),
-          validator: (value) => value == null || value.trim().isEmpty
-              ? '項目名を入力してください。'
-              : null,
+          validator: (value) =>
+              value == null || value.trim().isEmpty ? '項目名を入力してください。' : null,
         ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
@@ -767,7 +765,9 @@ class _EditableLineItem {
     }
 
     final quantityText = quantityController.text.trim().replaceAll(',', '');
-    final quantity = quantityText.isEmpty ? null : double.tryParse(quantityText);
+    final quantity = quantityText.isEmpty
+        ? null
+        : double.tryParse(quantityText);
     if (quantityText.isNotEmpty &&
         (quantity == null || !quantity.isFinite || quantity <= 0)) {
       throw FormatException('明細${index + 1}の数量は0より大きい数値で入力してください。');

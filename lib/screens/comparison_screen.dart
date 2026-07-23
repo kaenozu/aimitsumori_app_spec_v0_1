@@ -148,10 +148,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
     try {
       final refreshed = await _repository.getProject(_project.id);
       if (refreshed == null) {
-        throw const ProjectRepositoryException(
-          '案件の再読み込み',
-          'project not found',
-        );
+        throw const ProjectRepositoryException('案件の再読み込み', 'project not found');
       }
       if (!mounted) return;
       setState(() {
@@ -171,10 +168,8 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
     final saved = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => QuoteInputScreen(
-          project: _project,
-          repository: _repository,
-        ),
+        builder: (_) =>
+            QuoteInputScreen(project: _project, repository: _repository),
       ),
     );
     if (saved == true) await _refresh();
@@ -361,7 +356,9 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -416,9 +413,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
                     const Text('順位や総合点ではなく、価格・範囲・不明点を並べて確認します。'),
                     if (largeText) ...[
                       const SizedBox(height: 8),
-                      const Text(
-                        '文字を大きく表示しているため、表は横方向へスクロールできます。',
-                      ),
+                      const Text('文字を大きく表示しているため、表は横方向へスクロールできます。'),
                     ],
                     const SizedBox(height: 16),
                     if (_project.quotes.isEmpty)
@@ -440,7 +435,8 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
                       else ...[
                         ComparisonViewModeSwitcher(
                           value: _viewMode,
-                          onChanged: (value) => setState(() => _viewMode = value),
+                          onChanged: (value) =>
+                              setState(() => _viewMode = value),
                         ),
                         const SizedBox(height: 12),
                         if (_viewMode == ComparisonViewMode.table)
@@ -489,10 +485,7 @@ class _EmptyComparison extends StatelessWidget {
         children: [
           const Icon(Icons.description_outlined, size: 48),
           const SizedBox(height: 12),
-          Text(
-            'まず1社目の見積を入れます',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          Text('まず1社目の見積を入れます', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           const Text('PDF・写真・手入力から見積を登録できます。'),
           if (onAddQuote != null) ...[
@@ -687,9 +680,8 @@ class _QuestionList extends StatelessWidget {
   );
 }
 
-String _formatYen(int? value) => value == null
-    ? '未入力'
-    : '${NumberFormat('#,##0', 'ja_JP').format(value)}円';
+String _formatYen(int? value) =>
+    value == null ? '未入力' : '${NumberFormat('#,##0', 'ja_JP').format(value)}円';
 
 String _formatQuantity(double? quantity, String? unit) {
   if (quantity == null) return '数量未入力';

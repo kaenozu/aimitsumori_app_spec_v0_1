@@ -274,9 +274,7 @@ class OcrConfidenceEngine {
       return false;
     }
     final expected = quantity * unitPriceYen;
-    final tolerance = (amountYen.abs() * 0.02)
-        .clamp(500, 100000)
-        .toDouble();
+    final tolerance = (amountYen.abs() * 0.02).clamp(500, 100000).toDouble();
     return (expected - amountYen).abs() > tolerance;
   }
 
@@ -287,9 +285,7 @@ class OcrConfidenceEngine {
     final amounts = includedItemAmounts.toList(growable: false);
     if (totalAmountYen == null || amounts.isEmpty) return const [];
     final sum = amounts.fold<int>(0, (value, amount) => value + amount);
-    final tolerance = (totalAmountYen.abs() * 0.02)
-        .clamp(1000, 200000)
-        .toInt();
+    final tolerance = (totalAmountYen.abs() * 0.02).clamp(1000, 200000).toInt();
     if ((sum - totalAmountYen).abs() <= tolerance) return const [];
     return [
       OcrReviewIssue(

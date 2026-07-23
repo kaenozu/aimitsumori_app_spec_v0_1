@@ -19,10 +19,7 @@ void main() {
 
     expect(script, contains("'PURCHASE_VERIFICATION_URL'"));
     expect(script, contains('PURCHASE_VERIFICATION_URL must be an HTTPS URL.'));
-    expect(
-      script,
-      contains('--dart-define=PURCHASE_VERIFICATION_URL='),
-    );
+    expect(script, contains('--dart-define=PURCHASE_VERIFICATION_URL='));
   });
 
   test('CI release validation provides purchase verification URL', () {
@@ -31,9 +28,6 @@ void main() {
     ).readAsStringSync();
 
     expect(workflow, contains('PURCHASE_VERIFICATION_URL:'));
-    expect(
-      workflow,
-      contains('--dart-define=PURCHASE_VERIFICATION_URL='),
-    );
+    expect(workflow, contains('--dart-define=PURCHASE_VERIFICATION_URL='));
   });
 }

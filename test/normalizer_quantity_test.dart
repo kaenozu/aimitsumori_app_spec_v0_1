@@ -97,9 +97,6 @@ void main() {
     ]);
 
     expect(line.quantity, isNull);
-    expect(
-      line.uncertaintyReasons,
-      contains('数量または単位が未記載の明細を含むため、数量を合算できません'),
-    );
+    expect(line.uncertaintyReasons, contains('数量または単位が未記載の明細を含むため、数量を合算できません'));
   });
 }

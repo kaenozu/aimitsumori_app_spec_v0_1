@@ -32,12 +32,7 @@ void main() {
       extractedText: '',
       sourcePath: 'test://quote',
       createdAtEpochMillis: 1,
-      lineItems: [
-        RawQuoteLineItem(
-          rawLabel: 'フェンス',
-          categoryId: 'fence',
-        ),
-      ],
+      lineItems: [RawQuoteLineItem(rawLabel: 'フェンス', categoryId: 'fence')],
     );
 
     final quote = raw.toContractorQuote(id: 'quote-fixed');

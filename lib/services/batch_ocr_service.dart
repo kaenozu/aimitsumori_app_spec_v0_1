@@ -6,10 +6,7 @@ import 'ocr_confidence_engine.dart';
 import 'ocr_service.dart';
 
 class BatchOcrResult {
-  const BatchOcrResult({
-    required this.quote,
-    required this.reviewBundle,
-  });
+  const BatchOcrResult({required this.quote, required this.reviewBundle});
 
   final RawQuoteData quote;
   final OcrReviewBundle reviewBundle;

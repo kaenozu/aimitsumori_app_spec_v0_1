@@ -257,9 +257,7 @@ class OcrService {
       .toList();
 
   static String _parseContractorName(List<String> lines) {
-    final companyPattern = RegExp(
-      r'(株式会社|有限会社|合同会社|工務店|建設|建築|外構|エクステリア|造園)',
-    );
+    final companyPattern = RegExp(r'(株式会社|有限会社|合同会社|工務店|建設|建築|外構|エクステリア|造園)');
     final excluded = RegExp(r'(御?見積|見積書|請求|合計|工事名|お客様|様$)');
 
     for (final line in lines.take(15)) {

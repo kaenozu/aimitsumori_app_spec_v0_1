@@ -106,10 +106,7 @@ class _OcrCropPreviewState extends State<OcrCropPreview> {
                         dimension: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text(
-                        '元画像を表示できません',
-                        textAlign: TextAlign.center,
-                      ),
+                    : const Text('元画像を表示できません', textAlign: TextAlign.center),
               ),
       ),
     );

@@ -75,9 +75,7 @@ class ScanQualityService {
         edgeSamples++;
       }
     }
-    final laplacianMean = edgeSamples == 0
-        ? 0.0
-        : laplacianSum / edgeSamples;
+    final laplacianMean = edgeSamples == 0 ? 0.0 : laplacianSum / edgeSamples;
     final sharpness = edgeSamples == 0
         ? 0.0
         : math.sqrt(
@@ -162,9 +160,7 @@ class ScanQualityService {
     if (motion > 0.18) issues.add(ScanQualityIssue.shaky);
 
     final brightnessScore = 1 - ((mean - 165).abs() / 165).clamp(0, 1);
-    final coverageScore = (documentCoverage / 0.55)
-        .clamp(0, 1)
-        .toDouble();
+    final coverageScore = (documentCoverage / 0.55).clamp(0, 1).toDouble();
     final score =
         (brightnessScore * 0.16 +
                 contrast.clamp(0, 1) * 0.12 +
@@ -231,11 +227,10 @@ ScanQualityResult _evaluateFileBytes(Uint8List bytes) {
   final luma = Uint8List(resized.width * resized.height);
   var index = 0;
   for (final pixel in resized) {
-    luma[index++] =
-        ((pixel.r * 0.299) + (pixel.g * 0.587) + (pixel.b * 0.114))
-            .round()
-            .clamp(0, 255)
-            .toInt();
+    luma[index++] = ((pixel.r * 0.299) + (pixel.g * 0.587) + (pixel.b * 0.114))
+        .round()
+        .clamp(0, 255)
+        .toInt();
   }
   return const ScanQualityService().evaluateLuma(
     width: resized.width,

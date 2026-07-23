@@ -342,10 +342,7 @@ class AdService {
   Future<void> _setAdFree(bool value) async {
     try {
       final preferences = await SharedPreferences.getInstance();
-      final cacheSaved = await preferences.setBool(
-        _adFreePreferenceKey,
-        value,
-      );
+      final cacheSaved = await preferences.setBool(_adFreePreferenceKey, value);
       final timestampSaved = value
           ? await preferences.setInt(
               _adFreeVerifiedAtKey,

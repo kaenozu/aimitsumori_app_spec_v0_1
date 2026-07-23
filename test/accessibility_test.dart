@@ -84,44 +84,45 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('comparison screen renders without overflow at 200 percent text', (
-    tester,
-  ) async {
-    final project = createSampleComparisonProject();
-    final repository = ProjectRepository(
-      databaseService: MockDatabaseService(initialProjects: [project]),
-    );
-    await tester.binding.setSurfaceSize(const Size(900, 1400));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+  testWidgets(
+    'comparison screen renders without overflow at 200 percent text',
+    (tester) async {
+      final project = createSampleComparisonProject();
+      final repository = ProjectRepository(
+        databaseService: MockDatabaseService(initialProjects: [project]),
+      );
+      await tester.binding.setSurfaceSize(const Size(900, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MediaQuery(
-          data: const MediaQueryData(
-            size: Size(900, 1400),
-            textScaler: TextScaler.linear(2),
-          ),
-          child: ComparisonScreen(
-            project: project,
-            repository: repository,
-            adService: MockAdMobService(),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(900, 1400),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: ComparisonScreen(
+              project: project,
+              repository: repository,
+              adService: MockAdMobService(),
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(tester.takeException(), isNull);
-    await tester.scrollUntilVisible(
-      find.text('業者別カード形式'),
-      600,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-    expect(find.text('業者別カード形式'), findsOneWidget);
-    expect(find.textContaining('文字を大きく表示しているため'), findsOneWidget);
-  });
+      expect(tester.takeException(), isNull);
+      await tester.scrollUntilVisible(
+        find.text('業者別カード形式'),
+        600,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('業者別カード形式'), findsOneWidget);
+      expect(find.textContaining('文字を大きく表示しているため'), findsOneWidget);
+    },
+  );
 
   test('every production IconButton declares a tooltip', () {
     final missing = <String>[];

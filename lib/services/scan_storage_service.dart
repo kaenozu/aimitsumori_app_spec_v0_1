@@ -21,11 +21,7 @@ class ScanStorageService {
     }
     final root = await _scanRoot();
     final directory = Directory(
-      p.join(
-        root.path,
-        _safeSegment(projectId),
-        _safeSegment(sessionId),
-      ),
+      p.join(root.path, _safeSegment(projectId), _safeSegment(sessionId)),
     );
     await directory.create(recursive: true);
 
@@ -58,11 +54,7 @@ class ScanStorageService {
   }) async {
     final root = await _scanRoot();
     final directory = Directory(
-      p.join(
-        root.path,
-        _safeSegment(projectId),
-        _safeSegment(sessionId),
-      ),
+      p.join(root.path, _safeSegment(projectId), _safeSegment(sessionId)),
     );
     _assertInsideRoot(root, directory.path);
     await _deleteDirectory(directory, operation: 'scan session cleanup');

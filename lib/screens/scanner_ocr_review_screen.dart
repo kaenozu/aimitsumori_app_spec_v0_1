@@ -31,8 +31,7 @@ class ScannerOcrReviewScreen extends StatefulWidget {
   final OcrReviewStore? reviewStore;
 
   @override
-  State<ScannerOcrReviewScreen> createState() =>
-      _ScannerOcrReviewScreenState();
+  State<ScannerOcrReviewScreen> createState() => _ScannerOcrReviewScreenState();
 }
 
 class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
@@ -46,9 +45,10 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
   late final TextEditingController _totalController = TextEditingController(
     text: widget.result.quote.totalAmountYen == null
         ? ''
-        : NumberFormat('#,##0', 'ja_JP').format(
-            widget.result.quote.totalAmountYen,
-          ),
+        : NumberFormat(
+            '#,##0',
+            'ja_JP',
+          ).format(widget.result.quote.totalAmountYen),
   );
   late Map<String, OcrReviewStatus> _statuses = {
     for (final line in widget.result.reviewBundle.lines)
@@ -251,10 +251,7 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
                 labelText: '提示総額（税込・円）',
                 border: OutlineInputBorder(),
               ),
-              validator: (value) => validateAmount(
-                value,
-                maxDecimalPlaces: 0,
-              ),
+              validator: (value) => validateAmount(value, maxDecimalPlaces: 0),
             ),
             const SizedBox(height: 16),
             Card(

@@ -16,7 +16,14 @@ void main() {
 
     test('個数単位をpiecesへ変換する', () {
       for (final input in [
-        '個', '個入り', 'pc', 'pcs', 'piece', 'pieces', 'ＰＣ', 'ＰＣＳ',
+        '個',
+        '個入り',
+        'pc',
+        'pcs',
+        'piece',
+        'pieces',
+        'ＰＣ',
+        'ＰＣＳ',
       ]) {
         expect(UnitNormalizer.convert(input), 'pieces', reason: input);
       }
@@ -92,7 +99,16 @@ void main() {
 
     test('変換済み単位を再変換しても結果が変わらない', () {
       for (final input in [
-        'pieces', 'ml', 'l', 'g', 'kg', 'mm', 'cm', 'm', 'm2', 'm3',
+        'pieces',
+        'ml',
+        'l',
+        'g',
+        'kg',
+        'mm',
+        'cm',
+        'm',
+        'm2',
+        'm3',
       ]) {
         final once = UnitNormalizer.convert(input);
         final twice = UnitNormalizer.convert(once);

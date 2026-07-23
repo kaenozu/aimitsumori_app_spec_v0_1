@@ -26,12 +26,7 @@ class UnitNormalizer {
 
     final compact = normalized.replaceAll(RegExp(r'\s+'), '');
     return switch (compact) {
-      '個' ||
-      '個入り' ||
-      'pc' ||
-      'pcs' ||
-      'piece' ||
-      'pieces' => 'pieces',
+      '個' || '個入り' || 'pc' || 'pcs' || 'piece' || 'pieces' => 'pieces',
       'ml' || 'ミリリットル' => 'ml',
       'l' || 'ℓ' || 'リットル' => 'l',
       'g' || 'グラム' => 'g',
@@ -81,21 +76,9 @@ class UnitNormalizer {
         value: quantity / 100,
         unit: 'm',
       ),
-      'm' => CanonicalQuantity(
-        dimension: 'length',
-        value: quantity,
-        unit: 'm',
-      ),
-      '㎡' => CanonicalQuantity(
-        dimension: 'area',
-        value: quantity,
-        unit: '㎡',
-      ),
-      '㎥' => CanonicalQuantity(
-        dimension: 'volume',
-        value: quantity,
-        unit: '㎥',
-      ),
+      'm' => CanonicalQuantity(dimension: 'length', value: quantity, unit: 'm'),
+      '㎡' => CanonicalQuantity(dimension: 'area', value: quantity, unit: '㎡'),
+      '㎥' => CanonicalQuantity(dimension: 'volume', value: quantity, unit: '㎥'),
       _ => CanonicalQuantity(
         dimension: 'discrete:$unit',
         value: quantity,

@@ -74,7 +74,8 @@ class PurchaseVerificationService implements PurchaseVerifier {
       if (decoded is! Map<String, dynamic>) {
         return PurchaseVerificationResult.retryable;
       }
-      final productMatches = decoded['productId'] == null ||
+      final productMatches =
+          decoded['productId'] == null ||
           decoded['productId'] == purchase.productID;
       if (decoded['valid'] == true && productMatches) {
         return PurchaseVerificationResult.valid;
@@ -102,10 +103,7 @@ class PurchaseVerificationService implements PurchaseVerifier {
 }
 
 class TestingPurchaseVerifier implements PurchaseVerifier {
-  const TestingPurchaseVerifier({
-    this.valid = true,
-    this.result,
-  });
+  const TestingPurchaseVerifier({this.valid = true, this.result});
 
   final bool valid;
   final PurchaseVerificationResult? result;

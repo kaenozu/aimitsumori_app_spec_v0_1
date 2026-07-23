@@ -32,8 +32,7 @@ class DocumentScannerScreen extends StatefulWidget {
   final ScanStorageService storageService;
 
   @override
-  State<DocumentScannerScreen> createState() =>
-      _DocumentScannerScreenState();
+  State<DocumentScannerScreen> createState() => _DocumentScannerScreenState();
 }
 
 class _DocumentScannerScreenState extends State<DocumentScannerScreen>
@@ -207,9 +206,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
       difference += (current[index] - previous[index]).abs();
       count++;
     }
-    return count == 0
-        ? 0
-        : (difference / count / 255).clamp(0, 1).toDouble();
+    return count == 0 ? 0 : (difference / count / 255).clamp(0, 1).toDouble();
   }
 
   Future<void> _capturePage({bool auto = false}) async {
@@ -268,9 +265,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
         }
         _lastCapturedAt = DateTime.now();
         _awaitingDocumentChange = auto;
-        _notice = auto
-            ? '自動撮影しました。次のページに替えてください。'
-            : '撮影しました。続けて次のページを撮影できます。';
+        _notice = auto ? '自動撮影しました。次のページに替えてください。' : '撮影しました。続けて次のページを撮影できます。';
       });
     } on CameraException catch (error) {
       if (mounted) {
@@ -435,8 +430,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
                 children: [
                   if (_initializing)
                     const Center(child: CircularProgressIndicator())
-                  else if (controller != null &&
-                      controller.value.isInitialized)
+                  else if (controller != null && controller.value.isInitialized)
                     Center(
                       child: AspectRatio(
                         aspectRatio: controller.value.aspectRatio,
@@ -534,7 +528,8 @@ class _GuidanceBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final result = quality;
-    final message = error ??
+    final message =
+        error ??
         notice ??
         (awaitingDocumentChange
             ? '次のページに替えてください'
