@@ -17,10 +17,33 @@ class ComparisonEngine {
     if (quoteIds.toSet().length != quoteIds.length) {
       throw ArgumentError('比較対象のquoteIdが重複しています。');
     }
+
+    final expectedCategoryIds = CategoryMaster.categories
+        .map((category) => category.id)
+        .toSet();
     for (final quote in normalizedQuotes) {
       final categoryIds = quote.lines.map((line) => line.category.id).toList();
-      if (categoryIds.toSet().length != categoryIds.length) {
+      final actualCategoryIds = categoryIds.toSet();
+      if (actualCategoryIds.length != categoryIds.length) {
         throw ArgumentError('同じ見積内でカテゴリが重複しています: ${quote.quoteId}');
+      }
+
+      final missingCategoryIds = expectedCategoryIds.difference(
+        actualCategoryIds,
+      );
+      final unexpectedCategoryIds = actualCategoryIds.difference(
+        expectedCategoryIds,
+      );
+      if (missingCategoryIds.isNotEmpty || unexpectedCategoryIds.isNotEmpty) {
+        final details = <String>[
+          if (missingCategoryIds.isNotEmpty)
+            '不足: ${missingCategoryIds.toList()..sort()}',
+          if (unexpectedCategoryIds.isNotEmpty)
+            '想定外: ${unexpectedCategoryIds.toList()..sort()}',
+        ].join(' / ');
+        throw StateError(
+          '正規化結果のカテゴリ構成が不正です: ${quote.quoteId} ($details)',
+        );
       }
     }
 
@@ -67,16 +90,9 @@ class ComparisonEngine {
             category: category,
             cells: normalizedQuotes
                 .map((quote) {
-                  final matching = quote.lines.where(
+                  final line = quote.lines.singleWhere(
                     (value) => value.category.id == category.id,
                   );
-                  final line = matching.isEmpty
-                      ? NormalizedLine(
-                          category: category,
-                          inclusionStatus: InclusionStatus.unknown,
-                          uncertaintyReasons: const ['正規化結果にカテゴリがありません'],
-                        )
-                      : matching.single;
                   return ComparisonCell(
                     quoteId: quote.quoteId,
                     contractorName: quote.contractorName,
