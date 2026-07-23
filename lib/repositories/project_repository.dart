@@ -1,5 +1,5 @@
 /// ファイルパス: lib/repositories/project_repository.dart
-/// UI層からSQLite実装を隠す案件リポジトリ
+/// UI層からSQLite実装を隠す案件リポジトリ。
 library;
 
 import 'package:flutter/foundation.dart';
@@ -54,22 +54,32 @@ class ProjectRepository {
     ContractorQuote quote, {
     QuoteImportIntent revisionIntent = const QuoteImportIntent.newQuote(),
     String? sourceFileHash,
-  }) =>
-      _run(
-        operation: '見積の保存',
-        action: () async {
-          await _databaseService.saveQuote(projectId, quote);
-          final revisionService = _revisionService;
-          if (revisionService != null) {
-            await revisionService.recordQuote(
-              projectId: projectId,
-              quote: quote,
-              intent: revisionIntent,
-              sourceFileHash: sourceFileHash,
-            );
-          }
-        },
-      );
+  }) => _run(
+    operation: '見積の保存',
+    action: () async {
+      final revisionService = _revisionService;
+      if (revisionService == null) {
+        await _databaseService.saveQuote(projectId, quote);
+        return;
+      }
+
+      final db = await _databaseService.database;
+      await db.transaction((transaction) async {
+        await _databaseService.saveQuoteInTransaction(
+          transaction,
+          projectId,
+          quote,
+        );
+        await revisionService.recordQuoteInTransaction(
+          transaction,
+          projectId: projectId,
+          quote: quote,
+          intent: revisionIntent,
+          sourceFileHash: sourceFileHash,
+        );
+      });
+    },
+  );
 
   Future<void> saveComparisonResult(ComparisonReport report) => _run(
     operation: '比較結果の保存',
