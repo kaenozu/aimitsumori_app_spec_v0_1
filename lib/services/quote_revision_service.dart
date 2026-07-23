@@ -43,53 +43,81 @@ class QuoteRevisionService {
     QuoteImportIntent intent = const QuoteImportIntent.newQuote(),
     String? sourceFileHash,
   }) async {
+    final projectRows = await transaction.query(
+      'projects',
+      columns: const ['id'],
+      where: 'id = ?',
+      whereArgs: [projectId],
+      limit: 1,
+    );
+    if (projectRows.isEmpty) {
+      throw StateError('改訂履歴の保存先案件が見つかりません: $projectId');
+    }
+
     final existingRows = await transaction.query(
       'quote_revisions',
       where: 'quote_id = ?',
       whereArgs: [quote.id],
       limit: 1,
     );
-    if (existingRows.isNotEmpty) return _fromRow(existingRows.first);
+    if (existingRows.isNotEmpty) {
+      final existing = _fromRow(existingRows.first);
+      if (existing.projectId != projectId) {
+        throw StateError('同じ見積IDが別案件の改訂履歴で使用されています: ${quote.id}');
+      }
+      if (intent.isRevision &&
+          intent.quoteGroupId != null &&
+          existing.quoteGroupId != intent.quoteGroupId) {
+        throw StateError('見積IDと改訂グループの組み合わせが一致しません。');
+      }
+      return existing;
+    }
 
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final resolvedHash = sourceFileHash?.trim().isNotEmpty == true
-        ? sourceFileHash!.trim()
-        : _quoteHash(quote);
     final groupId = intent.isRevision
-        ? intent.quoteGroupId!
-        : 'group-$projectId-${_stableHash('${quote.id}|${quote.contractorName}')}' ;
+        ? _requiredGroupId(intent)
+        : 'group-$projectId-${_stableHash('${quote.id}|${quote.contractorName}')}';
 
-    final previousRows = await transaction.query(
+    final groupRows = await transaction.query(
       'quote_revisions',
+      columns: const ['id', 'project_id', 'revision_number'],
       where: 'quote_group_id = ?',
       whereArgs: [groupId],
       orderBy: 'revision_number DESC',
-      limit: 1,
     );
-    final revisionNumber = previousRows.isEmpty
-        ? 1
-        : (previousRows.first['revision_number'] as int) + 1;
-    final parentRevisionId = intent.isRevision
-        ? intent.parentRevisionId ??
-              (previousRows.isEmpty ? null : previousRows.first['id'] as String)
-        : null;
-
-    if (intent.isRevision && previousRows.isEmpty && parentRevisionId == null) {
-      throw StateError('改訂元の見積履歴が見つかりません。');
+    if (groupRows.any((row) => row['project_id'] != projectId)) {
+      throw StateError('改訂グループが別案件に属しています: $groupId');
     }
-    if (parentRevisionId != null) {
-      final parentRows = await transaction.query(
-        'quote_revisions',
-        columns: const ['quote_group_id'],
-        where: 'id = ?',
-        whereArgs: [parentRevisionId],
-        limit: 1,
-      );
-      if (parentRows.isEmpty || parentRows.first['quote_group_id'] != groupId) {
-        throw StateError('改訂元が同じ見積グループに属していません。');
+
+    final previousRevisionNumber = groupRows.isEmpty
+        ? 0
+        : groupRows.first['revision_number'] as int;
+    final revisionNumber = previousRevisionNumber + 1;
+
+    String? parentRevisionId;
+    if (intent.isRevision) {
+      final requestedParentId = intent.parentRevisionId;
+      if (requestedParentId != null) {
+        final parentRows = await transaction.query(
+          'quote_revisions',
+          columns: const ['id', 'project_id', 'quote_group_id'],
+          where: 'id = ?',
+          whereArgs: [requestedParentId],
+          limit: 1,
+        );
+        if (parentRows.isEmpty ||
+            parentRows.first['project_id'] != projectId ||
+            parentRows.first['quote_group_id'] != groupId) {
+          throw StateError('指定された親改訂版が同じ案件・グループに存在しません。');
+        }
+        parentRevisionId = requestedParentId;
+      } else if (groupRows.isNotEmpty) {
+        parentRevisionId = groupRows.first['id'] as String;
+      } else {
+        throw StateError('改訂版として保存するには親となる第1版が必要です。');
       }
     }
 
+    final normalizedHash = sourceFileHash?.trim();
     final revision = QuoteRevision(
       id: 'revision-$groupId-$revisionNumber',
       projectId: projectId,
@@ -98,11 +126,16 @@ class QuoteRevisionService {
       quoteGroupId: groupId,
       revisionNumber: revisionNumber,
       parentRevisionId: parentRevisionId,
-      sourceFileHash: resolvedHash,
-      importedAt: now,
-      changeReason: intent.changeReason,
+      sourceFileHash: normalizedHash == null || normalizedHash.isEmpty
+          ? _quoteHash(quote)
+          : normalizedHash,
+      importedAt: DateTime.now().millisecondsSinceEpoch,
+      changeReason: intent.changeReason?.trim().isEmpty == true
+          ? null
+          : intent.changeReason?.trim(),
       quoteSnapshot: quote,
     );
+
     await transaction.insert(
       'quote_revisions',
       _toRow(revision),
@@ -157,7 +190,6 @@ class QuoteRevisionService {
       columns: const ['quote_group_id'],
       where: 'quote_id = ?',
       whereArgs: [quoteId],
-      orderBy: 'revision_number DESC',
       limit: 1,
     );
     return rows.isEmpty ? null : rows.first['quote_group_id'] as String;
@@ -170,10 +202,17 @@ class QuoteRevisionService {
       columns: const ['id'],
       where: 'quote_id = ?',
       whereArgs: [quoteId],
-      orderBy: 'revision_number DESC',
       limit: 1,
     );
     return rows.isEmpty ? null : rows.first['id'] as String;
+  }
+
+  String _requiredGroupId(QuoteImportIntent intent) {
+    final groupId = intent.quoteGroupId?.trim();
+    if (groupId == null || groupId.isEmpty) {
+      throw StateError('改訂版として保存するには改訂グループIDが必要です。');
+    }
+    return groupId;
   }
 
   Map<String, Object?> _toRow(QuoteRevision revision) => {
