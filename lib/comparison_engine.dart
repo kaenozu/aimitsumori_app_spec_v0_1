@@ -41,9 +41,7 @@ class ComparisonEngine {
           if (unexpectedCategoryIds.isNotEmpty)
             '想定外: ${unexpectedCategoryIds.toList()..sort()}',
         ].join(' / ');
-        throw StateError(
-          '正規化結果のカテゴリ構成が不正です: ${quote.quoteId} ($details)',
-        );
+        throw StateError('正規化結果のカテゴリ構成が不正です: ${quote.quoteId} ($details)');
       }
     }
 
