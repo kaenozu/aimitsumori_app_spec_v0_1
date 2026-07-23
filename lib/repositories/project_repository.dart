@@ -95,6 +95,17 @@ class ProjectRepository {
           intent: revisionIntent,
           sourceFileHash: sourceFileHash,
         );
+
+        final parentQuote = revisionIntent.parentQuote;
+        if (revisionIntent.isRevision &&
+            parentQuote != null &&
+            parentQuote.id != quote.id) {
+          await transaction.delete(
+            'contractor_quotes',
+            where: 'id = ? AND project_id = ?',
+            whereArgs: [parentQuote.id, projectId],
+          );
+        }
       });
     },
   );
