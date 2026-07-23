@@ -23,16 +23,16 @@ env:
 jobs:
   format-agent-pr:
     name: Format agent branch
-    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'agent/')
+    if: (github.event_name == 'pull_request' && startsWith(github.head_ref, 'agent/')) || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/agent/'))
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write
     steps:
-      - name: Check out head branch
+      - name: Check out agent branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Apply analyzer fixes
         run: |
@@ -43,9 +43,11 @@ jobs:
           text = quote_input.read_text(encoding='utf-8')
           old = 'FilePicker.platform.pickFiles('
           new = 'FilePicker.pickFiles('
-          if old not in text:
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
               raise SystemExit('quote_input_screen.dart target not found')
-          quote_input.write_text(text.replace(old, new, 1), encoding='utf-8')
+          quote_input.write_text(text, encoding='utf-8')
 
           comparison = Path('lib/screens/comparison_screen.dart')
           text = comparison.read_text(encoding='utf-8')
@@ -69,9 +71,11 @@ jobs:
       throw StateError('比較画面のキャプチャ領域を取得できませんでした。');
     }
 '''
-          if old not in text:
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
               raise SystemExit('comparison_screen.dart target not found')
-          comparison.write_text(text.replace(old, new, 1), encoding='utf-8')
+          comparison.write_text(text, encoding='utf-8')
 
           scanner = Path('lib/screens/document_scanner_screen.dart')
           text = scanner.read_text(encoding='utf-8')
@@ -92,14 +96,17 @@ jobs:
     });
   }
 '''
-          if old_method not in text:
+          if old_method in text:
+              text = text.replace(old_method, new_method, 1)
+          elif new_method not in text:
               raise SystemExit('document_scanner_screen.dart method target not found')
-          text = text.replace(old_method, new_method, 1)
           old_callback = '                  onReorder: _reorder,'
           new_callback = '                  onReorderItem: _reorder,'
-          if old_callback not in text:
+          if old_callback in text:
+              text = text.replace(old_callback, new_callback, 1)
+          elif new_callback not in text:
               raise SystemExit('document_scanner_screen.dart callback target not found')
-          scanner.write_text(text.replace(old_callback, new_callback, 1), encoding='utf-8')
+          scanner.write_text(text, encoding='utf-8')
           PY
 
       - name: Set up Flutter
@@ -123,7 +130,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add lib test integration_test pubspec.lock
           git commit -m "fix: resolve remaining Flutter analyzer issues"
-          git push origin HEAD:${{ github.head_ref }}
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}
 
   quality:
     name: Format, analyze, test, debug build
