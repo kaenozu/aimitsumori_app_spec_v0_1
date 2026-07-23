@@ -20,6 +20,7 @@ class OcrCropPreview extends StatefulWidget {
 class _OcrCropPreviewState extends State<OcrCropPreview> {
   ui.Image? _image;
   Object? _error;
+  int _loadGeneration = 0;
 
   @override
   void initState() {
@@ -39,23 +40,39 @@ class _OcrCropPreviewState extends State<OcrCropPreview> {
   }
 
   Future<void> _load() async {
+    final generation = ++_loadGeneration;
+    ui.Codec? codec;
     try {
-      final bytes = await File(widget.line.sourceImagePath).readAsBytes();
-      final codec = await ui.instantiateImageCodec(bytes);
+      final file = File(widget.line.sourceImagePath);
+      if (!await file.exists()) {
+        throw StateError('OCR元画像が見つかりません。');
+      }
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) throw StateError('OCR元画像が空です。');
+      codec = await ui.instantiateImageCodec(bytes);
       final frame = await codec.getNextFrame();
-      codec.dispose();
-      if (!mounted) {
+      if (!mounted || generation != _loadGeneration) {
         frame.image.dispose();
         return;
       }
-      setState(() => _image = frame.image);
+      final previous = _image;
+      setState(() {
+        _image = frame.image;
+        _error = null;
+      });
+      previous?.dispose();
     } catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (mounted && generation == _loadGeneration) {
+        setState(() => _error = error);
+      }
+    } finally {
+      codec?.dispose();
     }
   }
 
   @override
   void dispose() {
+    _loadGeneration++;
     _image?.dispose();
     super.dispose();
   }
@@ -89,7 +106,10 @@ class _OcrCropPreviewState extends State<OcrCropPreview> {
                         dimension: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('元画像を表示できません', textAlign: TextAlign.center),
+                    : const Text(
+                        '元画像を表示できません',
+                        textAlign: TextAlign.center,
+                      ),
               ),
       ),
     );
@@ -104,24 +124,24 @@ class _CropPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (size.isEmpty || image.width <= 0 || image.height <= 0) return;
+
     const horizontalPadding = 36.0;
     const verticalPadding = 20.0;
-    final left = (rect.left - horizontalPadding).clamp(
-      0.0,
-      image.width.toDouble(),
-    );
-    final top = (rect.top - verticalPadding).clamp(
-      0.0,
-      image.height.toDouble(),
-    );
-    final right = (rect.right + horizontalPadding).clamp(
-      left + 1,
-      image.width.toDouble(),
-    );
-    final bottom = (rect.bottom + verticalPadding).clamp(
-      top + 1,
-      image.height.toDouble(),
-    );
+    final maxWidth = image.width.toDouble();
+    final maxHeight = image.height.toDouble();
+    final left = (rect.left - horizontalPadding)
+        .clamp(0.0, (maxWidth - 1).clamp(0.0, maxWidth))
+        .toDouble();
+    final top = (rect.top - verticalPadding)
+        .clamp(0.0, (maxHeight - 1).clamp(0.0, maxHeight))
+        .toDouble();
+    final right = (rect.right + horizontalPadding)
+        .clamp(left + 1, maxWidth)
+        .toDouble();
+    final bottom = (rect.bottom + verticalPadding)
+        .clamp(top + 1, maxHeight)
+        .toDouble();
     final source = Rect.fromLTRB(left, top, right, bottom);
     final paint = Paint()..filterQuality = FilterQuality.medium;
     canvas.drawImageRect(image, source, Offset.zero & size, paint);
