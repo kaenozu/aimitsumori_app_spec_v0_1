@@ -37,7 +37,13 @@ class OcrReviewStore {
     final payload = jsonEncode({
       for (final entry in statuses.entries) entry.key: entry.value.code,
     });
-    await storage.setString('$_prefix${_sourceKey(documentKey)}', payload);
+    final saved = await storage.setString(
+      '$_prefix${_sourceKey(documentKey)}',
+      payload,
+    );
+    if (!saved) {
+      throw StateError('OCR確認状態を保存できませんでした。');
+    }
   }
 
   /// 「全データを削除」に合わせてOCR確認状態も消去する。
@@ -55,11 +61,6 @@ class OcrReviewStore {
     }
   }
 
-  static String _sourceKey(String value) {
-    var hash = 0x811C9DC5;
-    for (final codeUnit in value.codeUnits) {
-      hash = ((hash ^ codeUnit) * 0x01000193) & 0xFFFFFFFF;
-    }
-    return hash.toUnsigned(32).toRadixString(16).padLeft(8, '0');
-  }
+  static String _sourceKey(String value) =>
+      sha256.convert(utf8.encode(value)).toString();
 }
