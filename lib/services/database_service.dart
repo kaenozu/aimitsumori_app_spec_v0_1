@@ -19,7 +19,7 @@ class DatabaseService {
 
   static final DatabaseService instance = DatabaseService._();
   static const _databaseName = 'aimitsumori.db';
-  static const _databaseVersion = 3;
+  static const _databaseVersion = 4;
 
   Database? _database;
 
@@ -56,8 +56,10 @@ class DatabaseService {
     int oldVersion,
     int newVersion,
   ) async {
+    await _createCoreSchema(db);
     if (oldVersion < 2) await _createRequirementsSchema(db);
     if (oldVersion < 3) await _createRevisionSchema(db);
+    if (oldVersion < 4) await _migrateRevisionIndexes(db);
   }
 
   Future<void> _createCoreSchema(DatabaseExecutor db) async {
@@ -166,25 +168,40 @@ class DatabaseService {
     );
   }
 
+  Future<void> _migrateRevisionIndexes(DatabaseExecutor db) async {
+    await _createRequirementsSchema(db);
+    await _createRevisionSchema(db);
+    await db.execute('DROP INDEX IF EXISTS idx_quote_revisions_quote');
+    await db.execute(
+      'CREATE UNIQUE INDEX idx_quote_revisions_quote '
+      'ON quote_revisions(quote_id)',
+    );
+  }
+
   Future<List<Project>> getProjects() async {
     final db = await database;
     final projectRows = await db.query('projects', orderBy: 'updated_at DESC');
     if (projectRows.isEmpty) return const [];
 
-    final projectIds = projectRows.map((row) => row['id'] as String).toList();
-    final placeholders = List.filled(projectIds.length, '?').join(',');
+    final projectIds = projectRows
+        .map((row) => row['id'] as String)
+        .toList(growable: false);
+    final projectPlaceholders = List.filled(projectIds.length, '?').join(',');
     final quoteRows = await db.query(
       'contractor_quotes',
-      where: 'project_id IN ($placeholders)',
+      where: 'project_id IN ($projectPlaceholders)',
       whereArgs: projectIds,
-      orderBy: 'created_at ASC',
+      orderBy: 'created_at ASC, id ASC',
     );
-    final quoteIds = quoteRows.map((row) => row['id'] as String).toList();
+    final quoteIds = quoteRows
+        .map((row) => row['id'] as String)
+        .toList(growable: false);
     final itemRows = quoteIds.isEmpty
         ? <Map<String, Object?>>[]
         : await db.query(
             'line_items',
-            where: 'quote_id IN (${List.filled(quoteIds.length, '?').join(',')})',
+            where:
+                'quote_id IN (${List.filled(quoteIds.length, '?').join(',')})',
             whereArgs: quoteIds,
             orderBy: 'sort_order ASC, id ASC',
           );
@@ -235,7 +252,7 @@ class DatabaseService {
       'contractor_quotes',
       where: 'project_id = ?',
       whereArgs: [projectId],
-      orderBy: 'created_at ASC',
+      orderBy: 'created_at ASC, id ASC',
     );
     final quotes = <ContractorQuote>[];
     for (final quoteRow in quoteRows) {
@@ -311,7 +328,7 @@ class DatabaseService {
       }
 
       for (final quote in project.quotes) {
-        await saveQuoteInTransaction(transaction, project.id, quote);
+        await _upsertQuote(transaction, project.id, quote);
       }
       await _invalidateComparison(transaction, project.id);
     });
@@ -320,6 +337,9 @@ class DatabaseService {
   Future<void> updateProject(Project project) => saveProject(project);
 
   Future<void> _upsertProject(DatabaseExecutor db, Project project) async {
+    if (project.id.trim().isEmpty) {
+      throw ArgumentError.value(project.id, 'project.id', '空のIDは保存できません。');
+    }
     final row = _projectToRow(project);
     final updated = await db.update(
       'projects',
@@ -401,6 +421,14 @@ class DatabaseService {
     if (quote.id.trim().isEmpty) {
       throw ArgumentError.value(quote.id, 'quote.id', '空のIDは保存できません。');
     }
+    if (quote.contractorName.trim().isEmpty) {
+      throw ArgumentError.value(
+        quote.contractorName,
+        'quote.contractorName',
+        '業者名は空にできません。',
+      );
+    }
+
     final existing = await db.query(
       'contractor_quotes',
       columns: const ['project_id'],
@@ -415,7 +443,7 @@ class DatabaseService {
     final row = {
       'id': quote.id,
       'project_id': projectId,
-      'contractor_name': quote.contractorName,
+      'contractor_name': quote.contractorName.trim(),
       'total_amount_yen': quote.totalAmountYen,
       'note': quote.note,
       'created_at': quote.createdAtEpochMillis,
@@ -439,6 +467,13 @@ class DatabaseService {
     for (final item in quote.lineItems) {
       if (item.id.trim().isEmpty || !itemIds.add(item.id)) {
         throw StateError('明細IDが空、または重複しています: ${item.id}');
+      }
+      if (CategoryMaster.find(item.categoryId) == null) {
+        throw ArgumentError.value(
+          item.categoryId,
+          'item.categoryId',
+          '未定義のカテゴリです。',
+        );
       }
     }
 
@@ -475,7 +510,7 @@ class DatabaseService {
 
   Map<String, Object?> _projectToRow(Project project) => {
     'id': project.id,
-    'name': project.name,
+    'name': project.name.trim(),
     'status': project.status.code,
     'created_at': project.createdAtEpochMillis,
     'updated_at': project.updatedAtEpochMillis,
@@ -517,7 +552,8 @@ class DatabaseService {
 
     try {
       final payload =
-          jsonDecode(rows.first['payload_json'] as String) as Map<String, dynamic>;
+          jsonDecode(rows.first['payload_json'] as String)
+              as Map<String, dynamic>;
       return _reportFromJson(payload);
     } on Object catch (error, stackTrace) {
       debugPrint('Corrupt comparison result was ignored: $error\n$stackTrace');
