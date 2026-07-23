@@ -35,6 +35,8 @@ class AdService {
     defaultValue: 'remove_ads',
   );
   static const String _adFreePreferenceKey = 'ad_free_verified_cache_v2';
+  static const String _adFreeVerifiedAtKey = 'ad_free_verified_at_v2';
+  static const Duration _verificationGracePeriod = Duration(days: 7);
 
   static const String _configuredAndroidBannerId = String.fromEnvironment(
     'ADMOB_ANDROID_BANNER_ID',
@@ -118,14 +120,7 @@ class AdService {
     if (_initialized) return;
     _initialized = true;
 
-    if (!kReleaseMode) {
-      try {
-        final preferences = await SharedPreferences.getInstance();
-        adFree.value = preferences.getBool(_adFreePreferenceKey) ?? false;
-      } catch (error) {
-        debugPrint('Ad preference load failed: $error');
-      }
-    }
+    await _loadRecentVerifiedEntitlement();
     if (!isSupportedPlatform) return;
 
     _purchaseSubscription ??= _inAppPurchase.purchaseStream.listen(
@@ -150,6 +145,23 @@ class AdService {
     }
 
     await restorePurchases();
+  }
+
+  Future<void> _loadRecentVerifiedEntitlement() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final cached = preferences.getBool(_adFreePreferenceKey) ?? false;
+      final verifiedAtMillis = preferences.getInt(_adFreeVerifiedAtKey);
+      if (!cached || verifiedAtMillis == null) return;
+
+      final verifiedAt = DateTime.fromMillisecondsSinceEpoch(verifiedAtMillis);
+      final age = DateTime.now().difference(verifiedAt);
+      if (!age.isNegative && age <= _verificationGracePeriod) {
+        adFree.value = true;
+      }
+    } catch (error) {
+      debugPrint('Ad entitlement cache load failed: $error');
+    }
   }
 
   Future<void> _loadRemoveAdsProduct() async {
@@ -330,8 +342,19 @@ class AdService {
   Future<void> _setAdFree(bool value) async {
     try {
       final preferences = await SharedPreferences.getInstance();
-      final saved = await preferences.setBool(_adFreePreferenceKey, value);
-      if (!saved) debugPrint('Ad preference was not persisted.');
+      final cacheSaved = await preferences.setBool(
+        _adFreePreferenceKey,
+        value,
+      );
+      final timestampSaved = value
+          ? await preferences.setInt(
+              _adFreeVerifiedAtKey,
+              DateTime.now().millisecondsSinceEpoch,
+            )
+          : await preferences.remove(_adFreeVerifiedAtKey);
+      if (!cacheSaved || !timestampSaved) {
+        debugPrint('Ad entitlement cache was not persisted completely.');
+      }
     } catch (error) {
       debugPrint('Ad preference save failed: $error');
     }
