@@ -34,6 +34,74 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
 
+      - name: Apply analyzer fixes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          quote_input = Path('lib/screens/quote_input_screen.dart')
+          text = quote_input.read_text(encoding='utf-8')
+          old = 'FilePicker.platform.pickFiles('
+          new = 'FilePicker.pickFiles('
+          if old not in text:
+              raise SystemExit('quote_input_screen.dart target not found')
+          quote_input.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          comparison = Path('lib/screens/comparison_screen.dart')
+          text = comparison.read_text(encoding='utf-8')
+          old = '''  Future<_CapturedComparison> _captureComparison() async {
+    await WidgetsBinding.instance.endOfFrame;
+    final renderObject = _captureKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderRepaintBoundary || renderObject.size.isEmpty) {
+      throw StateError('比較画面のキャプチャ領域を取得できませんでした。');
+    }
+    final pixelRatio = MediaQuery.devicePixelRatioOf(
+      context,
+    ).clamp(1.0, 3.0).toDouble();
+'''
+          new = '''  Future<_CapturedComparison> _captureComparison() async {
+    final pixelRatio = MediaQuery.devicePixelRatioOf(
+      context,
+    ).clamp(1.0, 3.0).toDouble();
+    await WidgetsBinding.instance.endOfFrame;
+    final renderObject = _captureKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderRepaintBoundary || renderObject.size.isEmpty) {
+      throw StateError('比較画面のキャプチャ領域を取得できませんでした。');
+    }
+'''
+          if old not in text:
+              raise SystemExit('comparison_screen.dart target not found')
+          comparison.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          scanner = Path('lib/screens/document_scanner_screen.dart')
+          text = scanner.read_text(encoding='utf-8')
+          old_method = '''  void _reorder(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) newIndex--;
+      final page = _pages.removeAt(oldIndex);
+      _pages.insert(newIndex, page);
+      _retakeIndex = null;
+    });
+  }
+'''
+          new_method = '''  void _reorder(int oldIndex, int newIndex) {
+    setState(() {
+      final page = _pages.removeAt(oldIndex);
+      _pages.insert(newIndex, page);
+      _retakeIndex = null;
+    });
+  }
+'''
+          if old_method not in text:
+              raise SystemExit('document_scanner_screen.dart method target not found')
+          text = text.replace(old_method, new_method, 1)
+          old_callback = '                  onReorder: _reorder,'
+          new_callback = '                  onReorderItem: _reorder,'
+          if old_callback not in text:
+              raise SystemExit('document_scanner_screen.dart callback target not found')
+          scanner.write_text(text.replace(old_callback, new_callback, 1), encoding='utf-8')
+          PY
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -46,7 +114,7 @@ jobs:
           flutter pub get
           dart format lib test integration_test
 
-      - name: Commit formatting and lockfile
+      - name: Commit source fixes, formatting, and lockfile
         run: |
           if git diff --quiet; then
             exit 0
@@ -54,7 +122,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add lib test integration_test pubspec.lock
-          git commit -m "style: apply Dart formatting and resolve lockfile"
+          git commit -m "fix: resolve remaining Flutter analyzer issues"
           git push origin HEAD:${{ github.head_ref }}
 
   quality:
