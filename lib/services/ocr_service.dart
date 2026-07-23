@@ -1,5 +1,5 @@
 /// ファイルパス: lib/services/ocr_service.dart
-/// PDFまたは画像から見積書テキスト、位置情報、信頼度を抽出するサービス
+/// PDFまたは画像から見積書テキスト、位置情報、信頼度を抽出するサービス。
 library;
 
 import 'dart:io';
@@ -18,6 +18,14 @@ import 'ocr_confidence_engine.dart';
 class OcrService {
   static const _maxInputBytes = 30 * 1024 * 1024;
   static const _maxPdfPages = 50;
+  static const _supportedImageExtensions = {
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.webp',
+    '.heic',
+    '.heif',
+  };
 
   static bool get isSupportedPlatform =>
       defaultTargetPlatform == TargetPlatform.android ||
@@ -69,16 +77,25 @@ class OcrService {
     lastSourceFileHash = null;
 
     final sourceFile = File(filePath);
+    if (!await sourceFile.exists()) {
+      throw const OcrException('選択したファイルが見つかりません。もう一度選択してください。');
+    }
     final inputBytes = await sourceFile.length();
+    if (inputBytes <= 0) {
+      throw const OcrException('空のファイルは読み取れません。');
+    }
     if (inputBytes > _maxInputBytes) {
       throw const OcrException('ファイルが大きすぎます。30MB以下のPDFまたは画像を選択してください。');
     }
-    final sourceBytes = await sourceFile.readAsBytes();
-    QuoteRevisionSession.instance.setSourceFileHash(
-      sha256.convert(sourceBytes).toString(),
-    );
 
     final extension = p.extension(filePath).toLowerCase();
+    if (extension != '.pdf' && !_supportedImageExtensions.contains(extension)) {
+      throw const OcrException('対応しているPDFまたは画像ファイルを選択してください。');
+    }
+
+    final sourceBytes = await sourceFile.readAsBytes();
+    lastSourceFileHash = sha256.convert(sourceBytes).toString();
+
     final document = extension == '.pdf'
         ? await _recognizePdf(filePath)
         : await _recognizeImage(filePath, pageNumber: 1);
@@ -128,6 +145,9 @@ class OcrService {
     await renderer.open();
     try {
       final pageCount = await renderer.getPageCount();
+      if (pageCount <= 0) {
+        throw const OcrException('PDFに読み取り可能なページがありません。');
+      }
       if (pageCount > _maxPdfPages) {
         throw const OcrException('PDFのページ数が多すぎます。50ページ以下のPDFを選択してください。');
       }
@@ -136,10 +156,6 @@ class OcrService {
         await renderer.openPage(pageIndex: pageIndex);
         try {
           final size = await renderer.getPageSize(pageIndex: pageIndex);
-          final scale = _renderScale(
-            size.width.toDouble(),
-            size.height.toDouble(),
-          );
           final bytes = await renderer.renderPage(
             pageIndex: pageIndex,
             x: 0,
@@ -183,20 +199,11 @@ class OcrService {
     );
   }
 
-  double _renderScale(double width, double height) {
-    const targetScale = 2.0;
-    const maxDimension = 6000.0;
-    final longest = width > height ? width : height;
-    if (longest <= 0) return 1;
-    return (maxDimension / longest).clamp(1.0, targetScale).toDouble();
-  }
-
   RawQuoteData _parse({
     required _RecognizedDocument document,
     required String sourcePath,
   }) {
     final textLines = _normalizedTextLines(document.text);
-
     final contractorName = _parseContractorName(textLines);
     final totalAmount = _parseTotalAmount(textLines);
     final items = <RawQuoteLineItem>[];
@@ -250,7 +257,9 @@ class OcrService {
       .toList();
 
   static String _parseContractorName(List<String> lines) {
-    final companyPattern = RegExp(r'(株式会社|有限会社|合同会社|工務店|建設|建築|外構|エクステリア|造園)');
+    final companyPattern = RegExp(
+      r'(株式会社|有限会社|合同会社|工務店|建設|建築|外構|エクステリア|造園)',
+    );
     final excluded = RegExp(r'(御?見積|見積書|請求|合計|工事名|お客様|様$)');
 
     for (final line in lines.take(15)) {
@@ -279,10 +288,9 @@ class OcrService {
     ];
     for (final keyword in totalKeywords) {
       for (final line in lines) {
-        if (line.contains(keyword)) {
-          final amounts = OcrConfidenceEngine.extractAmountCandidates(line);
-          if (amounts.isNotEmpty) return amounts.last;
-        }
+        if (!line.contains(keyword)) continue;
+        final amounts = OcrConfidenceEngine.extractAmountCandidates(line);
+        if (amounts.isNotEmpty) return amounts.last;
       }
     }
 
@@ -302,8 +310,8 @@ class OcrService {
       try {
         final file = File(path);
         if (await file.exists()) await file.delete();
-      } catch (_) {
-        // 一時ファイル削除失敗は次回OSクリーンアップへ委ねる。
+      } catch (error) {
+        debugPrint('Temporary OCR image cleanup failed: $error');
       }
     }
   }
@@ -313,7 +321,6 @@ class OcrService {
       try {
         await _recognizer.close();
       } catch (error) {
-        // ネイティブ実装がない環境でも一時ファイルの削除を継続する。
         debugPrint('OCR recognizer close failed: $error');
       }
     }
