@@ -1,6 +1,8 @@
 /// 数値・単位・CSVセルを安全に正規化する共通ユーティリティ。
 library;
 
+export '../unit_normalizer.dart';
+
 class LocalizedNumberParser {
   const LocalizedNumberParser._();
 
@@ -65,65 +67,6 @@ class LocalizedNumberParser {
   }
 }
 
-class UnitNormalizer {
-  const UnitNormalizer._();
-
-  static String? normalize(String? raw) {
-    final value = raw?.trim().toLowerCase();
-    if (value == null || value.isEmpty) return null;
-    final compact = value.replaceAll(RegExp(r'\s+'), '');
-    return switch (compact) {
-      'm2' || 'm^2' || 'm²' || '㎡' => '㎡',
-      'm3' || 'm^3' || 'm³' || '㎥' => '㎥',
-      'メートル' || 'ｍ' || 'm' => 'm',
-      'ミリ' || 'ミリメートル' || 'ｍｍ' || 'mm' => 'mm',
-      'センチ' || 'センチメートル' || 'ｃｍ' || 'cm' => 'cm',
-      'ヶ所' || 'ケ所' || 'か所' || '箇所' => '箇所',
-      '一式' || '式' => '式',
-      _ => compact,
-    };
-  }
-
-  static _ConvertedQuantity? _convert(double quantity, String? rawUnit) {
-    final unit = normalize(rawUnit);
-    if (unit == null) return null;
-    return switch (unit) {
-      'mm' => _ConvertedQuantity('length', quantity / 1000),
-      'cm' => _ConvertedQuantity('length', quantity / 100),
-      'm' => _ConvertedQuantity('length', quantity),
-      '㎡' => _ConvertedQuantity('area', quantity),
-      '㎥' => _ConvertedQuantity('volume', quantity),
-      _ => _ConvertedQuantity('discrete:$unit', quantity),
-    };
-  }
-
-  static bool equivalent(String? left, String? right) {
-    final normalizedLeft = normalize(left);
-    final normalizedRight = normalize(right);
-    if (normalizedLeft == null || normalizedRight == null) return false;
-    final leftConverted = _convert(1, normalizedLeft);
-    final rightConverted = _convert(1, normalizedRight);
-    return leftConverted?.dimension == rightConverted?.dimension;
-  }
-
-  static bool quantitiesEquivalent({
-    required double expected,
-    required String expectedUnit,
-    required double actual,
-    required String actualUnit,
-  }) {
-    final convertedExpected = _convert(expected, expectedUnit);
-    final convertedActual = _convert(actual, actualUnit);
-    if (convertedExpected == null || convertedActual == null) return false;
-    if (convertedExpected.dimension != convertedActual.dimension) return false;
-    final tolerance = (convertedExpected.value.abs() * 0.001).clamp(
-      0.01,
-      1000.0,
-    );
-    return (convertedExpected.value - convertedActual.value).abs() <= tolerance;
-  }
-}
-
 class CsvCellSanitizer {
   const CsvCellSanitizer._();
 
@@ -133,11 +76,4 @@ class CsvCellSanitizer {
     if (value.isEmpty || !_formulaPrefix.hasMatch(value)) return value;
     return "'$value";
   }
-}
-
-class _ConvertedQuantity {
-  const _ConvertedQuantity(this.dimension, this.value);
-
-  final String dimension;
-  final double value;
 }
