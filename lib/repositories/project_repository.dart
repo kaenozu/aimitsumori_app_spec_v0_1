@@ -8,20 +8,26 @@ import '../models.dart';
 import '../quote_revision_models.dart';
 import '../services/database_service.dart';
 import '../services/quote_revision_service.dart';
+import '../services/scan_storage_service.dart';
 
 class ProjectRepository {
   ProjectRepository({
     DatabaseService? databaseService,
     QuoteRevisionService? revisionService,
+    ScanStorageService? scanStorageService,
   }) : _databaseService = databaseService ?? DatabaseService.instance,
        _revisionService =
            revisionService ??
-           (databaseService == null ? QuoteRevisionService.instance : null);
+           (databaseService == null ? QuoteRevisionService.instance : null),
+       _scanStorageService =
+           scanStorageService ??
+           (databaseService == null ? const ScanStorageService() : null);
 
   static final ProjectRepository instance = ProjectRepository();
 
   final DatabaseService _databaseService;
   final QuoteRevisionService? _revisionService;
+  final ScanStorageService? _scanStorageService;
 
   Future<List<Project>> getProjects() =>
       _run(operation: '案件の読み込み', action: _databaseService.getProjects);
@@ -43,11 +49,21 @@ class ProjectRepository {
 
   Future<void> deleteProject(String projectId) => _run(
     operation: '案件の削除',
-    action: () => _databaseService.deleteProject(projectId),
+    action: () async {
+      await _databaseService.deleteProject(projectId);
+      await _scanStorageService?.cleanupProject(projectId);
+    },
   );
 
-  Future<void> deleteAllData() =>
-      _run(operation: '全データの削除', action: _databaseService.deleteAllData);
+  Future<void> deleteAllData() => _run(
+    operation: '全データの削除',
+    action: () async {
+      await Future.wait<void>([
+        _databaseService.deleteAllData(),
+        if (_scanStorageService case final storage?) storage.cleanupAll(),
+      ], eagerError: false);
+    },
+  );
 
   Future<void> saveQuote(
     String projectId,
