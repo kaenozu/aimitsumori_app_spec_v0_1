@@ -63,27 +63,33 @@ class Normalizer {
     }
 
     final quantityItems = items.where((item) => item.quantity != null).toList();
-    final normalizedUnits = items
-        .map((item) => UnitNormalizer.normalize(item.unit))
-        .whereType<String>()
-        .toSet();
+    final canonicalQuantities = quantityItems
+        .map(
+          (item) => UnitNormalizer.toCanonical(item.quantity!, item.unit),
+        )
+        .whereType<CanonicalQuantity>()
+        .toList(growable: false);
 
     double? quantity;
     String? unit;
-    if (quantityItems.length != items.length) {
+    if (quantityItems.length != items.length ||
+        canonicalQuantities.length != items.length) {
       if (quantityItems.isNotEmpty) {
-        reasons.add('数量未記載の明細を含むため、数量を合算できません');
+        reasons.add('数量または単位が未記載の明細を含むため、数量を合算できません');
       }
-    } else if (normalizedUnits.length == 1) {
-      unit = normalizedUnits.single;
-      quantity = quantityItems.fold<double>(
-        0,
-        (sum, item) => sum + item.quantity!,
-      );
-    } else if (normalizedUnits.isEmpty && items.length == 1) {
-      quantity = items.single.quantity;
     } else {
-      reasons.add('複数明細の単位が一致しないため、数量を合算できません');
+      final dimensions = canonicalQuantities
+          .map((value) => value.dimension)
+          .toSet();
+      if (dimensions.length == 1) {
+        quantity = canonicalQuantities.fold<double>(
+          0,
+          (sum, value) => sum + value.value,
+        );
+        unit = canonicalQuantities.first.unit;
+      } else {
+        reasons.add('複数明細の単位を同じ尺度へ換算できないため、数量を合算できません');
+      }
     }
 
     if (category.quantityExpected && (quantity == null || unit == null)) {
