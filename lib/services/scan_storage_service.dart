@@ -2,6 +2,7 @@ library;
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -43,8 +44,12 @@ class ScanStorageService {
   Future<void> deletePath(String path) async {
     final root = await _scanRoot();
     _assertInsideRoot(root, path);
-    final file = File(path);
-    if (await file.exists()) await file.delete();
+    try {
+      final file = File(path);
+      if (await file.exists()) await file.delete();
+    } on FileSystemException catch (error, stackTrace) {
+      debugPrint('Scan file cleanup failed: $error\n$stackTrace');
+    }
   }
 
   Future<void> cleanupSession({
@@ -60,19 +65,30 @@ class ScanStorageService {
       ),
     );
     _assertInsideRoot(root, directory.path);
-    if (await directory.exists()) await directory.delete(recursive: true);
+    await _deleteDirectory(directory, operation: 'scan session cleanup');
   }
 
   Future<void> cleanupProject(String projectId) async {
     final root = await _scanRoot();
     final directory = Directory(p.join(root.path, _safeSegment(projectId)));
     _assertInsideRoot(root, directory.path);
-    if (await directory.exists()) await directory.delete(recursive: true);
+    await _deleteDirectory(directory, operation: 'project scan cleanup');
   }
 
   Future<void> cleanupAll() async {
     final root = await _scanRoot();
-    if (await root.exists()) await root.delete(recursive: true);
+    await _deleteDirectory(root, operation: 'all scan cleanup');
+  }
+
+  Future<void> _deleteDirectory(
+    Directory directory, {
+    required String operation,
+  }) async {
+    try {
+      if (await directory.exists()) await directory.delete(recursive: true);
+    } on FileSystemException catch (error, stackTrace) {
+      debugPrint('$operation failed: $error\n$stackTrace');
+    }
   }
 
   Future<Directory> _scanRoot() async {
