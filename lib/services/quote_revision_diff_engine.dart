@@ -14,19 +14,14 @@ class QuoteRevisionDiffEngine {
     final changes = <QuoteLineChange>[];
 
     for (final key in keys) {
-      final oldItems = [...?beforeItems[key]]
-        ..sort((left, right) => left.sortOrder.compareTo(right.sortOrder));
-      final newItems = [...?afterItems[key]]
-        ..sort((left, right) => left.sortOrder.compareTo(right.sortOrder));
-      final pairedCount = oldItems.length < newItems.length
-          ? oldItems.length
-          : newItems.length;
+      final oldItems = [...?beforeItems[key]];
+      final newItems = [...?afterItems[key]];
+      final matches = _matchItems(oldItems, newItems);
 
-      for (var index = 0; index < pairedCount; index++) {
-        _compareItem(oldItems[index], newItems[index], changes);
+      for (final match in matches.pairs) {
+        _compareItem(match.before, match.after, changes);
       }
-      for (var index = pairedCount; index < oldItems.length; index++) {
-        final item = oldItems[index];
+      for (final item in matches.removed) {
         changes.add(
           QuoteLineChange(
             type: QuoteLineChangeType.removed,
@@ -36,8 +31,7 @@ class QuoteRevisionDiffEngine {
           ),
         );
       }
-      for (var index = pairedCount; index < newItems.length; index++) {
-        final item = newItems[index];
+      for (final item in matches.added) {
         changes.add(
           QuoteLineChange(
             type: QuoteLineChangeType.added,
@@ -59,6 +53,88 @@ class QuoteRevisionDiffEngine {
           : newTotal - oldTotal,
       changes: changes,
     );
+  }
+
+  _LineMatches _matchItems(
+    List<QuoteLineItem> oldItems,
+    List<QuoteLineItem> newItems,
+  ) {
+    final remainingOld = [...oldItems];
+    final remainingNew = [...newItems];
+    final pairs = <_LinePair>[];
+
+    // 同じIDを維持している編集ではIDを最優先する。
+    for (final oldItem in [...remainingOld]) {
+      final newIndex = remainingNew.indexWhere(
+        (newItem) => newItem.id == oldItem.id,
+      );
+      if (newIndex < 0) continue;
+      pairs.add(_LinePair(oldItem, remainingNew.removeAt(newIndex)));
+      remainingOld.remove(oldItem);
+    }
+
+    // OCR再取込のようにIDが変わる場合は、内容が最も近い行を対応付ける。
+    while (remainingOld.isNotEmpty && remainingNew.isNotEmpty) {
+      var bestOldIndex = 0;
+      var bestNewIndex = 0;
+      var bestCost = double.infinity;
+      for (var oldIndex = 0; oldIndex < remainingOld.length; oldIndex++) {
+        for (var newIndex = 0; newIndex < remainingNew.length; newIndex++) {
+          final cost = _matchCost(
+            remainingOld[oldIndex],
+            remainingNew[newIndex],
+          );
+          if (cost < bestCost) {
+            bestCost = cost;
+            bestOldIndex = oldIndex;
+            bestNewIndex = newIndex;
+          }
+        }
+      }
+      pairs.add(
+        _LinePair(
+          remainingOld.removeAt(bestOldIndex),
+          remainingNew.removeAt(bestNewIndex),
+        ),
+      );
+    }
+
+    pairs.sort((left, right) {
+      final order = left.before.sortOrder.compareTo(right.before.sortOrder);
+      if (order != 0) return order;
+      return left.before.id.compareTo(right.before.id);
+    });
+    remainingOld.sort(_sortItems);
+    remainingNew.sort(_sortItems);
+    return _LineMatches(
+      pairs: pairs,
+      removed: remainingOld,
+      added: remainingNew,
+    );
+  }
+
+  double _matchCost(QuoteLineItem before, QuoteLineItem after) {
+    var cost = 0.0;
+    if (before.inclusionStatus != after.inclusionStatus) cost += 8;
+    if (_normalized(before.unit) != _normalized(after.unit)) cost += 4;
+    if (_normalized(before.specification) !=
+        _normalized(after.specification)) {
+      cost += 2;
+    }
+    cost += _relativeDifference(before.amountYen, after.amountYen) * 2;
+    cost += _relativeDifference(before.quantity, after.quantity);
+    return cost;
+  }
+
+  double _relativeDifference(num? left, num? right) {
+    if (left == null || right == null) return left == right ? 0 : 1;
+    final scale = [left.abs(), right.abs(), 1].reduce((a, b) => a > b ? a : b);
+    return ((left - right).abs() / scale).clamp(0, 1).toDouble();
+  }
+
+  int _sortItems(QuoteLineItem left, QuoteLineItem right) {
+    final order = left.sortOrder.compareTo(right.sortOrder);
+    return order != 0 ? order : left.id.compareTo(right.id);
   }
 
   void _compareItem(
@@ -120,7 +196,9 @@ class QuoteRevisionDiffEngine {
 
   bool _sameNullableDouble(double? left, double? right) {
     if (left == null || right == null) return left == right;
-    final tolerance = (left.abs() * 0.0001).clamp(0.01, 1000.0);
+    final tolerance = (left.abs() * 0.0001)
+        .clamp(0.01, 1000.0)
+        .toDouble();
     return (left - right).abs() <= tolerance;
   }
 
@@ -144,4 +222,23 @@ class QuoteRevisionDiffEngine {
     }
     return grouped;
   }
+}
+
+class _LinePair {
+  const _LinePair(this.before, this.after);
+
+  final QuoteLineItem before;
+  final QuoteLineItem after;
+}
+
+class _LineMatches {
+  const _LineMatches({
+    required this.pairs,
+    required this.removed,
+    required this.added,
+  });
+
+  final List<_LinePair> pairs;
+  final List<QuoteLineItem> removed;
+  final List<QuoteLineItem> added;
 }
