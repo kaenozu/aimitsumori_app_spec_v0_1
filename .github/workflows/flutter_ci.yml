@@ -63,6 +63,8 @@ jobs:
     if: always() && (needs.format-agent-pr.result == 'success' || needs.format-agent-pr.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+    permissions:
+      contents: write
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -92,7 +94,29 @@ jobs:
         run: dart format --output=none --set-exit-if-changed lib test integration_test
 
       - name: Analyze
-        run: flutter analyze --no-fatal-infos
+        id: analyze
+        shell: bash
+        run: |
+          set +e
+          mkdir -p .ci
+          flutter analyze --no-fatal-infos > .ci/analyze.log 2>&1
+          exit_code=$?
+          cat .ci/analyze.log
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Persist analyzer diagnostics
+        if: steps.analyze.outputs.exit_code != '0'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .ci/analyze.log
+          git commit -m "chore: capture analyzer diagnostics"
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}
+
+      - name: Enforce analyzer result
+        if: steps.analyze.outputs.exit_code != '0'
+        run: exit 1
 
       - name: Run unit and widget tests
         run: flutter test -r expanded
