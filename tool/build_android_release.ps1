@@ -52,18 +52,19 @@ if (-not [Uri]::TryCreate(
     throw 'PURCHASE_VERIFICATION_URL must be an HTTPS URL.'
 }
 
-$buildTarget = $Artifact
-$dartDefines = @(
-    "ADMOB_APP_ID=$($env:ADMOB_APP_ID)",
-    "ADMOB_ANDROID_BANNER_ID=$($env:ADMOB_ANDROID_BANNER_ID)",
-    "ADMOB_ANDROID_REWARDED_ID=$($env:ADMOB_ANDROID_REWARDED_ID)",
-    "REMOVE_ADS_PRODUCT_ID=$($env:REMOVE_ADS_PRODUCT_ID)",
-    "PURCHASE_VERIFICATION_URL=$($env:PURCHASE_VERIFICATION_URL)"
+$flutterArguments = @(
+    'build',
+    $Artifact,
+    '--release',
+    '--no-pub',
+    "--dart-define=ADMOB_APP_ID=$($env:ADMOB_APP_ID)",
+    "--dart-define=ADMOB_ANDROID_BANNER_ID=$($env:ADMOB_ANDROID_BANNER_ID)",
+    "--dart-define=ADMOB_ANDROID_REWARDED_ID=$($env:ADMOB_ANDROID_REWARDED_ID)",
+    "--dart-define=REMOVE_ADS_PRODUCT_ID=$($env:REMOVE_ADS_PRODUCT_ID)",
+    "--dart-define=PURCHASE_VERIFICATION_URL=$($env:PURCHASE_VERIFICATION_URL)"
 )
 
-& flutter build $buildTarget --release --no-pub @(
-    foreach ($define in $dartDefines) { "--dart-define=$define" }
-)
+& flutter @flutterArguments
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
