@@ -21,13 +21,53 @@ env:
   FLUTTER_VERSION: '3.44.0'
 
 jobs:
+  format-agent-pr:
+    name: Format agent branch
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'agent/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Check out head branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve and format
+        run: |
+          flutter pub get
+          dart format lib test integration_test
+
+      - name: Commit formatting and lockfile
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib test integration_test pubspec.lock
+          git commit -m "style: apply Dart formatting and resolve lockfile"
+          git push origin HEAD:${{ github.head_ref }}
+
   quality:
     name: Format, analyze, test, debug build
+    needs: format-agent-pr
+    if: always() && (needs.format-agent-pr.result == 'success' || needs.format-agent-pr.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -75,6 +115,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -124,6 +166,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Set up Java
         uses: actions/setup-java@v4
