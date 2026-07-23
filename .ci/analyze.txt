@@ -25,6 +25,6 @@ Analyzing aimitsumori_app_spec_v0_1...
    info • 'onReorder' is deprecated and shouldn't be used. Use the onReorderItem callback instead. The onReorderItem callback adjusts the newIndex parameter for a removed item at the oldIndex. This feature was deprecated after v3.41.0-0.0.pre. Try replacing the use of the deprecated member with the replacement • lib/screens/document_scanner_screen.dart:492:19 • deprecated_member_use
   error • The getter 'platform' isn't defined for the type 'FilePicker'. Try importing the library that defines 'platform', correcting the name to the name of an existing getter, or defining a getter or field named 'platform' • lib/screens/quote_input_screen.dart:96:39 • undefined_getter
 
-3 issues found. (ran in 17.2s)
+3 issues found. (ran in 17.5s)
 
 ANALYZE_EXIT_CODE=1
