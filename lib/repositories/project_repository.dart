@@ -51,16 +51,18 @@ class ProjectRepository {
     operation: '案件の削除',
     action: () async {
       await _databaseService.deleteProject(projectId);
-      await _scanStorageService?.cleanupProject(projectId);
+      final storage = _scanStorageService;
+      if (storage != null) await storage.cleanupProject(projectId);
     },
   );
 
   Future<void> deleteAllData() => _run(
     operation: '全データの削除',
     action: () async {
+      final storage = _scanStorageService;
       await Future.wait<void>([
         _databaseService.deleteAllData(),
-        if (_scanStorageService case final storage?) storage.cleanupAll(),
+        if (storage != null) storage.cleanupAll(),
       ], eagerError: false);
     },
   );
