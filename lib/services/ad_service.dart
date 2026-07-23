@@ -161,9 +161,12 @@ class AdService {
       debugPrint('Product query failed: ${response.error}');
       return;
     }
-    _removeAdsProduct = response.productDetails
-        .where((value) => value.id == removeAdsProductId)
-        .firstOrNull;
+    for (final product in response.productDetails) {
+      if (product.id == removeAdsProductId) {
+        _removeAdsProduct = product;
+        return;
+      }
+    }
   }
 
   BannerAd? createBannerAd({
@@ -227,11 +230,7 @@ class AdService {
                 }
               },
             );
-            ad.show(
-              onUserEarnedReward: (_, _) {
-                earnedReward = true;
-              },
-            );
+            ad.show(onUserEarnedReward: (_, _) => earnedReward = true);
           },
           onAdFailedToLoad: (error) {
             debugPrint('Rewarded ad failed to load: $error');
@@ -302,15 +301,18 @@ class AdService {
           switch (result) {
             case PurchaseVerificationResult.valid:
               await _setAdFree(true);
+              break;
             case PurchaseVerificationResult.invalid:
               debugPrint('Remove ads purchase verification rejected.');
               await _setAdFree(false);
+              break;
             case PurchaseVerificationResult.retryable:
               completePurchase = false;
               debugPrint(
                 'Remove ads purchase verification is retryable; '
                 'preserving the current entitlement.',
               );
+              break;
           }
         } else if (purchase.status == PurchaseStatus.error) {
           debugPrint('Remove ads purchase failed: ${purchase.error}');
