@@ -21,6 +21,7 @@ val adMobAppId = providers.gradleProperty("admobAppId")
 val adMobBannerId = providers.environmentVariable("ADMOB_ANDROID_BANNER_ID").orNull
 val adMobRewardedId = providers.environmentVariable("ADMOB_ANDROID_REWARDED_ID").orNull
 val removeAdsProductId = providers.environmentVariable("REMOVE_ADS_PRODUCT_ID").orNull
+val purchaseVerificationUrl = providers.environmentVariable("PURCHASE_VERIFICATION_URL").orNull
 
 if (releaseTaskRequested) {
     require(keystorePropertiesFile.isFile) {
@@ -51,7 +52,9 @@ if (releaseTaskRequested) {
         "androiddebugkey cannot be used for release builds."
     }
 
-    require(!adMobAppId.isNullOrBlank()) { "ADMOB_APP_ID is required for release builds." }
+    require(!adMobAppId.isNullOrBlank()) {
+        "ADMOB_APP_ID is required for release builds."
+    }
     require(!adMobBannerId.isNullOrBlank()) {
         "ADMOB_ANDROID_BANNER_ID is required for release builds."
     }
@@ -60,6 +63,14 @@ if (releaseTaskRequested) {
     }
     require(!removeAdsProductId.isNullOrBlank()) {
         "REMOVE_ADS_PRODUCT_ID is required for release builds."
+    }
+    require(!purchaseVerificationUrl.isNullOrBlank()) {
+        "PURCHASE_VERIFICATION_URL is required for release builds."
+    }
+    require(
+        Regex("https://[^\\s]+", RegexOption.IGNORE_CASE).matches(purchaseVerificationUrl),
+    ) {
+        "PURCHASE_VERIFICATION_URL must be an HTTPS URL."
     }
     require(Regex("ca-app-pub-\\d{16}~\\d{10}").matches(adMobAppId)) {
         "ADMOB_APP_ID must be a valid AdMob application ID."
