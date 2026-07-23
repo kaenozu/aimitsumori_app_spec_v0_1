@@ -1,3 +1,4 @@
+/// 見積書を複数ページ撮影し、画質確認後にまとめてOCRする画面。
 library;
 
 import 'dart:async';
@@ -58,7 +59,6 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
   bool _autoCapture = true;
   bool _awaitingDocumentChange = false;
   bool _flashEnabled = false;
-  bool _committed = false;
   int _initializationToken = 0;
   int? _retakeIndex;
   String? _error;
@@ -152,8 +152,8 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
     if (controller.value.isStreamingImages) {
       try {
         await controller.stopImageStream();
-      } catch (_) {
-        // ライフサイクル遷移中の停止失敗はdisposeで回収する。
+      } catch (error) {
+        debugPrint('Camera image stream stop failed: $error');
       }
     }
     await controller.dispose();
@@ -283,12 +283,13 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
       if (mounted) setState(() => _error = '撮影画像を保存できませんでした。');
     } finally {
       if (temporary != null) await _deleteTemporary(temporary.path);
-      if (controller.value.isInitialized &&
+      if (_controller == controller &&
+          controller.value.isInitialized &&
           !controller.value.isStreamingImages) {
         try {
           await controller.startImageStream(_analyzeFrame);
-        } catch (_) {
-          // 画面破棄中は再開しない。
+        } catch (error) {
+          debugPrint('Camera image stream restart failed: $error');
         }
       }
       if (mounted) setState(() => _capturing = false);
@@ -299,8 +300,8 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
     try {
       final file = File(path);
       if (await file.exists()) await file.delete();
-    } catch (_) {
-      // cameraプラグインの一時ファイルはOSクリーンアップへ委ねる。
+    } catch (error) {
+      debugPrint('Camera temporary file cleanup failed: $error');
     }
   }
 
@@ -335,6 +336,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
 
   void _reorder(int oldIndex, int newIndex) {
     setState(() {
+      if (newIndex > oldIndex) newIndex--;
       final page = _pages.removeAt(oldIndex);
       _pages.insert(newIndex, page);
       _retakeIndex = null;
@@ -364,7 +366,6 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
         ),
       );
       if (saved == true && mounted) {
-        _committed = true;
         Navigator.pop(context, true);
       }
     } catch (error, stackTrace) {
@@ -385,14 +386,12 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_disposeController());
     unawaited(_batchOcrService.dispose());
-    if (!_committed) {
-      unawaited(
-        widget.storageService.cleanupSession(
-          projectId: widget.project.id,
-          sessionId: _sessionId,
-        ),
-      );
-    }
+    unawaited(
+      widget.storageService.cleanupSession(
+        projectId: widget.project.id,
+        sessionId: _sessionId,
+      ),
+    );
     super.dispose();
   }
 
@@ -496,7 +495,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.all(8),
                   itemCount: _pages.length,
-                  onReorderItem: _reorder,
+                  onReorder: _reorder,
                   itemBuilder: (context, index) {
                     final page = _pages[index];
                     return _PageThumbnail(
@@ -540,33 +539,37 @@ class _GuidanceBanner extends StatelessWidget {
         (awaitingDocumentChange
             ? '次のページに替えてください'
             : result?.guidance ?? '書類の四隅をガイドに合わせてください');
-    final good = error == null &&
-        notice == null &&
-        result?.isAcceptable == true &&
-        !awaitingDocumentChange;
+    final acceptable = result?.isAcceptable == true && error == null;
     return Semantics(
       liveRegion: true,
       label: message,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: (good ? Colors.green : Colors.black).withValues(alpha: 0.78),
-          borderRadius: BorderRadius.circular(12),
+          color: acceptable
+              ? Colors.green.withValues(alpha: 0.88)
+              : Colors.black.withValues(alpha: 0.75),
+          borderRadius: BorderRadius.circular(14),
         ),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
               Icon(
-                good ? Icons.check_circle : Icons.info_outline,
+                acceptable ? Icons.check_circle : Icons.info_outline,
                 color: Colors.white,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '$message${autoCapture ? '（自動撮影ON）' : ''}',
+                  message,
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
+              if (autoCapture)
+                const Tooltip(
+                  message: '画質が安定すると自動撮影します',
+                  child: Icon(Icons.auto_awesome, color: Colors.white),
+                ),
             ],
           ),
         ),
@@ -597,55 +600,39 @@ class _PageThumbnail extends StatelessWidget {
       width: 112,
       margin: const EdgeInsets.only(right: 8),
       decoration: BoxDecoration(
-        border: Border.all(
-          color: selectedForRetake
-              ? Colors.orange
-              : page.quality.isAcceptable
-                  ? Colors.white54
-                  : Colors.amber,
-          width: selectedForRetake ? 3 : 1,
-        ),
-        borderRadius: BorderRadius.circular(8),
+        color: selectedForRetake ? Colors.amber.shade100 : Colors.white,
+        borderRadius: BorderRadius.circular(10),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        fit: StackFit.expand,
+      child: Column(
         children: [
-          Image.file(File(page.path), fit: BoxFit.cover),
-          Positioned(
-            left: 4,
-            top: 4,
-            child: CircleAvatar(
-              radius: 13,
-              child: Text(
-                '${index + 1}',
-                style: const TextStyle(fontSize: 12),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(10),
+              ),
+              child: Image.file(
+                File(page.path),
+                width: double.infinity,
+                fit: BoxFit.cover,
               ),
             ),
           ),
-          if (!page.quality.isAcceptable)
-            const Positioned(
-              left: 4,
-              bottom: 4,
-              child: Icon(Icons.warning_amber, color: Colors.amber),
-            ),
-          Positioned(
-            right: 0,
-            top: 0,
-            child: Column(
-              children: [
-                IconButton(
-                  tooltip: '第${index + 1}ページを再撮影',
-                  onPressed: onRetake,
-                  icon: const Icon(Icons.refresh, color: Colors.white),
-                ),
-                IconButton(
-                  tooltip: '第${index + 1}ページを削除',
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete, color: Colors.white),
-                ),
-              ],
-            ),
+          Row(
+            children: [
+              Expanded(child: Text(' ${index + 1}頁')),
+              IconButton(
+                tooltip: '第${index + 1}ページを再撮影',
+                visualDensity: VisualDensity.compact,
+                onPressed: onRetake,
+                icon: const Icon(Icons.refresh, size: 18),
+              ),
+              IconButton(
+                tooltip: '第${index + 1}ページを削除',
+                visualDensity: VisualDensity.compact,
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline, size: 18),
+              ),
+            ],
           ),
         ],
       ),
@@ -658,45 +645,35 @@ class _DocumentGuidePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = Rect.fromLTWH(
-      size.width * 0.08,
-      size.height * 0.08,
-      size.width * 0.84,
-      size.height * 0.78,
+    final guide = Rect.fromCenter(
+      center: size.center(Offset.zero),
+      width: size.width * 0.82,
+      height: size.height * 0.68,
     );
-    final overlay = Path()
-      ..addRect(Offset.zero & size)
-      ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(12)))
-      ..fillType = PathFillType.evenOdd;
-    canvas.drawPath(
-      overlay,
-      Paint()..color = Colors.black.withValues(alpha: 0.45),
-    );
-
     final paint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round;
-    const length = 34.0;
-    for (final corner in [
-      rect.topLeft,
-      rect.topRight,
-      rect.bottomLeft,
-      rect.bottomRight,
+      ..strokeWidth = 3;
+    const corner = 28.0;
+    for (final path in [
+      Path()
+        ..moveTo(guide.left + corner, guide.top)
+        ..lineTo(guide.left, guide.top)
+        ..lineTo(guide.left, guide.top + corner),
+      Path()
+        ..moveTo(guide.right - corner, guide.top)
+        ..lineTo(guide.right, guide.top)
+        ..lineTo(guide.right, guide.top + corner),
+      Path()
+        ..moveTo(guide.left, guide.bottom - corner)
+        ..lineTo(guide.left, guide.bottom)
+        ..lineTo(guide.left + corner, guide.bottom),
+      Path()
+        ..moveTo(guide.right, guide.bottom - corner)
+        ..lineTo(guide.right, guide.bottom)
+        ..lineTo(guide.right - corner, guide.bottom),
     ]) {
-      final directionX = corner.dx == rect.left ? 1.0 : -1.0;
-      final directionY = corner.dy == rect.top ? 1.0 : -1.0;
-      canvas.drawLine(
-        corner,
-        corner + Offset(length * directionX, 0),
-        paint,
-      );
-      canvas.drawLine(
-        corner,
-        corner + Offset(0, length * directionY),
-        paint,
-      );
+      canvas.drawPath(path, paint);
     }
   }
 
