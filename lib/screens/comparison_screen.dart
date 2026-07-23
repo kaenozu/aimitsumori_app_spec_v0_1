@@ -329,7 +329,9 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
       }
     } catch (error, stackTrace) {
       debugPrint('Comparison share failed: $error\n$stackTrace');
-      if (mounted) _showMessage('比較結果を共有できませんでした。CSVまたはテキスト形式もお試しください。');
+      if (mounted) {
+        _showMessage('比較結果を共有できませんでした。CSVまたはテキスト形式もお試しください。');
+      }
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -341,7 +343,9 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
     if (renderObject is! RenderRepaintBoundary || renderObject.size.isEmpty) {
       throw StateError('比較画面のキャプチャ領域を取得できませんでした。');
     }
-    final pixelRatio = MediaQuery.devicePixelRatioOf(context).clamp(1.0, 3.0);
+    final pixelRatio = MediaQuery.devicePixelRatioOf(
+      context,
+    ).clamp(1.0, 3.0).toDouble();
     final image = await renderObject.toImage(pixelRatio: pixelRatio);
     try {
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -418,7 +422,9 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
                     ],
                     const SizedBox(height: 16),
                     if (_project.quotes.isEmpty)
-                      _EmptyComparison(onAddQuote: _addQuote)
+                      _EmptyComparison(
+                        onAddQuote: widget.allowQuoteEditing ? _addQuote : null,
+                      )
                     else ...[
                       ComparisonSummaryCard(lines: _report.summaryLines),
                       const SizedBox(height: 12),
@@ -473,7 +479,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
 class _EmptyComparison extends StatelessWidget {
   const _EmptyComparison({required this.onAddQuote});
 
-  final VoidCallback onAddQuote;
+  final VoidCallback? onAddQuote;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -489,12 +495,14 @@ class _EmptyComparison extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text('PDF・写真・手入力から見積を登録できます。'),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: onAddQuote,
-            icon: const Icon(Icons.add),
-            label: const Text('見積書を追加する'),
-          ),
+          if (onAddQuote != null) ...[
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onAddQuote,
+              icon: const Icon(Icons.add),
+              label: const Text('見積書を追加する'),
+            ),
+          ],
         ],
       ),
     ),
@@ -518,7 +526,7 @@ class _QuoteOverview extends StatelessWidget {
           for (final snapshot in snapshots)
             ListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text(snapshot.contractorName),
+              title: Text('${snapshot.contractorName}（見積概要）'),
               subtitle: Text(
                 '別途 ${snapshot.separateCategoryNames.length}件 / '
                 '不明 ${snapshot.unknownCategoryNames.length}件',
