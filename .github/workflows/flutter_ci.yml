@@ -99,9 +99,9 @@ jobs:
         run: |
           set +e
           mkdir -p .ci
-          flutter analyze --no-fatal-infos > .ci/analyze.log 2>&1
+          flutter analyze --no-fatal-infos > .ci/analyze.txt 2>&1
           exit_code=$?
-          cat .ci/analyze.log
+          cat .ci/analyze.txt
           echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
           exit 0
 
@@ -110,7 +110,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .ci/analyze.log
+          git add -f .ci/analyze.txt
           git commit -m "chore: capture analyzer diagnostics"
           git push origin HEAD:${{ github.head_ref || github.ref_name }}
 
