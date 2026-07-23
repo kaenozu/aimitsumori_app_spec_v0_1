@@ -1,6 +1,5 @@
 /// ファイルパス: lib/normalizer.dart
-/// 見積明細を共通カテゴリへ正規化するロジック
-/// 関連ファイル: lib/models.dart, lib/data/category_master.dart
+/// 見積明細を共通カテゴリへ正規化するロジック。
 library;
 
 import 'data/category_master.dart';
@@ -21,11 +20,11 @@ class Normalizer {
         lines: CategoryMaster.categories.map((category) {
           return _normalizeCategory(
             category: category,
-            items: itemsByCategory[category.id] ?? [],
+            items: itemsByCategory[category.id] ?? const [],
           );
-        }).toList(),
+        }).toList(growable: false),
       );
-    }).toList();
+    }).toList(growable: false);
   }
 
   NormalizedLine _normalizeCategory({
@@ -43,53 +42,60 @@ class Normalizer {
     final reasons = <String>[];
     final distinctStatuses = items
         .map((item) => item.inclusionStatus)
-        .toSet()
-        .toList();
+        .toSet();
     final status = distinctStatuses.length == 1
-        ? distinctStatuses.first
-        : (() {
-            reasons.add('同じカテゴリ内で含有状態が一致していません');
-            return InclusionStatus.unknown;
-          })();
+        ? distinctStatuses.single
+        : InclusionStatus.unknown;
+    if (distinctStatuses.length > 1) {
+      reasons.add('同じカテゴリ内で含有状態が一致していません');
+    }
 
     final int? amount;
     if (items.every((item) => item.amountYen == null)) {
       amount = null;
-    } else if (items.any((item) => item.amountYen == null)) {
-      reasons.add('金額未記載の明細を含みます');
+    } else {
+      if (items.any((item) => item.amountYen == null)) {
+        reasons.add('金額未記載の明細を含むため、表示額は記載分のみです');
+      }
       amount = items
           .where((item) => item.amountYen != null)
           .fold<int>(0, (sum, item) => sum + item.amountYen!);
-    } else {
-      amount = items.fold<int>(0, (sum, item) => sum + item.amountYen!);
     }
 
-    final quantityValues = items
-        .where((item) => item.quantity != null)
-        .map((item) => item.quantity!)
-        .toSet()
-        .toList();
-    final unitValues = items
+    final quantityItems = items.where((item) => item.quantity != null).toList();
+    final normalizedUnits = items
         .map((item) => UnitNormalizer.normalize(item.unit))
         .whereType<String>()
-        .toSet()
-        .toList();
-    final quantity = quantityValues.length == 1 ? quantityValues.first : null;
-    final unit = unitValues.length == 1 ? unitValues.first : null;
+        .toSet();
+
+    double? quantity;
+    String? unit;
+    if (quantityItems.length != items.length) {
+      if (quantityItems.isNotEmpty) {
+        reasons.add('数量未記載の明細を含むため、数量を合算できません');
+      }
+    } else if (normalizedUnits.length == 1) {
+      unit = normalizedUnits.single;
+      quantity = quantityItems.fold<double>(
+        0,
+        (sum, item) => sum + item.quantity!,
+      );
+    } else if (normalizedUnits.isEmpty && items.length == 1) {
+      quantity = items.single.quantity;
+    } else {
+      reasons.add('複数明細の単位が一致しないため、数量を合算できません');
+    }
+
     if (category.quantityExpected && (quantity == null || unit == null)) {
       reasons.add('数量または単位が不明です');
-    }
-    if (quantityValues.length > 1 || unitValues.length > 1) {
-      reasons.add('複数明細の数量・単位を単一値へ統合できません');
     }
 
     final specificationValues = items
         .where((item) => item.specification?.trim().isNotEmpty == true)
         .map((item) => item.specification!.trim())
-        .toSet()
-        .toList();
+        .toSet();
     final specification = specificationValues.length == 1
-        ? specificationValues.first
+        ? specificationValues.single
         : null;
     if (category.specificationExpected && specification == null) {
       reasons.add('仕様・型番が不明です');
@@ -108,8 +114,8 @@ class Normalizer {
       quantity: quantity,
       unit: unit,
       specification: specification,
-      sourceLineItemIds: items.map((item) => item.id).toList(),
-      uncertaintyReasons: reasons.toSet().toList(),
+      sourceLineItemIds: items.map((item) => item.id).toList(growable: false),
+      uncertaintyReasons: reasons.toSet().toList(growable: false),
     );
   }
 }
