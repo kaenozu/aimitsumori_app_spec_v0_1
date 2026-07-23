@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import '../data/category_master.dart';
 import '../models.dart';
 import '../ocr_models.dart';
+import '../quote_revision_models.dart';
 import '../repositories/project_repository.dart';
 import '../services/id_generator.dart';
 import '../services/ocr_review_store.dart';
@@ -27,6 +28,7 @@ class QuoteInputScreen extends StatefulWidget {
     this.ocrService,
     this.reviewStore,
     this.initialQuote,
+    this.revisionIntent = const QuoteImportIntent.newQuote(),
   });
 
   final Project project;
@@ -34,6 +36,7 @@ class QuoteInputScreen extends StatefulWidget {
   final OcrService? ocrService;
   final OcrReviewStore? reviewStore;
   final RawQuoteData? initialQuote;
+  final QuoteImportIntent revisionIntent;
 
   @override
   State<QuoteInputScreen> createState() => _QuoteInputScreenState();
@@ -319,6 +322,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
       await _repository.saveQuote(
         widget.project.id,
         quote,
+        revisionIntent: widget.revisionIntent,
         sourceFileHash:
             documentKey != null && RegExp(r'^[0-9a-f]{64}$').hasMatch(documentKey)
             ? documentKey
@@ -335,7 +339,9 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     } catch (error, stackTrace) {
       debugPrint('Quote save failed: $error\n$stackTrace');
       if (mounted) {
-        setState(() => _error = '見積の保存に失敗しました。入力内容を確認して、もう一度お試しください。');
+        setState(
+          () => _error = '見積の保存に失敗しました。入力内容を確認して、もう一度お試しください。',
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -614,7 +620,9 @@ class _LineItemEditor extends StatelessWidget {
               child: TextFormField(
                 key: ValueKey('quote-line-quantity-$index'),
                 controller: item.quantityController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(
                   labelText: '数量',
                   border: OutlineInputBorder(),
