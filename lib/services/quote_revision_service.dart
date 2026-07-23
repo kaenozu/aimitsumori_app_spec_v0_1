@@ -9,7 +9,6 @@ import 'package:sqflite/sqflite.dart';
 import '../models.dart';
 import '../quote_revision_models.dart';
 import 'database_service.dart';
-import 'id_generator.dart';
 
 class QuoteRevisionService {
   QuoteRevisionService({DatabaseService? databaseService})
@@ -18,102 +17,98 @@ class QuoteRevisionService {
   static final QuoteRevisionService instance = QuoteRevisionService();
 
   final DatabaseService _databaseService;
-  Future<void>? _schemaFuture;
-
-  Future<void> _ensureSchema(Database db) {
-    return _schemaFuture ??= _createSchema(db);
-  }
-
-  Future<void> _createSchema(DatabaseExecutor db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS quote_revisions (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        quote_id TEXT NOT NULL,
-        contractor_name TEXT NOT NULL,
-        quote_group_id TEXT NOT NULL,
-        revision_number INTEGER NOT NULL,
-        parent_revision_id TEXT,
-        source_file_hash TEXT NOT NULL,
-        imported_at INTEGER NOT NULL,
-        change_reason TEXT,
-        quote_snapshot_json TEXT NOT NULL,
-        FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
-      )
-    ''');
-    await db.execute(
-      'CREATE UNIQUE INDEX IF NOT EXISTS '
-      'idx_quote_revisions_group_number '
-      'ON quote_revisions(quote_group_id, revision_number)',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_quote_revisions_project '
-      'ON quote_revisions(project_id)',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_quote_revisions_quote '
-      'ON quote_revisions(quote_id)',
-    );
-  }
 
   Future<QuoteRevision> recordQuote({
     required String projectId,
     required ContractorQuote quote,
     QuoteImportIntent intent = const QuoteImportIntent.newQuote(),
     String? sourceFileHash,
-    bool replaceCurrentQuote = false,
   }) async {
     final db = await _databaseService.database;
-    await _ensureSchema(db);
-    return await db.transaction((txn) async {
-      final existingRows = await txn.query(
-        'quote_revisions',
-        where: 'quote_id = ?',
-        whereArgs: [quote.id],
-        limit: 1,
-      );
-      if (existingRows.isNotEmpty) {
-        return _fromRow(existingRows.first);
-      }
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final groupId = currentIntent.isRevision
-          ? currentIntent.quoteGroupId!
-          : 'group-$projectId-'
-                '${_stableHash('${quote.id}|${quote.contractorName}|$now')}';
-      final previousRows = await txn.query(
-        'quote_revisions',
-        where: 'quote_group_id = ?',
-        whereArgs: [groupId],
-        orderBy: 'revision_number DESC',
-        limit: 1,
-      );
-      final revisionNumber = previousRows.isEmpty
-          ? 1
-          : (previousRows.first['revision_number'] as int) + 1;
-      final parentRevisionId = currentIntent.isRevision
-          ? currentIntent.parentRevisionId ??
-                (previousRows.isEmpty ? null : previousRows.first['id'] as String)
-          : null;
-      final revision = QuoteRevision(
-        id: 'revision-$groupId-$revisionNumber',
+    return db.transaction(
+      (transaction) => recordQuoteInTransaction(
+        transaction,
         projectId: projectId,
-        quoteId: quote.id,
-        contractorName: quote.contractorName,
-        quoteGroupId: groupId,
-        revisionNumber: revisionNumber,
-        parentRevisionId: parentRevisionId,
+        quote: quote,
+        intent: intent,
         sourceFileHash: sourceFileHash,
-        importedAt: now,
-        changeReason: currentIntent.changeReason,
-        quoteSnapshot: quote,
-      );
-      await txn.insert(
+      ),
+    );
+  }
+
+  Future<QuoteRevision> recordQuoteInTransaction(
+    DatabaseExecutor transaction, {
+    required String projectId,
+    required ContractorQuote quote,
+    QuoteImportIntent intent = const QuoteImportIntent.newQuote(),
+    String? sourceFileHash,
+  }) async {
+    final existingRows = await transaction.query(
+      'quote_revisions',
+      where: 'quote_id = ?',
+      whereArgs: [quote.id],
+      limit: 1,
+    );
+    if (existingRows.isNotEmpty) return _fromRow(existingRows.first);
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final resolvedHash = sourceFileHash?.trim().isNotEmpty == true
+        ? sourceFileHash!.trim()
+        : _quoteHash(quote);
+    final groupId = intent.isRevision
+        ? intent.quoteGroupId!
+        : 'group-$projectId-${_stableHash('${quote.id}|${quote.contractorName}')}' ;
+
+    final previousRows = await transaction.query(
+      'quote_revisions',
+      where: 'quote_group_id = ?',
+      whereArgs: [groupId],
+      orderBy: 'revision_number DESC',
+      limit: 1,
+    );
+    final revisionNumber = previousRows.isEmpty
+        ? 1
+        : (previousRows.first['revision_number'] as int) + 1;
+    final parentRevisionId = intent.isRevision
+        ? intent.parentRevisionId ??
+              (previousRows.isEmpty ? null : previousRows.first['id'] as String)
+        : null;
+
+    if (intent.isRevision && previousRows.isEmpty && parentRevisionId == null) {
+      throw StateError('改訂元の見積履歴が見つかりません。');
+    }
+    if (parentRevisionId != null) {
+      final parentRows = await transaction.query(
         'quote_revisions',
-        _toRow(revision),
-        conflictAlgorithm: ConflictAlgorithm.abort,
+        columns: const ['quote_group_id'],
+        where: 'id = ?',
+        whereArgs: [parentRevisionId],
+        limit: 1,
       );
-      return revision;
-    });
+      if (parentRows.isEmpty || parentRows.first['quote_group_id'] != groupId) {
+        throw StateError('改訂元が同じ見積グループに属していません。');
+      }
+    }
+
+    final revision = QuoteRevision(
+      id: 'revision-$groupId-$revisionNumber',
+      projectId: projectId,
+      quoteId: quote.id,
+      contractorName: quote.contractorName,
+      quoteGroupId: groupId,
+      revisionNumber: revisionNumber,
+      parentRevisionId: parentRevisionId,
+      sourceFileHash: resolvedHash,
+      importedAt: now,
+      changeReason: intent.changeReason,
+      quoteSnapshot: quote,
+    );
+    await transaction.insert(
+      'quote_revisions',
+      _toRow(revision),
+      conflictAlgorithm: ConflictAlgorithm.abort,
+    );
+    return revision;
   }
 
   Future<void> ensureInitialRevisions({
@@ -122,11 +117,10 @@ class QuoteRevisionService {
   }) async {
     if (quotes.isEmpty) return;
     final db = await _databaseService.database;
-    await _ensureSchema(db);
     await db.transaction((transaction) async {
       final rows = await transaction.query(
         'quote_revisions',
-        columns: ['quote_id'],
+        columns: const ['quote_id'],
         where: 'project_id = ?',
         whereArgs: [projectId],
       );
@@ -147,7 +141,6 @@ class QuoteRevisionService {
 
   Future<List<QuoteRevision>> getProjectRevisions(String projectId) async {
     final db = await _databaseService.database;
-    await _ensureSchema(db);
     final rows = await db.query(
       'quote_revisions',
       where: 'project_id = ?',
@@ -159,10 +152,9 @@ class QuoteRevisionService {
 
   Future<String?> groupIdForQuote(String quoteId) async {
     final db = await _databaseService.database;
-    await _ensureSchema(db);
     final rows = await db.query(
       'quote_revisions',
-      columns: ['quote_group_id'],
+      columns: const ['quote_group_id'],
       where: 'quote_id = ?',
       whereArgs: [quoteId],
       orderBy: 'revision_number DESC',
@@ -173,10 +165,9 @@ class QuoteRevisionService {
 
   Future<String?> revisionIdForQuote(String quoteId) async {
     final db = await _databaseService.database;
-    await _ensureSchema(db);
     final rows = await db.query(
       'quote_revisions',
-      columns: ['id'],
+      columns: const ['id'],
       where: 'quote_id = ?',
       whereArgs: [quoteId],
       orderBy: 'revision_number DESC',
@@ -254,4 +245,7 @@ class QuoteRevisionService {
 
   String _quoteHash(ContractorQuote quote) =>
       sha256.convert(utf8.encode(jsonEncode(_quoteToJson(quote)))).toString();
+
+  String _stableHash(String value) =>
+      sha256.convert(utf8.encode(value)).toString().substring(0, 24);
 }
