@@ -32,7 +32,6 @@ class AccessibleIconButton extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           child: IconButton(
-            tooltip: label,
             constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             onPressed: callback,
             icon: icon,
