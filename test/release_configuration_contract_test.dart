@@ -17,7 +17,8 @@ void main() {
   test('release PowerShell passes purchase verification URL to Dart', () {
     final script = File('tool/build_android_release.ps1').readAsStringSync();
 
-    expect(script, contains("Name 'PURCHASE_VERIFICATION_URL'"));
+    expect(script, contains("'PURCHASE_VERIFICATION_URL'"));
+    expect(script, contains('PURCHASE_VERIFICATION_URL must be an HTTPS URL.'));
     expect(
       script,
       contains('--dart-define=PURCHASE_VERIFICATION_URL='),
