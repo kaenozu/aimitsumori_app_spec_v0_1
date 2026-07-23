@@ -17,12 +17,11 @@ class ProjectRequirementRepository {
       ProjectRequirementRepository();
 
   final DatabaseService _databaseService;
-  Future<void>? _schemaFuture;
 
   Future<List<ProjectRequirement>> getRequirements(String projectId) => _run(
     operation: '要望チェックリストの読み込み',
     action: () async {
-      final db = await _database();
+      final db = await _databaseService.database;
       final rows = await db.query(
         'project_requirements',
         where: 'project_id = ?',
@@ -46,11 +45,11 @@ class ProjectRequirementRepository {
     operation: '要望チェックリストの保存',
     action: () async {
       final normalized = _normalize(requirements);
-      final db = await _database();
+      final db = await _databaseService.database;
       await db.transaction((transaction) async {
         final project = await transaction.query(
           'projects',
-          columns: ['id'],
+          columns: const ['id'],
           where: 'id = ?',
           whereArgs: [projectId],
           limit: 1,
@@ -73,33 +72,6 @@ class ProjectRequirementRepository {
       });
     },
   );
-
-  Future<Database> _database() async {
-    final db = await _databaseService.database;
-    final schema = _schemaFuture ??= _ensureSchema(db);
-    await schema;
-    return db;
-  }
-
-  Future<void> _ensureSchema(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS project_requirements (
-        project_id TEXT NOT NULL,
-        category_id TEXT NOT NULL,
-        priority TEXT NOT NULL,
-        expected_quantity REAL,
-        expected_unit TEXT,
-        desired_specification TEXT,
-        note TEXT,
-        PRIMARY KEY(project_id, category_id),
-        FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
-      )
-    ''');
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_requirements_project '
-      'ON project_requirements(project_id)',
-    );
-  }
 
   List<ProjectRequirement> _normalize(List<ProjectRequirement> requirements) {
     final byCategory = <String, ProjectRequirement>{};
