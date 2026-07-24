@@ -1,5 +1,5 @@
 /// ファイルパス: test/helpers/test_helpers.dart
-/// テスト用のインメモリDB・広告モックとドメインモデル生成ヘルパー
+/// テスト用のインメモリDB・広告モックとドメインモデル生成ヘルパー。
 library;
 
 import 'package:aimitsumori_app/data/sample_data.dart';
@@ -28,6 +28,9 @@ class MockDatabaseService implements DatabaseService {
   Future<Database> get database => Future<Database>.error(
     UnsupportedError('MockDatabaseService does not expose a SQLite database.'),
   );
+
+  @override
+  Future<void> initializeSchemaForTesting() async {}
 
   @override
   Future<List<Project>> getProjects() async {

@@ -38,10 +38,7 @@ void main() {
     });
 
     test('日本語のかっこ類をASCIIへ変換する', () {
-      expect(
-        TextNormalizer.normalize('【A】「B」『C』〈D〉《E》'),
-        '[A][B][C]<D><E>',
-      );
+      expect(TextNormalizer.normalize('【A】「B」『C』〈D〉《E》'), '[A][B][C]<D><E>');
     });
 
     test('前後の空白を除去する', () {
@@ -57,10 +54,7 @@ void main() {
     });
 
     test('特殊文字と絵文字を含む複合入力を正規化する', () {
-      expect(
-        TextNormalizer.normalize('　Ａ社（１２３）ー見積@#%😊　'),
-        'A社(123)ー見積@#%😊',
-      );
+      expect(TextNormalizer.normalize('　Ａ社（１２３）ー見積@#%😊　'), 'A社(123)ー見積@#%😊');
     });
 
     test('改行とタブは破壊しない', () {

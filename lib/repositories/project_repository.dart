@@ -1,5 +1,5 @@
 /// ファイルパス: lib/repositories/project_repository.dart
-/// UI層からSQLite実装を隠す案件リポジトリ
+/// UI層からSQLite実装を隠す案件リポジトリ。
 library;
 
 import 'package:flutter/foundation.dart';
@@ -8,20 +8,26 @@ import '../models.dart';
 import '../quote_revision_models.dart';
 import '../services/database_service.dart';
 import '../services/quote_revision_service.dart';
+import '../services/scan_storage_service.dart';
 
 class ProjectRepository {
   ProjectRepository({
     DatabaseService? databaseService,
     QuoteRevisionService? revisionService,
+    ScanStorageService? scanStorageService,
   }) : _databaseService = databaseService ?? DatabaseService.instance,
        _revisionService =
            revisionService ??
-           (databaseService == null ? QuoteRevisionService.instance : null);
+           (databaseService == null ? QuoteRevisionService.instance : null),
+       _scanStorageService =
+           scanStorageService ??
+           (databaseService == null ? const ScanStorageService() : null);
 
   static final ProjectRepository instance = ProjectRepository();
 
   final DatabaseService _databaseService;
   final QuoteRevisionService? _revisionService;
+  final ScanStorageService? _scanStorageService;
 
   Future<List<Project>> getProjects() =>
       _run(operation: '案件の読み込み', action: _databaseService.getProjects);
@@ -43,33 +49,66 @@ class ProjectRepository {
 
   Future<void> deleteProject(String projectId) => _run(
     operation: '案件の削除',
-    action: () => _databaseService.deleteProject(projectId),
+    action: () async {
+      await _databaseService.deleteProject(projectId);
+      final storage = _scanStorageService;
+      if (storage != null) await storage.cleanupProject(projectId);
+    },
   );
 
-  Future<void> deleteAllData() =>
-      _run(operation: '全データの削除', action: _databaseService.deleteAllData);
+  Future<void> deleteAllData() => _run(
+    operation: '全データの削除',
+    action: () async {
+      final storage = _scanStorageService;
+      await Future.wait<void>([
+        _databaseService.deleteAllData(),
+        if (storage != null) storage.cleanupAll(),
+      ], eagerError: false);
+    },
+  );
 
   Future<void> saveQuote(
     String projectId,
     ContractorQuote quote, {
     QuoteImportIntent revisionIntent = const QuoteImportIntent.newQuote(),
     String? sourceFileHash,
-  }) =>
-      _run(
-        operation: '見積の保存',
-        action: () async {
-          await _databaseService.saveQuote(projectId, quote);
-          final revisionService = _revisionService;
-          if (revisionService != null) {
-            await revisionService.recordQuote(
-              projectId: projectId,
-              quote: quote,
-              intent: revisionIntent,
-              sourceFileHash: sourceFileHash,
-            );
-          }
-        },
-      );
+  }) => _run(
+    operation: '見積の保存',
+    action: () async {
+      final revisionService = _revisionService;
+      if (revisionService == null) {
+        await _databaseService.saveQuote(projectId, quote);
+        return;
+      }
+
+      final db = await _databaseService.database;
+      await db.transaction((transaction) async {
+        await _databaseService.saveQuoteInTransaction(
+          transaction,
+          projectId,
+          quote,
+        );
+        await revisionService.recordQuoteInTransaction(
+          transaction,
+          projectId: projectId,
+          quote: quote,
+          intent: revisionIntent,
+          sourceFileHash: sourceFileHash,
+        );
+
+        final parentQuote = revisionIntent.parentQuote;
+        if (revisionIntent.isRevision &&
+            parentQuote != null &&
+            parentQuote.id != quote.id) {
+          await transaction.delete(
+            'contractor_quotes',
+            where: 'id = ? AND project_id = ?',
+            whereArgs: [parentQuote.id, projectId],
+          );
+        }
+      });
+    },
+  );
 
   Future<void> saveComparisonResult(ComparisonReport report) => _run(
     operation: '比較結果の保存',

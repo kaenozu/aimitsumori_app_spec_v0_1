@@ -12,6 +12,7 @@ class OcrReviewStore {
 
   final SharedPreferences? preferences;
   static const _prefix = 'ocr_review_states_v2_';
+  static const _legacyPrefixes = <String>['ocr_review_states_v1_'];
 
   /// `documentKey`にはファイル内容のSHA-256を優先して渡す。
   Future<Map<String, OcrReviewStatus>> load(String documentKey) async {
@@ -37,15 +38,22 @@ class OcrReviewStore {
     final payload = jsonEncode({
       for (final entry in statuses.entries) entry.key: entry.value.code,
     });
-    await storage.setString('$_prefix${_sourceKey(documentKey)}', payload);
+    final saved = await storage.setString(
+      '$_prefix${_sourceKey(documentKey)}',
+      payload,
+    );
+    if (!saved) {
+      throw StateError('OCR確認状態を保存できませんでした。');
+    }
   }
 
-  /// 「全データを削除」に合わせてOCR確認状態も消去する。
+  /// 「全データを削除」に合わせて、現行・旧形式のOCR確認状態を消去する。
   Future<void> clearAll() async {
     final storage = preferences ?? await SharedPreferences.getInstance();
+    final prefixes = <String>{_prefix, ..._legacyPrefixes};
     final keys = storage
         .getKeys()
-        .where((key) => key.startsWith(_prefix))
+        .where((key) => prefixes.any(key.startsWith))
         .toList(growable: false);
     for (final key in keys) {
       final removed = await storage.remove(key);
@@ -55,11 +63,6 @@ class OcrReviewStore {
     }
   }
 
-  static String _sourceKey(String value) {
-    var hash = 0x811C9DC5;
-    for (final codeUnit in value.codeUnits) {
-      hash = ((hash ^ codeUnit) * 0x01000193) & 0xFFFFFFFF;
-    }
-    return hash.toUnsigned(32).toRadixString(16).padLeft(8, '0');
-  }
+  static String _sourceKey(String value) =>
+      sha256.convert(utf8.encode(value)).toString();
 }

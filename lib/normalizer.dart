@@ -1,6 +1,5 @@
 /// ファイルパス: lib/normalizer.dart
-/// 見積明細を共通カテゴリへ正規化するロジック
-/// 関連ファイル: lib/models.dart, lib/data/category_master.dart
+/// 見積明細を共通カテゴリへ正規化するロジック。
 library;
 
 import 'data/category_master.dart';
@@ -9,23 +8,27 @@ import 'unit_normalizer.dart';
 
 class Normalizer {
   List<NormalizedQuote> normalize(Project project) {
-    return project.quotes.map((quote) {
-      final itemsByCategory = <String, List<QuoteLineItem>>{};
-      for (final item in quote.lineItems) {
-        itemsByCategory.putIfAbsent(item.categoryId, () => []).add(item);
-      }
-      return NormalizedQuote(
-        quoteId: quote.id,
-        contractorName: quote.contractorName,
-        totalAmountYen: quote.totalAmountYen,
-        lines: CategoryMaster.categories.map((category) {
-          return _normalizeCategory(
-            category: category,
-            items: itemsByCategory[category.id] ?? [],
+    return project.quotes
+        .map((quote) {
+          final itemsByCategory = <String, List<QuoteLineItem>>{};
+          for (final item in quote.lineItems) {
+            itemsByCategory.putIfAbsent(item.categoryId, () => []).add(item);
+          }
+          return NormalizedQuote(
+            quoteId: quote.id,
+            contractorName: quote.contractorName,
+            totalAmountYen: quote.totalAmountYen,
+            lines: CategoryMaster.categories
+                .map((category) {
+                  return _normalizeCategory(
+                    category: category,
+                    items: itemsByCategory[category.id] ?? const [],
+                  );
+                })
+                .toList(growable: false),
           );
-        }).toList(),
-      );
-    }).toList();
+        })
+        .toList(growable: false);
   }
 
   NormalizedLine _normalizeCategory({
@@ -41,55 +44,64 @@ class Normalizer {
     }
 
     final reasons = <String>[];
-    final distinctStatuses = items
-        .map((item) => item.inclusionStatus)
-        .toSet()
-        .toList();
+    final distinctStatuses = items.map((item) => item.inclusionStatus).toSet();
     final status = distinctStatuses.length == 1
-        ? distinctStatuses.first
-        : (() {
-            reasons.add('同じカテゴリ内で含有状態が一致していません');
-            return InclusionStatus.unknown;
-          })();
+        ? distinctStatuses.single
+        : InclusionStatus.unknown;
+    if (distinctStatuses.length > 1) {
+      reasons.add('同じカテゴリ内で含有状態が一致していません');
+    }
 
     final int? amount;
     if (items.every((item) => item.amountYen == null)) {
       amount = null;
-    } else if (items.any((item) => item.amountYen == null)) {
-      reasons.add('金額未記載の明細を含みます');
+    } else {
+      if (items.any((item) => item.amountYen == null)) {
+        reasons.add('金額未記載の明細を含むため、表示額は記載分のみです');
+      }
       amount = items
           .where((item) => item.amountYen != null)
           .fold<int>(0, (sum, item) => sum + item.amountYen!);
-    } else {
-      amount = items.fold<int>(0, (sum, item) => sum + item.amountYen!);
     }
 
-    final quantityValues = items
-        .where((item) => item.quantity != null)
-        .map((item) => item.quantity!)
-        .toSet()
-        .toList();
-    final unitValues = items
-        .map((item) => UnitNormalizer.normalize(item.unit))
-        .whereType<String>()
-        .toSet()
-        .toList();
-    final quantity = quantityValues.length == 1 ? quantityValues.first : null;
-    final unit = unitValues.length == 1 ? unitValues.first : null;
+    final quantityItems = items.where((item) => item.quantity != null).toList();
+    final canonicalQuantities = quantityItems
+        .map((item) => UnitNormalizer.toCanonical(item.quantity!, item.unit))
+        .whereType<CanonicalQuantity>()
+        .toList(growable: false);
+
+    double? quantity;
+    String? unit;
+    if (quantityItems.length != items.length ||
+        canonicalQuantities.length != items.length) {
+      if (quantityItems.isNotEmpty) {
+        reasons.add('数量または単位が未記載の明細を含むため、数量を合算できません');
+      }
+    } else {
+      final dimensions = canonicalQuantities
+          .map((value) => value.dimension)
+          .toSet();
+      if (dimensions.length == 1) {
+        quantity = canonicalQuantities.fold<double>(
+          0,
+          (sum, value) => sum + value.value,
+        );
+        unit = canonicalQuantities.first.unit;
+      } else {
+        reasons.add('複数明細の単位を同じ尺度へ換算できないため、数量を合算できません');
+      }
+    }
+
     if (category.quantityExpected && (quantity == null || unit == null)) {
       reasons.add('数量または単位が不明です');
-    }
-    if (quantityValues.length > 1 || unitValues.length > 1) {
-      reasons.add('複数明細の数量・単位を単一値へ統合できません');
     }
 
     final specificationValues = items
         .where((item) => item.specification?.trim().isNotEmpty == true)
         .map((item) => item.specification!.trim())
-        .toSet()
-        .toList();
+        .toSet();
     final specification = specificationValues.length == 1
-        ? specificationValues.first
+        ? specificationValues.single
         : null;
     if (category.specificationExpected && specification == null) {
       reasons.add('仕様・型番が不明です');
@@ -108,8 +120,8 @@ class Normalizer {
       quantity: quantity,
       unit: unit,
       specification: specification,
-      sourceLineItemIds: items.map((item) => item.id).toList(),
-      uncertaintyReasons: reasons.toSet().toList(),
+      sourceLineItemIds: items.map((item) => item.id).toList(growable: false),
+      uncertaintyReasons: reasons.toSet().toList(growable: false),
     );
   }
 }

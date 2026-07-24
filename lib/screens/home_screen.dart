@@ -99,9 +99,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<Project> _createProject(String name) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    final projectId = 'project-${DateTime.now().microsecondsSinceEpoch}';
     final project = Project(
-      id: projectId,
+      id: 'project-${DateTime.now().microsecondsSinceEpoch}',
       name: name,
       status: ProjectStatus.draft,
       createdAtEpochMillis: now,
@@ -275,7 +274,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final project = await _createProject(name);
       if (!mounted) return;
-      await Navigator.push<bool>(
+      final openProject = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
           builder: (_) => RequirementsChecklistScreen(
@@ -288,9 +287,13 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       await _loadProjects();
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('案件を作成しました。')));
+      if (openProject == true) {
+        await _openProject(project);
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('案件を作成しました。')));
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -436,81 +439,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
-  Future<void> _showCreateDialog() async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('案件作成'),
-        content: TextField(
-          key: const ValueKey('project-name-field'),
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: '案件名',
-            hintText: '例: 新築外構工事',
-          ),
-          autofocus: true,
-          textInputAction: TextInputAction.done,
-          onSubmitted: (value) {
-            final trimmed = value.trim();
-            if (trimmed.isNotEmpty) Navigator.pop(dialogContext, trimmed);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await HapticService.lightImpact();
-              if (dialogContext.mounted) Navigator.pop(dialogContext);
-            },
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              await HapticService.lightImpact();
-              final value = controller.text.trim();
-              if (value.isNotEmpty && dialogContext.mounted) {
-                Navigator.pop(dialogContext, value);
-              }
-            },
-            child: const Text('次へ'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (name == null || !mounted) return;
-
-    try {
-      final project = await _createProject(name);
-      if (!mounted) return;
-      final openProject = await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => RequirementsChecklistScreen(
-            project: project,
-            repository: _requirementRepository,
-            creationFlow: true,
-          ),
-        ),
-      );
-      if (!mounted) return;
-      await _loadProjects();
-      if (!mounted) return;
-      if (openProject == true) {
-        await _openProject(project);
-      } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('案件を作成しました。')));
-      }
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
-    }
-  }
 }
 
 enum _HomeMenuAction { settings }
@@ -530,7 +458,11 @@ class _EmptyProjectsCard extends StatelessWidget {
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
-              const Icon(Icons.folder_open_outlined, size: 40, semanticLabel: ''),
+              const Icon(
+                Icons.folder_open_outlined,
+                size: 40,
+                semanticLabel: '',
+              ),
               const SizedBox(height: 8),
               Semantics(
                 header: true,
@@ -578,7 +510,11 @@ class _EmptySearchCard extends StatelessWidget {
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
-              const Icon(Icons.search_off_outlined, size: 40, semanticLabel: ''),
+              const Icon(
+                Icons.search_off_outlined,
+                size: 40,
+                semanticLabel: '',
+              ),
               const SizedBox(height: 8),
               Text('「$query」に一致する案件はありません。', textAlign: TextAlign.center),
             ],
@@ -599,7 +535,8 @@ class _ProjectCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: '${project.name}。${project.status.labelJa}。見積 ${project.quotes.length}社。',
+      label:
+          '${project.name}。${project.status.labelJa}。見積 ${project.quotes.length}社。',
       child: Card(
         margin: const EdgeInsets.only(bottom: 12),
         child: ListTile(

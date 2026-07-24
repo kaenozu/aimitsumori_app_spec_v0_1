@@ -1,5 +1,5 @@
 /// ファイルパス: lib/services/comparison_export_service.dart
-/// 比較レポートをテキスト・CSV・PDFへ変換する
+/// 比較レポートをテキスト・CSV・PDFへ変換する。
 library;
 
 import 'dart:convert';
@@ -258,14 +258,10 @@ class ComparisonExportService {
       values.map(_encodeCsvCell).join(',');
 
   static String _encodeCsvCell(Object? value) {
-    var text = value?.toString() ?? '';
-
-    if (RegExp(r'^[\t\r\n ]*[=+\-@]').hasMatch(text)) {
-      text = "'$text";
-    }
-
+    var text = CsvCellSanitizer.protect(value?.toString() ?? '');
     if (!text.contains(RegExp(r'[,"\r\n]'))) return text;
-    return '"${text.replaceAll('"', '""')}"';
+    text = text.replaceAll('"', '""');
+    return '"$text"';
   }
 
   static String _formatYen(int? value) =>

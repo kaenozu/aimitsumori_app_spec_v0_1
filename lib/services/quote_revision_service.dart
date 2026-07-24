@@ -9,7 +9,6 @@ import 'package:sqflite/sqflite.dart';
 import '../models.dart';
 import '../quote_revision_models.dart';
 import 'database_service.dart';
-import 'id_generator.dart';
 
 class QuoteRevisionService {
   QuoteRevisionService({DatabaseService? databaseService})
@@ -18,102 +17,131 @@ class QuoteRevisionService {
   static final QuoteRevisionService instance = QuoteRevisionService();
 
   final DatabaseService _databaseService;
-  Future<void>? _schemaFuture;
-
-  Future<void> _ensureSchema(Database db) {
-    return _schemaFuture ??= _createSchema(db);
-  }
-
-  Future<void> _createSchema(DatabaseExecutor db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS quote_revisions (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        quote_id TEXT NOT NULL,
-        contractor_name TEXT NOT NULL,
-        quote_group_id TEXT NOT NULL,
-        revision_number INTEGER NOT NULL,
-        parent_revision_id TEXT,
-        source_file_hash TEXT NOT NULL,
-        imported_at INTEGER NOT NULL,
-        change_reason TEXT,
-        quote_snapshot_json TEXT NOT NULL,
-        FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
-      )
-    ''');
-    await db.execute(
-      'CREATE UNIQUE INDEX IF NOT EXISTS '
-      'idx_quote_revisions_group_number '
-      'ON quote_revisions(quote_group_id, revision_number)',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_quote_revisions_project '
-      'ON quote_revisions(project_id)',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_quote_revisions_quote '
-      'ON quote_revisions(quote_id)',
-    );
-  }
 
   Future<QuoteRevision> recordQuote({
     required String projectId,
     required ContractorQuote quote,
     QuoteImportIntent intent = const QuoteImportIntent.newQuote(),
     String? sourceFileHash,
-    bool replaceCurrentQuote = false,
   }) async {
     final db = await _databaseService.database;
-    await _ensureSchema(db);
-    return await db.transaction((txn) async {
-      final existingRows = await txn.query(
-        'quote_revisions',
-        where: 'quote_id = ?',
-        whereArgs: [quote.id],
-        limit: 1,
-      );
-      if (existingRows.isNotEmpty) {
-        return _fromRow(existingRows.first);
-      }
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final groupId = currentIntent.isRevision
-          ? currentIntent.quoteGroupId!
-          : 'group-$projectId-'
-                '${_stableHash('${quote.id}|${quote.contractorName}|$now')}';
-      final previousRows = await txn.query(
-        'quote_revisions',
-        where: 'quote_group_id = ?',
-        whereArgs: [groupId],
-        orderBy: 'revision_number DESC',
-        limit: 1,
-      );
-      final revisionNumber = previousRows.isEmpty
-          ? 1
-          : (previousRows.first['revision_number'] as int) + 1;
-      final parentRevisionId = currentIntent.isRevision
-          ? currentIntent.parentRevisionId ??
-                (previousRows.isEmpty ? null : previousRows.first['id'] as String)
-          : null;
-      final revision = QuoteRevision(
-        id: 'revision-$groupId-$revisionNumber',
+    return db.transaction(
+      (transaction) => recordQuoteInTransaction(
+        transaction,
         projectId: projectId,
-        quoteId: quote.id,
-        contractorName: quote.contractorName,
-        quoteGroupId: groupId,
-        revisionNumber: revisionNumber,
-        parentRevisionId: parentRevisionId,
+        quote: quote,
+        intent: intent,
         sourceFileHash: sourceFileHash,
-        importedAt: now,
-        changeReason: currentIntent.changeReason,
-        quoteSnapshot: quote,
-      );
-      await txn.insert(
-        'quote_revisions',
-        _toRow(revision),
-        conflictAlgorithm: ConflictAlgorithm.abort,
-      );
-      return revision;
-    });
+      ),
+    );
+  }
+
+  Future<QuoteRevision> recordQuoteInTransaction(
+    DatabaseExecutor transaction, {
+    required String projectId,
+    required ContractorQuote quote,
+    QuoteImportIntent intent = const QuoteImportIntent.newQuote(),
+    String? sourceFileHash,
+  }) async {
+    final projectRows = await transaction.query(
+      'projects',
+      columns: const ['id'],
+      where: 'id = ?',
+      whereArgs: [projectId],
+      limit: 1,
+    );
+    if (projectRows.isEmpty) {
+      throw StateError('改訂履歴の保存先案件が見つかりません: $projectId');
+    }
+
+    final existingRows = await transaction.query(
+      'quote_revisions',
+      where: 'quote_id = ?',
+      whereArgs: [quote.id],
+      limit: 1,
+    );
+    if (existingRows.isNotEmpty) {
+      final existing = _fromRow(existingRows.first);
+      if (existing.projectId != projectId) {
+        throw StateError('同じ見積IDが別案件の改訂履歴で使用されています: ${quote.id}');
+      }
+      if (intent.isRevision &&
+          intent.quoteGroupId != null &&
+          existing.quoteGroupId != intent.quoteGroupId) {
+        throw StateError('見積IDと改訂グループの組み合わせが一致しません。');
+      }
+      return existing;
+    }
+
+    final groupId = intent.isRevision
+        ? _requiredGroupId(intent)
+        : 'group-$projectId-${_stableHash('${quote.id}|${quote.contractorName}')}';
+
+    final groupRows = await transaction.query(
+      'quote_revisions',
+      columns: const ['id', 'project_id', 'revision_number'],
+      where: 'quote_group_id = ?',
+      whereArgs: [groupId],
+      orderBy: 'revision_number DESC',
+    );
+    if (groupRows.any((row) => row['project_id'] != projectId)) {
+      throw StateError('改訂グループが別案件に属しています: $groupId');
+    }
+
+    final previousRevisionNumber = groupRows.isEmpty
+        ? 0
+        : groupRows.first['revision_number'] as int;
+    final revisionNumber = previousRevisionNumber + 1;
+
+    String? parentRevisionId;
+    if (intent.isRevision) {
+      final requestedParentId = intent.parentRevisionId;
+      if (requestedParentId != null) {
+        final parentRows = await transaction.query(
+          'quote_revisions',
+          columns: const ['id', 'project_id', 'quote_group_id'],
+          where: 'id = ?',
+          whereArgs: [requestedParentId],
+          limit: 1,
+        );
+        if (parentRows.isEmpty ||
+            parentRows.first['project_id'] != projectId ||
+            parentRows.first['quote_group_id'] != groupId) {
+          throw StateError('指定された親改訂版が同じ案件・グループに存在しません。');
+        }
+        parentRevisionId = requestedParentId;
+      } else if (groupRows.isNotEmpty) {
+        parentRevisionId = groupRows.first['id'] as String;
+      } else {
+        throw StateError('改訂版として保存するには親となる第1版が必要です。');
+      }
+    }
+
+    final normalizedHash = sourceFileHash?.trim();
+    final revision = QuoteRevision(
+      id: 'revision-$groupId-$revisionNumber',
+      projectId: projectId,
+      quoteId: quote.id,
+      contractorName: quote.contractorName,
+      quoteGroupId: groupId,
+      revisionNumber: revisionNumber,
+      parentRevisionId: parentRevisionId,
+      sourceFileHash: normalizedHash == null || normalizedHash.isEmpty
+          ? _quoteHash(quote)
+          : normalizedHash,
+      importedAt: DateTime.now().millisecondsSinceEpoch,
+      changeReason: intent.changeReason?.trim().isEmpty == true
+          ? null
+          : intent.changeReason?.trim(),
+      quoteSnapshot: quote,
+    );
+
+    await transaction.insert(
+      'quote_revisions',
+      _toRow(revision),
+      conflictAlgorithm: ConflictAlgorithm.abort,
+    );
+    return revision;
   }
 
   Future<void> ensureInitialRevisions({
@@ -122,11 +150,10 @@ class QuoteRevisionService {
   }) async {
     if (quotes.isEmpty) return;
     final db = await _databaseService.database;
-    await _ensureSchema(db);
     await db.transaction((transaction) async {
       final rows = await transaction.query(
         'quote_revisions',
-        columns: ['quote_id'],
+        columns: const ['quote_id'],
         where: 'project_id = ?',
         whereArgs: [projectId],
       );
@@ -147,7 +174,6 @@ class QuoteRevisionService {
 
   Future<List<QuoteRevision>> getProjectRevisions(String projectId) async {
     final db = await _databaseService.database;
-    await _ensureSchema(db);
     final rows = await db.query(
       'quote_revisions',
       where: 'project_id = ?',
@@ -159,13 +185,11 @@ class QuoteRevisionService {
 
   Future<String?> groupIdForQuote(String quoteId) async {
     final db = await _databaseService.database;
-    await _ensureSchema(db);
     final rows = await db.query(
       'quote_revisions',
-      columns: ['quote_group_id'],
+      columns: const ['quote_group_id'],
       where: 'quote_id = ?',
       whereArgs: [quoteId],
-      orderBy: 'revision_number DESC',
       limit: 1,
     );
     return rows.isEmpty ? null : rows.first['quote_group_id'] as String;
@@ -173,16 +197,22 @@ class QuoteRevisionService {
 
   Future<String?> revisionIdForQuote(String quoteId) async {
     final db = await _databaseService.database;
-    await _ensureSchema(db);
     final rows = await db.query(
       'quote_revisions',
-      columns: ['id'],
+      columns: const ['id'],
       where: 'quote_id = ?',
       whereArgs: [quoteId],
-      orderBy: 'revision_number DESC',
       limit: 1,
     );
     return rows.isEmpty ? null : rows.first['id'] as String;
+  }
+
+  String _requiredGroupId(QuoteImportIntent intent) {
+    final groupId = intent.quoteGroupId?.trim();
+    if (groupId == null || groupId.isEmpty) {
+      throw StateError('改訂版として保存するには改訂グループIDが必要です。');
+    }
+    return groupId;
   }
 
   Map<String, Object?> _toRow(QuoteRevision revision) => {
@@ -254,4 +284,7 @@ class QuoteRevisionService {
 
   String _quoteHash(ContractorQuote quote) =>
       sha256.convert(utf8.encode(jsonEncode(_quoteToJson(quote)))).toString();
+
+  String _stableHash(String value) =>
+      sha256.convert(utf8.encode(value)).toString().substring(0, 24);
 }

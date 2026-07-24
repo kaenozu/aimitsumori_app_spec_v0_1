@@ -77,18 +77,18 @@ class _AimitsumoriAppState extends State<AimitsumoriApp> {
   }
 
   ThemeData _theme(Brightness brightness) => ThemeData(
-        colorSchemeSeed: Colors.indigo,
-        useMaterial3: true,
-        brightness: brightness,
-        materialTapTargetSize: MaterialTapTargetSize.padded,
-        visualDensity: VisualDensity.standard,
-        iconButtonTheme: const IconButtonThemeData(
-          style: ButtonStyle(
-            minimumSize: WidgetStatePropertyAll(Size.square(48)),
-            tapTargetSize: MaterialTapTargetSize.padded,
-          ),
-        ),
-      );
+    colorSchemeSeed: Colors.indigo,
+    useMaterial3: true,
+    brightness: brightness,
+    materialTapTargetSize: MaterialTapTargetSize.padded,
+    visualDensity: VisualDensity.standard,
+    iconButtonTheme: const IconButtonThemeData(
+      style: ButtonStyle(
+        minimumSize: WidgetStatePropertyAll(Size.square(48)),
+        tapTargetSize: MaterialTapTargetSize.padded,
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {

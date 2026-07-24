@@ -1,6 +1,5 @@
 /// ファイルパス: lib/screens/quote_edit_screen.dart
-/// 目的: QuoteInputScreen を「編集」画面名で利用するための互換エントリを提供する。
-/// 存在理由: 既存の QuoteInputScreen 参照を壊さず、画面の役割とファイル名を一致させるため。
+/// QuoteInputScreenを「編集」画面名で利用するための互換エントリ。
 library;
 
 import 'quote_input_screen.dart';
@@ -12,5 +11,7 @@ class QuoteEditScreen extends QuoteInputScreen {
     super.repository,
     super.ocrService,
     super.reviewStore,
+    super.initialQuote,
+    super.revisionIntent,
   });
 }

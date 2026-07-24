@@ -58,7 +58,8 @@ class ScannedPage {
   final int capturedAtEpochMillis;
   final ScanQualityResult quality;
 
-  ScannedPage copyWith({String? path, ScanQualityResult? quality}) => ScannedPage(
+  ScannedPage copyWith({String? path, ScanQualityResult? quality}) =>
+      ScannedPage(
         id: id,
         path: path ?? this.path,
         capturedAtEpochMillis: capturedAtEpochMillis,

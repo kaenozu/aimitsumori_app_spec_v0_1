@@ -6,10 +6,7 @@ import 'ocr_confidence_engine.dart';
 import 'ocr_service.dart';
 
 class BatchOcrResult {
-  const BatchOcrResult({
-    required this.quote,
-    required this.reviewBundle,
-  });
+  const BatchOcrResult({required this.quote, required this.reviewBundle});
 
   final RawQuoteData quote;
   final OcrReviewBundle reviewBundle;
@@ -17,7 +14,7 @@ class BatchOcrResult {
 
 class BatchOcrService {
   BatchOcrService({OcrService? ocrService})
-      : ocrService = ocrService ?? OcrService();
+    : ocrService = ocrService ?? OcrService();
 
   final OcrService ocrService;
 
@@ -51,27 +48,19 @@ class BatchOcrService {
       }
     }
 
-    final seen = <String>{};
-    final items = <RawQuoteLineItem>[];
-    for (final result in results) {
-      for (final item in result.lineItems) {
-        final key = [
-          item.categoryId,
-          item.rawLabel,
-          item.amountYen,
-          item.quantity,
-          item.unit,
-        ].join('|');
-        if (seen.add(key)) items.add(item);
-      }
-    }
+    // 同じ名称・金額の明細が複数ページに存在することは正当なので、
+    // OCR結果を値だけで重複排除しない。
+    final items = <RawQuoteLineItem>[
+      for (final result in results) ...result.lineItems,
+    ];
 
     final quote = RawQuoteData(
       contractorName: contractor,
       totalAmountYen: total,
       lineItems: items,
-      extractedText:
-          results.map((result) => result.extractedText).join('\n\n--- page ---\n\n'),
+      extractedText: results
+          .map((result) => result.extractedText)
+          .join('\n\n--- page ---\n\n'),
       sourcePath: paths.join('|'),
       createdAtEpochMillis: DateTime.now().millisecondsSinceEpoch,
     );
@@ -85,10 +74,7 @@ class BatchOcrService {
 
     return BatchOcrResult(
       quote: quote,
-      reviewBundle: OcrReviewBundle(
-        lines: reviewLines,
-        issues: issues,
-      ),
+      reviewBundle: OcrReviewBundle(lines: reviewLines, issues: issues),
     );
   }
 

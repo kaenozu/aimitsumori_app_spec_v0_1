@@ -33,10 +33,11 @@ void main() {
         questions: questions,
       );
 
-      expect(
-        report.quoteSnapshots.map((s) => s.contractorName).toList(),
-        ['A社', 'B社', 'C社'],
-      );
+      expect(report.quoteSnapshots.map((s) => s.contractorName).toList(), [
+        'A社',
+        'B社',
+        'C社',
+      ]);
       expect(report.summaryLines.length, 3);
       expect(report.summaryLines[0], contains('A社 2,530,000円'));
       expect(report.summaryLines[0], contains('B社 3,450,000円'));
@@ -67,9 +68,7 @@ void main() {
     expect(companyA.separateCategoryNames, contains('排水'));
     expect(
       report.clarificationQuestions.any(
-        (q) =>
-            q.contractorName == 'A社' &&
-            q.templateKey == 'SEPARATE_SCOPE',
+        (q) => q.contractorName == 'A社' && q.templateKey == 'SEPARATE_SCOPE',
       ),
       isTrue,
     );
@@ -90,14 +89,8 @@ void main() {
     expect(concrete.quantity, isNull);
     expect(concrete.unit, isNull);
     expect(concrete.specification, isNull);
-    expect(
-      concrete.uncertaintyReasons.any((r) => r.contains('数量')),
-      isTrue,
-    );
-    expect(
-      concrete.uncertaintyReasons.any((r) => r.contains('仕様')),
-      isTrue,
-    );
+    expect(concrete.uncertaintyReasons.any((r) => r.contains('数量')), isTrue);
+    expect(concrete.uncertaintyReasons.any((r) => r.contains('仕様')), isTrue);
 
     expect(drainage.inclusionStatus, InclusionStatus.unknown);
     expect(drainage.amountYen, isNull);
@@ -120,18 +113,9 @@ void main() {
       );
 
       expect(report.categoryComparisons.length, 18);
-      expect(
-        report.summaryLines.any((l) => l.contains('総合点')),
-        isFalse,
-      );
-      expect(
-        report.summaryLines.any((l) => l.contains('ランキング')),
-        isFalse,
-      );
-      expect(
-        report.summaryLines.any((l) => l.contains('1位')),
-        isFalse,
-      );
+      expect(report.summaryLines.any((l) => l.contains('総合点')), isFalse);
+      expect(report.summaryLines.any((l) => l.contains('ランキング')), isFalse);
+      expect(report.summaryLines.any((l) => l.contains('1位')), isFalse);
     },
   );
 
@@ -155,14 +139,11 @@ void main() {
       isTrue,
     );
     expect(report.clarificationQuestions, isEmpty);
-    expect(
-      report.summaryLines,
-      const [
-        '見積総額: 見積は未登録です。',
-        '範囲差: 比較対象がないため判定できません。',
-        '要確認: まず見積書を登録してください。質問テンプレートは0件です。',
-      ],
-    );
+    expect(report.summaryLines, const [
+      '見積総額: 見積は未登録です。',
+      '範囲差: 比較対象がないため判定できません。',
+      '要確認: まず見積書を登録してください。質問テンプレートは0件です。',
+    ]);
   });
 
   test('compare completes with a single quote', () {
@@ -202,45 +183,45 @@ void main() {
     expect(report.summaryLines[0], contains('総額差は算出不能'));
   });
 
-  test('compare displays unknown and does not calculate spread for null totals', () {
-    final quoteA = createTestContractorQuote(
-      id: 'quote-null-a',
-      contractorName: '金額不明A社',
-      totalAmountYen: null,
-    );
-    final quoteB = createTestContractorQuote(
-      id: 'quote-null-b',
-      contractorName: '金額不明B社',
-      totalAmountYen: null,
-    );
-    final project = createTestProject(quotes: [quoteA, quoteB]);
+  test(
+    'compare displays unknown and does not calculate spread for null totals',
+    () {
+      final quoteA = createTestContractorQuote(
+        id: 'quote-null-a',
+        contractorName: '金額不明A社',
+        totalAmountYen: null,
+      );
+      final quoteB = createTestContractorQuote(
+        id: 'quote-null-b',
+        contractorName: '金額不明B社',
+        totalAmountYen: null,
+      );
+      final project = createTestProject(quotes: [quoteA, quoteB]);
 
-    final report = engine.compare(
-      project: project,
-      normalizedQuotes: [
-        _createNormalizedQuote(
-          quoteId: quoteA.id,
-          contractorName: quoteA.contractorName,
-          totalAmountYen: quoteA.totalAmountYen,
-        ),
-        _createNormalizedQuote(
-          quoteId: quoteB.id,
-          contractorName: quoteB.contractorName,
-          totalAmountYen: quoteB.totalAmountYen,
-        ),
-      ],
-      questions: const <ClarificationQuestion>[],
-    );
+      final report = engine.compare(
+        project: project,
+        normalizedQuotes: [
+          _createNormalizedQuote(
+            quoteId: quoteA.id,
+            contractorName: quoteA.contractorName,
+            totalAmountYen: quoteA.totalAmountYen,
+          ),
+          _createNormalizedQuote(
+            quoteId: quoteB.id,
+            contractorName: quoteB.contractorName,
+            totalAmountYen: quoteB.totalAmountYen,
+          ),
+        ],
+        questions: const <ClarificationQuestion>[],
+      );
 
-    expect(
-      report.quoteSnapshots.map((snapshot) => snapshot.totalAmountYen),
-      everyElement(isNull),
-    );
-    expect(
-      report.summaryLines[0],
-      '見積総額: 金額不明A社 不明 / 金額不明B社 不明、総額差は算出不能。',
-    );
-  });
+      expect(
+        report.quoteSnapshots.map((snapshot) => snapshot.totalAmountYen),
+        everyElement(isNull),
+      );
+      expect(report.summaryLines[0], '見積総額: 金額不明A社 不明 / 金額不明B社 不明、総額差は算出不能。');
+    },
+  );
 
   test('compare reports zero-yen spread when multiple totals are equal', () {
     final quoteA = createTestContractorQuote(
@@ -320,10 +301,7 @@ void main() {
         'discount': InclusionStatus.optional,
         'tax': InclusionStatus.included,
       },
-      amounts: const {
-        'discount': -50000,
-        'tax': 100000,
-      },
+      amounts: const {'discount': -50000, 'tax': 100000},
     );
 
     final report = engine.compare(
@@ -371,15 +349,12 @@ NormalizedQuote _createNormalizedQuote({
     contractorName: contractorName,
     totalAmountYen: totalAmountYen,
     lines: CategoryMaster.categories
-        .where(
-          (category) => !omittedCategoryIds.contains(category.id),
-        )
+        .where((category) => !omittedCategoryIds.contains(category.id))
         .map(
           (category) => NormalizedLine(
             category: category,
             inclusionStatus:
-                inclusionStatuses[category.id] ??
-                InclusionStatus.notApplicable,
+                inclusionStatuses[category.id] ?? InclusionStatus.notApplicable,
             amountYen: amounts[category.id],
             quantity: null,
             unit: null,

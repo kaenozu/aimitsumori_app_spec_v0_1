@@ -54,11 +54,7 @@ void main() {
       }
     }
 
-    final result = service.evaluateLuma(
-      width: 120,
-      height: 180,
-      luma: luma,
-    );
+    final result = service.evaluateLuma(width: 120, height: 180, luma: luma);
 
     expect(result.issues, contains(ScanQualityIssue.tooFar));
     expect(result.guidance, '見積書に近づいてください');

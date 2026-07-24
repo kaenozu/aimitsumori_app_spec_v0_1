@@ -51,9 +51,6 @@ class OcrConfidenceEngine {
     'tax': ['消費税', '税額'],
   };
 
-  static const _quantityUnitPattern =
-      r'(?:㎡|m2|m²|㎥|m3|m³|mm|cm|m|本|基|台|式|一式|箇所|ヶ所|個)';
-
   OcrLineInterpretation analyze({
     required String rawText,
     required int pageNumber,
@@ -68,15 +65,13 @@ class OcrConfidenceEngine {
       for (final entry in categoryKeywords.entries)
         if (entry.value.any(normalizedText.contains)) entry.key,
     ];
-
     final amountCandidates = extractAmountCandidates(normalizedText);
 
     final quantityMatch = RegExp(
       r'([+-]?\d+(?:[.,]\d+)?)\s*'
-      r'(㎡|m2|m²|㎥|m3|m³|m|本|基|台|式|箇所|ヶ所|個)',
+      r'(㎡|m2|m²|㎥|m3|m³|mm|cm|m|本|基|台|式|一式|箇所|ヶ所|個)',
       caseSensitive: false,
     ).firstMatch(normalizedText);
-
     final quantity = _parseQuantity(quantityMatch?.group(1));
     final unit = UnitNormalizer.normalize(quantityMatch?.group(2));
 
@@ -91,25 +86,20 @@ class OcrConfidenceEngine {
     );
     final categoryConfidence = calculateCategoryConfidence(categoryCandidates);
     final amountConfidence = calculateAmountConfidence(amountCandidates);
-
     final reasons = <OcrReviewReason>[];
 
     if (ocrConfidence < 0.75) {
       reasons.add(OcrReviewReason.lowOcrConfidence);
     }
-
     if (categoryCandidates.isNotEmpty && categoryConfidence < 0.75) {
       reasons.add(OcrReviewReason.lowCategoryConfidence);
     }
-
     if (amountCandidates.isNotEmpty && amountConfidence < 0.75) {
       reasons.add(OcrReviewReason.lowAmountConfidence);
     }
-
     if (categoryCandidates.length > 1 || amountCandidates.length > 1) {
       reasons.add(OcrReviewReason.multipleCandidates);
     }
-
     if (hasQuantityUnitPriceMismatch(
       quantity: quantity,
       unitPriceYen: unitPrice,
@@ -198,6 +188,8 @@ class OcrConfidenceEngine {
     '㎥',
     'm3',
     'm³',
+    'mm',
+    'cm',
     'm',
     '本',
     '基',
@@ -209,27 +201,21 @@ class OcrConfidenceEngine {
   ];
 
   static List<int> extractAmountCandidates(String line) {
-    final normalized = TextNormalizer.normalize(line) ?? ''
+    final normalized = (TextNormalizer.normalize(line) ?? '')
         .replaceAll('\u00A0', ' ')
         .replaceAll('\u3000', ' ');
-
     final amounts = <int>[];
 
     for (final match in _amountTokenPattern.allMatches(normalized)) {
       if (!_isAmountMatch(normalized, match)) continue;
-
       final amount = _parseAmountToken(match.group(2));
-      if (amount != null) {
-        amounts.add(amount);
-      }
+      if (amount != null) amounts.add(amount);
     }
-
     return List<int>.unmodifiable(amounts);
   }
 
   static int? _parseAmountToken(String? token) {
     if (token == null || token.isEmpty) return null;
-
     final numericText = token.replaceAll(RegExp(r'[¥円,\s]'), '');
     return int.tryParse(numericText);
   }
@@ -238,12 +224,10 @@ class OcrConfidenceEngine {
     final token = match.group(2) ?? '';
     if (token.isEmpty) return false;
 
-    final fullStart = match.start;
     final prefix = match.group(1) ?? '';
-    final tokenStart = fullStart + prefix.length;
+    final tokenStart = match.start + prefix.length;
     final tokenEnd = tokenStart + token.length;
     final hasCurrencyMarker = RegExp(r'[¥円]').hasMatch(token);
-
     final before = text.substring(0, tokenStart).trimRight();
     final after = text.substring(tokenEnd).trimLeft();
 
@@ -254,7 +238,6 @@ class OcrConfidenceEngine {
       if (after.isNotEmpty && './:'.contains(after[0])) {
         return false;
       }
-
       final lowerAfter = after.toLowerCase();
       if (_quantityUnitPrefixes.any(
         (unit) => lowerAfter.startsWith(unit.toLowerCase()),
@@ -262,19 +245,15 @@ class OcrConfidenceEngine {
         return false;
       }
     }
-
     return true;
   }
 
   static double? _parseQuantity(String? rawValue) {
     if (rawValue == null || rawValue.isEmpty) return null;
-
     final value = (TextNormalizer.normalize(rawValue) ?? '').trim();
-
     if (RegExp(r'^[+-]?\d{1,3}(?:,\d{3})+$').hasMatch(value)) {
       return double.tryParse(value.replaceAll(',', ''));
     }
-
     return double.tryParse(value.replaceAll(',', '.'));
   }
 
@@ -282,12 +261,7 @@ class OcrConfidenceEngine {
     return input.replaceAllMapped(_amountTokenPattern, (match) {
       final prefix = match.group(1) ?? '';
       final token = match.group(2) ?? '';
-
-      if (_isAmountMatch(input, match)) {
-        return prefix;
-      }
-
-      return '$prefix$token';
+      return _isAmountMatch(input, match) ? prefix : '$prefix$token';
     });
   }
 
@@ -346,11 +320,7 @@ class OcrConfidenceEngine {
     var value = _stripAmountTokens(
       TextNormalizer.normalize(line) ?? '',
     ).replaceAll(RegExp(r'\s+'), ' ').trim();
-
-    if (value.length > 120) {
-      value = value.substring(0, 120);
-    }
-
+    if (value.length > 120) value = value.substring(0, 120);
     return value.isEmpty ? null : value;
   }
 }
