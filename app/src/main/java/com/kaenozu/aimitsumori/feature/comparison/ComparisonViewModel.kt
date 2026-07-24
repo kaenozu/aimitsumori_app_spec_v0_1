@@ -37,11 +37,15 @@ class ComparisonViewModel(
     val unlockState: UnlockState = unlockManager.getUnlockState(projectId)
 
     fun unlockWithAd() {
-        unlockManager.unlockWithAd(projectId)
+        viewModelScope.launch {
+            unlockManager.unlockWithAd(projectId)
+        }
     }
 
     fun unlockWithPurchase() {
-        unlockManager.unlockWithPurchase(projectId)
+        viewModelScope.launch {
+            unlockManager.unlockWithPurchase(projectId)
+        }
     }
 
     init {

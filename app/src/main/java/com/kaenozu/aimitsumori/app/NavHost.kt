@@ -21,17 +21,21 @@ import com.kaenozu.aimitsumori.feature.project.CreateProjectScreen
 import com.kaenozu.aimitsumori.feature.project.CreateProjectViewModel
 import com.kaenozu.aimitsumori.feature.quote.ImportScreen
 import com.kaenozu.aimitsumori.feature.quote.ImportViewModel
+import com.kaenozu.aimitsumori.feature.review.ReviewScreen
+import com.kaenozu.aimitsumori.feature.review.ReviewViewModel
 
 private object Routes {
     const val HOME = "home"
     const val CREATE_PROJECT = "create-project"
     const val CHECKLIST = "checklist/{projectId}"
     const val IMPORT = "import/{projectId}"
+    const val REVIEW = "review/{projectId}"
     const val COMPARISON = "comparison/{projectId}"
     const val REVISION = "revision/{projectId}"
 
     fun checklist(projectId: String): String = "checklist/$projectId"
     fun import(projectId: String): String = "import/$projectId"
+    fun review(projectId: String): String = "review/$projectId"
     fun comparison(projectId: String): String = "comparison/$projectId"
     fun revision(projectId: String): String = "revision/$projectId"
 }
@@ -139,6 +143,31 @@ fun AimitsumoriNavHost(container: AppContainer) {
             )
             ImportScreen(
                 viewModel = importViewModel,
+                onBack = { navController.popBackStack() },
+                onComplete = {
+                    navController.navigate(Routes.review(projectId)) {
+                        popUpTo(Routes.HOME)
+                    }
+                },
+            )
+        }
+
+        composable(
+            route = Routes.REVIEW,
+            arguments = listOf(
+                navArgument("projectId") { type = NavType.StringType },
+            ),
+        ) { backStackEntry ->
+            val projectId = requireNotNull(backStackEntry.arguments?.getString("projectId"))
+            val reviewViewModel: ReviewViewModel = viewModel(
+                key = "review-$projectId",
+                factory = ReviewViewModel.Factory(
+                    projectId = projectId,
+                    repository = container.repository,
+                ),
+            )
+            ReviewScreen(
+                viewModel = reviewViewModel,
                 onBack = { navController.popBackStack() },
                 onComplete = {
                     navController.navigate(Routes.comparison(projectId)) {

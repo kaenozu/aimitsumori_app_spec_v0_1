@@ -25,7 +25,7 @@ class AppContainer(context: Context) {
     val repository = QuoteRepository(database)
     val requirementDao = database.requirementDao()
     val normalizer = Normalizer()
-    val unlockManager = UnlockManager()
+    val unlockManager = UnlockManager(context)
     val questionGenerator = QuestionGenerator()
     val comparisonEngine = ComparisonEngine()
 

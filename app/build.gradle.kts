@@ -71,5 +71,7 @@ dependencies {
 
     implementation(libs.mlkit.text.recognition)
 
+    implementation(libs.androidx.datastore.preferences)
+
     testImplementation(libs.junit)
 }
