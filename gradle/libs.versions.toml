@@ -11,6 +11,7 @@ room = "2.7.2"
 serializationJson = "1.9.0"
 coroutines = "1.10.2"
 junit4 = "4.13.2"
+mlkitTextRecognition = "16.1.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -30,6 +31,7 @@ androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref =
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serializationJson" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 junit = { module = "junit:junit", version.ref = "junit4" }
+mlkit-text-recognition = { module = "com.google.mlkit:text-recognition-japanese", version.ref = "mlkitTextRecognition" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

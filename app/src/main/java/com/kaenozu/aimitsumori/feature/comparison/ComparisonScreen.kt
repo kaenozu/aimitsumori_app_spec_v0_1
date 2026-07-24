@@ -34,6 +34,7 @@ import com.kaenozu.aimitsumori.domain.model.ClarificationQuestion
 import com.kaenozu.aimitsumori.domain.model.ComparisonCell
 import com.kaenozu.aimitsumori.domain.model.ComparisonReport
 import com.kaenozu.aimitsumori.domain.model.QuoteSnapshot
+import com.kaenozu.aimitsumori.ui.UnlockPrompt
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -42,6 +43,8 @@ import java.util.Locale
 fun ComparisonScreen(
     viewModel: ComparisonViewModel,
     onBack: () -> Unit,
+    onAddQuote: () -> Unit = {},
+    onRevision: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -51,6 +54,10 @@ fun ComparisonScreen(
                 title = { Text("比較") },
                 navigationIcon = {
                     OutlinedButton(onClick = onBack) { Text("戻る") }
+                },
+                actions = {
+                    OutlinedButton(onClick = onAddQuote) { Text("見積追加") }
+                    OutlinedButton(onClick = onRevision) { Text("履歴") }
                 },
             )
         },
@@ -63,6 +70,9 @@ fun ComparisonScreen(
             )
             is ComparisonUiState.Ready -> ReportContent(
                 report = state.report,
+                showUnlock = !viewModel.unlockState.isUnlocked,
+                onWatchAd = viewModel::unlockWithAd,
+                onPurchase = viewModel::unlockWithPurchase,
                 modifier = Modifier.padding(padding),
             )
         }
@@ -93,6 +103,9 @@ private fun ErrorContent(
 @Composable
 private fun ReportContent(
     report: ComparisonReport,
+    showUnlock: Boolean = false,
+    onWatchAd: () -> Unit = {},
+    onPurchase: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -160,6 +173,16 @@ private fun ReportContent(
                 question = question,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
+        }
+
+        if (showUnlock) {
+            item {
+                UnlockPrompt(
+                    onWatchAd = onWatchAd,
+                    onPurchase = onPurchase,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
         }
 
         item { Spacer(Modifier.height(24.dp)) }

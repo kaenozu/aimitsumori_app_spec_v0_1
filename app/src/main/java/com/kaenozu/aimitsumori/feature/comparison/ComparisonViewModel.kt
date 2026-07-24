@@ -8,6 +8,9 @@ import com.kaenozu.aimitsumori.domain.clarification.QuestionGenerator
 import com.kaenozu.aimitsumori.domain.comparison.ComparisonEngine
 import com.kaenozu.aimitsumori.domain.model.ComparisonReport
 import com.kaenozu.aimitsumori.domain.normalization.Normalizer
+import com.kaenozu.aimitsumori.domain.purchase.UnlockManager
+import com.kaenozu.aimitsumori.domain.purchase.UnlockState
+import com.kaenozu.aimitsumori.domain.purchase.UnlockType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,9 +29,20 @@ class ComparisonViewModel(
     private val normalizer: Normalizer,
     private val questionGenerator: QuestionGenerator,
     private val comparisonEngine: ComparisonEngine,
+    private val unlockManager: UnlockManager,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow<ComparisonUiState>(ComparisonUiState.Loading)
     val uiState: StateFlow<ComparisonUiState> = _uiState.asStateFlow()
+
+    val unlockState: UnlockState = unlockManager.getUnlockState(projectId)
+
+    fun unlockWithAd() {
+        unlockManager.unlockWithAd(projectId)
+    }
+
+    fun unlockWithPurchase() {
+        unlockManager.unlockWithPurchase(projectId)
+    }
 
     init {
         viewModelScope.launch {
@@ -61,6 +75,7 @@ class ComparisonViewModel(
         private val normalizer: Normalizer,
         private val questionGenerator: QuestionGenerator,
         private val comparisonEngine: ComparisonEngine,
+        private val unlockManager: UnlockManager,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
@@ -70,6 +85,7 @@ class ComparisonViewModel(
                 normalizer = normalizer,
                 questionGenerator = questionGenerator,
                 comparisonEngine = comparisonEngine,
+                unlockManager = unlockManager,
             ) as T
     }
 }

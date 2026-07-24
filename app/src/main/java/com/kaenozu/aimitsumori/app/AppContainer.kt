@@ -7,6 +7,7 @@ import com.kaenozu.aimitsumori.data.repository.QuoteRepository
 import com.kaenozu.aimitsumori.domain.clarification.QuestionGenerator
 import com.kaenozu.aimitsumori.domain.comparison.ComparisonEngine
 import com.kaenozu.aimitsumori.domain.normalization.Normalizer
+import com.kaenozu.aimitsumori.domain.purchase.UnlockManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,7 +23,9 @@ class AppContainer(context: Context) {
     ).build()
 
     val repository = QuoteRepository(database)
+    val requirementDao = database.requirementDao()
     val normalizer = Normalizer()
+    val unlockManager = UnlockManager()
     val questionGenerator = QuestionGenerator()
     val comparisonEngine = ComparisonEngine()
 

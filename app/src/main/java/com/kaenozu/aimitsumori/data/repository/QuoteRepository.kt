@@ -62,6 +62,12 @@ class QuoteRepository(
         }
     }
 
+    suspend fun addQuoteToProject(projectId: String, quote: ContractorQuote) {
+        database.withTransaction {
+            quoteDao.upsertAll(listOf(quote.toEntity(projectId)))
+        }
+    }
+
     suspend fun replaceQuestions(
         projectId: String,
         questions: List<ClarificationQuestion>,
