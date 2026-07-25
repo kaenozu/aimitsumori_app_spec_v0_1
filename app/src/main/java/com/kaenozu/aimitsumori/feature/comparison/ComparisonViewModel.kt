@@ -10,7 +10,6 @@ import com.kaenozu.aimitsumori.domain.model.ComparisonReport
 import com.kaenozu.aimitsumori.domain.normalization.Normalizer
 import com.kaenozu.aimitsumori.domain.purchase.UnlockManager
 import com.kaenozu.aimitsumori.domain.purchase.UnlockState
-import com.kaenozu.aimitsumori.domain.purchase.UnlockType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,7 +23,7 @@ sealed interface ComparisonUiState {
 }
 
 class ComparisonViewModel(
-    projectId: String,
+    private val projectId: String,
     private val repository: QuoteRepository,
     private val normalizer: Normalizer,
     private val questionGenerator: QuestionGenerator,
