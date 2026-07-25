@@ -24,8 +24,7 @@ void main() {
     final legacyDatabase = await openDatabase(
       databasePath,
       version: 1,
-      onConfigure: (database) =>
-          database.execute('PRAGMA foreign_keys = ON'),
+      onConfigure: (database) => database.execute('PRAGMA foreign_keys = ON'),
       onCreate: _createVersion1Schema,
     );
     await _seedVersion1Data(legacyDatabase);
