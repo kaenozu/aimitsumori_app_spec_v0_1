@@ -47,6 +47,7 @@ fun ComparisonScreen(
     onRevision: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isUnlocked by viewModel.isUnlocked.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -70,7 +71,7 @@ fun ComparisonScreen(
             )
             is ComparisonUiState.Ready -> ReportContent(
                 report = state.report,
-                showUnlock = !viewModel.unlockState.isUnlocked,
+                showUnlock = !isUnlocked,
                 onWatchAd = viewModel::unlockWithAd,
                 onPurchase = viewModel::unlockWithPurchase,
                 modifier = Modifier.padding(padding),

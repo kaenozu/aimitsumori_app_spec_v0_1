@@ -9,12 +9,13 @@ import com.kaenozu.aimitsumori.domain.comparison.ComparisonEngine
 import com.kaenozu.aimitsumori.domain.model.ComparisonReport
 import com.kaenozu.aimitsumori.domain.normalization.Normalizer
 import com.kaenozu.aimitsumori.domain.purchase.UnlockManager
-import com.kaenozu.aimitsumori.domain.purchase.UnlockState
-import com.kaenozu.aimitsumori.domain.purchase.UnlockType
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 sealed interface ComparisonUiState {
@@ -24,7 +25,7 @@ sealed interface ComparisonUiState {
 }
 
 class ComparisonViewModel(
-    projectId: String,
+    private val projectId: String,
     private val repository: QuoteRepository,
     private val normalizer: Normalizer,
     private val questionGenerator: QuestionGenerator,
@@ -34,7 +35,13 @@ class ComparisonViewModel(
     private val _uiState = MutableStateFlow<ComparisonUiState>(ComparisonUiState.Loading)
     val uiState: StateFlow<ComparisonUiState> = _uiState.asStateFlow()
 
-    val unlockState: UnlockState = unlockManager.getUnlockState(projectId)
+    val isUnlocked: StateFlow<Boolean> = unlockManager.unlockedProjects
+        .map { projects -> projectId in projects }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = unlockManager.isUnlocked(projectId),
+        )
 
     fun unlockWithAd() {
         viewModelScope.launch {
