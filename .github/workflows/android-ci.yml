@@ -55,4 +55,25 @@ jobs:
           test -d "$ANDROID_HOME/build-tools/35.0.0"
 
       - name: Run unit tests and build debug APK
-        run: gradle --no-daemon --stacktrace testDebugUnitTest assembleDebug
+        id: android-build
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon --stacktrace testDebugUnitTest assembleDebug 2>&1 | tee android-build.log
+
+      - name: Upload Android diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-diagnostics
+          path: |
+            android-build.log
+            app/build/reports/tests/
+            app/build/test-results/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Enforce Android build
+        if: steps.android-build.outcome == 'failure'
+        run: exit 1
