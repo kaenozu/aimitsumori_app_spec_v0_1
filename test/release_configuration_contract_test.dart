@@ -22,13 +22,20 @@ void main() {
     expect(script, contains('--dart-define=PURCHASE_VERIFICATION_URL='));
   });
 
-  test('CI release validation provides purchase verification URL', () {
+  test('CI release validation builds APK and AAB', () {
     final workflow = File(
       '.github/workflows/flutter_ci.yml',
     ).readAsStringSync();
 
     expect(workflow, contains('PURCHASE_VERIFICATION_URL:'));
     expect(workflow, contains('--dart-define=PURCHASE_VERIFICATION_URL='));
+    expect(workflow, contains('flutter build apk --release --no-pub'));
+    expect(workflow, contains('flutter build appbundle --release --no-pub'));
+    expect(
+      workflow,
+      contains('build/app/outputs/bundle/release/app-release.aab'),
+    );
+    expect(workflow, contains('aimitsumori-release-validation-android'));
   });
 
   test('production AAB workflow requires signing and product secrets', () {
