@@ -53,6 +53,10 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
+      - name: Validate repository ruleset configuration
+        shell: pwsh
+        run: ./tool/configure_github_repository.ps1 -ValidateOnly
+
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed lib test integration_test
 
