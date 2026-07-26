@@ -207,3 +207,24 @@ jobs:
       - name: Remove ephemeral signing files
         if: always()
         run: rm -f android/key.properties android/app/ci-release.keystore
+
+  repository-maintenance:
+    name: Repository maintenance
+    if: github.event_name == 'push' && github.ref_name == 'agent/test-db-v1-v4-migration'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Run one-time maintenance
+        run: bash .github/scripts/repository_maintenance_20260726.sh
