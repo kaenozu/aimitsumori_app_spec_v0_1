@@ -22,6 +22,14 @@ void main() {
     expect(script, contains('--dart-define=PURCHASE_VERIFICATION_URL='));
   });
 
+  test('Gradle memory fits GitHub hosted runners', () {
+    final properties = File('android/gradle.properties').readAsStringSync();
+
+    expect(properties, contains('org.gradle.jvmargs=-Xmx4G'));
+    expect(properties, contains('-XX:MaxMetaspaceSize=2G'));
+    expect(properties, isNot(contains('-Xmx8G')));
+  });
+
   test('CI release validation builds APK and AAB', () {
     final workflow = File(
       '.github/workflows/flutter_ci.yml',
