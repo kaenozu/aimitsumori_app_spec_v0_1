@@ -53,3 +53,5 @@
 
 - Android実機でのP0 / P1受入テスト結果はIssue #28で管理します。
 - GitHubの既定ブランチ変更とmain保護ルールの適用はIssue #26で管理します。
+
+[0.1.0]: https://github.com/kaenozu/aimitsumori_app_spec_v0_1/tree/v0.1.0
