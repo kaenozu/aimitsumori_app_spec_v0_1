@@ -48,6 +48,7 @@
 - 入力、比較、OCR、共有、広告、課金、データ削除、アクセシビリティのテストを追加
 - Android実機受入テストのP0 / P1 / P2チェックリストと証跡テンプレートを追加
 - Android / iOSのリリース手順、プライバシー方針、署名・AdMob・購入設定の監査手順を追加
+- 既定ブランチ変更とmain保護ルールをワンコマンドで適用する `tool/setup-default-branch.ps1` を追加
 
 ### Known release tasks
 

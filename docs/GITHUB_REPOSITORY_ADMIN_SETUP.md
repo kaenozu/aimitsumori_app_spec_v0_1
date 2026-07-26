@@ -18,10 +18,12 @@ Flutter実装の正規ブランチを `main` に統一し、CIが成功してい
 リポジトリのルートで次を実行します。
 
 ```powershell
-pwsh -NoProfile -File .\tool\configure_github_repository.ps1
+pwsh -NoProfile -File .\tool\setup-default-branch.ps1
 ```
 
 スクリプトは冪等です。同じコマンドを再実行すると、既定ブランチと同名rulesetを現在の宣言内容へ更新します。
+
+`tool/setup-default-branch.ps1` は管理者向けの安定した入口で、実処理を `tool/configure_github_repository.ps1` へ委譲します。
 
 ## 実行される設定
 
@@ -45,10 +47,10 @@ pwsh -NoProfile -File .\tool\configure_github_repository.ps1
 GitHub設定を変更せず、JSON構造と必須チェック名だけを検証する場合:
 
 ```powershell
-pwsh -NoProfile -File .\tool\configure_github_repository.ps1 -ValidateOnly
+pwsh -NoProfile -File .\tool\setup-default-branch.ps1 -ValidateOnly
 ```
 
-この検証は `Flutter CI` のquality jobでも実行します。
+この検証は `Flutter CI` のquality jobでも、委譲先の設定スクリプトに対して実行します。
 
 ## 適用後の確認
 
