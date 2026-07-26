@@ -22,6 +22,14 @@
 - [ ] AABが本番用署名鍵で署名されている
 - [ ] AABへ検証用AdMob ID・GoogleテストID・検証用課金商品IDが混入していない
 
+本番AABは [Android 本番AAB生成手順](docs/ANDROID_PRODUCTION_AAB.md) に従い、GitHub Actionsの `Production Android AAB` workflowから生成します。
+
+- [ ] 必須Repository Secretsを登録した
+- [ ] `Build production-signed AAB` が成功した
+- [ ] `jarsigner -verify -strict` が成功した
+- [ ] `app-release.aab.sha256` をリリース記録へ保存した
+- [ ] AABのcommit SHAがリリース対象mainと一致している
+
 ## Android実機確認
 
 詳細な手順、期待結果、証跡、障害系ケースは [Android実機受入テスト](docs/ANDROID_REAL_DEVICE_ACCEPTANCE.md) を使用してください。
