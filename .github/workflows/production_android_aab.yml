@@ -1,0 +1,122 @@
+name: Production Android AAB
+
+on:
+  push:
+    branches:
+      - agent/production-aab-workflow
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-android-aab-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.44.0'
+
+jobs:
+  build-production-aab:
+    name: Build production-signed AAB
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+      ADMOB_ANDROID_BANNER_ID: ${{ secrets.ADMOB_ANDROID_BANNER_ID }}
+      ADMOB_ANDROID_REWARDED_ID: ${{ secrets.ADMOB_ANDROID_REWARDED_ID }}
+      REMOVE_ADS_PRODUCT_ID: ${{ secrets.REMOVE_ADS_PRODUCT_ID }}
+      PURCHASE_VERIFICATION_URL: ${{ secrets.PURCHASE_VERIFICATION_URL }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Validate production secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            ANDROID_KEYSTORE_BASE64
+            ANDROID_KEYSTORE_PASSWORD
+            ANDROID_KEY_PASSWORD
+            ANDROID_KEY_ALIAS
+            ADMOB_APP_ID
+            ADMOB_ANDROID_BANNER_ID
+            ADMOB_ANDROID_REWARDED_ID
+            REMOVE_ADS_PRODUCT_ID
+            PURCHASE_VERIFICATION_URL
+          )
+          missing=()
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required repository secrets:\n' >&2
+            printf '  - %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+
+      - name: Configure production signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=app/upload-keystore.jks
+          EOF
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Build production AAB
+        shell: pwsh
+        run: ./tool/build_android_release.ps1 -Artifact appbundle
+
+      - name: Verify signed AAB
+        shell: bash
+        run: |
+          set -euo pipefail
+          aab='build/app/outputs/bundle/release/app-release.aab'
+          test -s "$aab"
+          jarsigner -verify -strict "$aab"
+          sha256sum "$aab" | tee app-release.aab.sha256
+
+      - name: Upload production AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: aimitsumori-production-aab-${{ github.sha }}
+          path: |
+            build/app/outputs/bundle/release/app-release.aab
+            app-release.aab.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: rm -f android/key.properties android/app/upload-keystore.jks
