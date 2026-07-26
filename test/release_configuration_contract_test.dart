@@ -54,7 +54,7 @@ void main() {
       'REMOVE_ADS_PRODUCT_ID',
       'PURCHASE_VERIFICATION_URL',
     ]) {
-      expect(workflow, contains(r'${{ secrets.' + secret + ' }}'));
+      expect(workflow, contains('\${{ secrets.$secret }}'));
     }
     expect(
       workflow,
