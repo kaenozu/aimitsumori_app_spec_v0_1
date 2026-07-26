@@ -2,6 +2,29 @@
 
 このプロジェクトの主な変更を記録します。
 
+## [0.1.1] - 2026-07-26
+
+初回配布前の信頼性・リリース運用を補強するパッチリリースです。
+
+### Fixed
+
+- 異常終了やプロセス強制終了後に残った一時スキャン画像を、次回起動時に安全に削除
+- 一時画像の削除失敗がアプリ起動やデータベース初期化へ波及しないよう分離
+- GitHub標準runnerでRelease APK / AABを生成する際のGradleメモリ上限を適正化
+
+### Quality and release engineering
+
+- 本番署名鍵、本番AdMob設定、Google Play課金商品ID、購入検証URLをRepository Secretsから受け取る本番AAB workflowを追加
+- 本番AABに対する署名検証、SHA-256生成、Artifact保存、署名素材の確実な削除を追加
+- 通常CIでも一時署名鍵によるRelease APKとAABの両方をコンパイル検証
+- リリース対象commitとタグを一致させるため、versionを `0.1.1+2` へ更新
+
+### Known release tasks
+
+- Android実機でのP0 / P1受入テスト結果はIssue #28で管理します。
+- GitHubの既定ブランチ変更とmain保護ルールの適用はIssue #26で管理します。
+- 本番AAB生成には署名・AdMob・課金・購入検証のRepository Secrets登録が必要です。
+
 ## [0.1.0] - 2026-07-26
 
 初回MVPリリースです。複数社の見積書を端末内で取り込み、確認・比較・共有する一連のフローと、リリース前の品質ゲートを整備しました。
@@ -55,4 +78,5 @@
 - Android実機でのP0 / P1受入テスト結果はIssue #28で管理します。
 - GitHubの既定ブランチ変更とmain保護ルールの適用はIssue #26で管理します。
 
+[0.1.1]: https://github.com/kaenozu/aimitsumori_app_spec_v0_1/tree/v0.1.1
 [0.1.0]: https://github.com/kaenozu/aimitsumori_app_spec_v0_1/tree/v0.1.0
