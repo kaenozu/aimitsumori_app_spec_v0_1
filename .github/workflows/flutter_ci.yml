@@ -209,3 +209,21 @@ jobs:
       - name: Remove ephemeral signing files
         if: always()
         run: rm -f android/key.properties android/app/ci-release.keystore
+
+  delete-merged-fallback-branch:
+    name: Delete merged fallback branch
+    if: github.event_name == 'pull_request' && github.head_ref == 'agent/ci-master-fallback'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Delete source branch via GitHub API
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -X DELETE \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/git/refs/heads/agent%2Fci-master-fallback"
