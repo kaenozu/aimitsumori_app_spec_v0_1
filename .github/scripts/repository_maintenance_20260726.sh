@@ -5,10 +5,13 @@ set -euo pipefail
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 : "${GITHUB_API_URL:?GITHUB_API_URL is required}"
 
+git config user.name 'github-actions[bot]'
+git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune
 
 report=repository-maintenance-report.md
 : > "$report"
+trap 'status=$?; echo; echo "FAILED at line $LINENO (exit $status)" | tee -a "$report"; exit "$status"' ERR
 {
   echo '# Repository maintenance report (2026-07-26)'
   echo
