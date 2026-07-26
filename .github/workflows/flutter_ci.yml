@@ -210,7 +210,7 @@ jobs:
 
   delete-merged-branch:
     name: Delete merged migration branch
-    if: github.event_name == 'push' && github.ref_name == 'agent/test-db-v1-v4-migration'
+    if: (github.event_name == 'push' && github.ref_name == 'agent/test-db-v1-v4-migration') || (github.event_name == 'pull_request' && github.head_ref == 'agent/test-db-v1-v4-migration')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
