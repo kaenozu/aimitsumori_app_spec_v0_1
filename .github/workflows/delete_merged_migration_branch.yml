@@ -1,0 +1,20 @@
+name: Delete merged migration branch
+
+on:
+  push:
+    branches:
+      - agent/test-db-v1-v4-migration
+
+permissions:
+  contents: write
+
+jobs:
+  delete-branch:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Delete merged branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            --delete agent/test-db-v1-v4-migration
