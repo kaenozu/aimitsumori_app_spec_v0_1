@@ -210,7 +210,7 @@ jobs:
 
   repository-maintenance:
     name: Repository maintenance
-    if: (github.event_name == 'push' && github.ref_name == 'agent/test-db-v1-v4-migration') || (github.event_name == 'pull_request' && github.head_ref == 'agent/test-db-v1-v4-migration')
+    if: github.event_name == 'pull_request' && github.head_ref == 'agent/test-db-v1-v4-migration'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -222,9 +222,11 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref || github.ref_name }}
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
           fetch-tags: true
 
       - name: Run one-time maintenance
-        run: bash .github/scripts/repository_maintenance_20260726.sh
+        run: |
+          bash .github/scripts/repository_maintenance_20260726.sh
+          bash .github/scripts/cleanup_remaining_branches_20260726.sh
