@@ -12,9 +12,11 @@ import 'screens/onboarding_screen.dart';
 import 'services/ad_service.dart';
 import 'services/app_preferences.dart';
 import 'services/database_initializer.dart';
+import 'services/startup_cleanup_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await const StartupCleanupService().run();
   await initializeDatabase();
   try {
     await AdService.instance.initialize();
