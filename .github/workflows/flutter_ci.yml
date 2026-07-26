@@ -203,11 +203,22 @@ jobs:
             --dart-define=PURCHASE_VERIFICATION_URL="$PURCHASE_VERIFICATION_URL"
           test -f build/app/outputs/flutter-apk/app-release.apk
 
-      - name: Upload release APK
+      - name: Build release AAB
+        run: |
+          flutter build appbundle --release --no-pub \
+            --dart-define=ADMOB_ANDROID_BANNER_ID="$ADMOB_ANDROID_BANNER_ID" \
+            --dart-define=ADMOB_ANDROID_REWARDED_ID="$ADMOB_ANDROID_REWARDED_ID" \
+            --dart-define=REMOVE_ADS_PRODUCT_ID="$REMOVE_ADS_PRODUCT_ID" \
+            --dart-define=PURCHASE_VERIFICATION_URL="$PURCHASE_VERIFICATION_URL"
+          test -f build/app/outputs/bundle/release/app-release.aab
+
+      - name: Upload release validation artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: aimitsumori-release-validation-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: aimitsumori-release-validation-android
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
 
       - name: Remove ephemeral signing files
