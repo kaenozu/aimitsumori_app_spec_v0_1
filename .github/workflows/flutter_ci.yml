@@ -207,3 +207,17 @@ jobs:
       - name: Remove ephemeral signing files
         if: always()
         run: rm -f android/key.properties android/app/ci-release.keystore
+
+  delete-merged-branch:
+    name: Delete merged migration branch
+    if: github.event_name == 'push' && github.ref_name == 'agent/test-db-v1-v4-migration'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Delete merged branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            --delete agent/test-db-v1-v4-migration
