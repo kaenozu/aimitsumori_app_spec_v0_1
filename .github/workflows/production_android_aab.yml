@@ -1,9 +1,6 @@
 name: Production Android AAB
 
 on:
-  push:
-    branches:
-      - agent/production-aab-workflow
   workflow_dispatch:
 
 permissions:
