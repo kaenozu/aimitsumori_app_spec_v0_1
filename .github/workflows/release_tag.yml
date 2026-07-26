@@ -1,0 +1,65 @@
+name: Create release tag
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - pubspec.yaml
+      - CHANGELOG.md
+      - .github/workflows/release_tag.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-tag-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Tag pubspec release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive tag from pubspec
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(awk '/^version:[[:space:]]+/ { print $2; exit }' pubspec.yaml)"
+          if [[ ! "$version" =~ ^([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)$ ]]; then
+            echo "::error::pubspec.yaml version must use x.y.z+build format: $version"
+            exit 1
+          fi
+
+          release_version="${BASH_REMATCH[1]}"
+          tag="v${release_version}"
+          if ! grep -Fq "## [${release_version}]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md does not contain ## [${release_version}]"
+            exit 1
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Create annotated tag
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "${RELEASE_TAG} already exists; nothing to do."
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$RELEASE_TAG" "$GITHUB_SHA" -m "Release $RELEASE_TAG"
+          git push origin "refs/tags/$RELEASE_TAG"
