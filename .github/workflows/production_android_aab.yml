@@ -17,6 +17,7 @@ jobs:
   build-production-aab:
     name: Build production-signed AAB
     runs-on: ubuntu-24.04
+    environment: production
     timeout-minutes: 60
     env:
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
