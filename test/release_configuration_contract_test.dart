@@ -30,4 +30,30 @@ void main() {
     expect(workflow, contains('PURCHASE_VERIFICATION_URL:'));
     expect(workflow, contains('--dart-define=PURCHASE_VERIFICATION_URL='));
   });
+
+  test('production AAB workflow requires signing and product secrets', () {
+    final workflow = File(
+      '.github/workflows/production_android_aab.yml',
+    ).readAsStringSync();
+
+    for (final secret in <String>[
+      'ANDROID_KEYSTORE_BASE64',
+      'ANDROID_KEYSTORE_PASSWORD',
+      'ANDROID_KEY_PASSWORD',
+      'ANDROID_KEY_ALIAS',
+      'ADMOB_APP_ID',
+      'ADMOB_ANDROID_BANNER_ID',
+      'ADMOB_ANDROID_REWARDED_ID',
+      'REMOVE_ADS_PRODUCT_ID',
+      'PURCHASE_VERIFICATION_URL',
+    ]) {
+      expect(workflow, contains(r'${{ secrets.' + secret + ' }}'));
+    }
+    expect(
+      workflow,
+      contains('./tool/build_android_release.ps1 -Artifact appbundle'),
+    );
+    expect(workflow, contains('jarsigner -verify -strict'));
+    expect(workflow, contains('app-release.aab.sha256'));
+  });
 }
