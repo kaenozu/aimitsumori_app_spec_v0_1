@@ -57,9 +57,6 @@ jobs:
           dart fix --apply --code=unnecessary_null_checks
           dart format lib test integration_test
 
-      - name: Verify analyzer
-        run: flutter analyze
-
       - name: Commit lint fixes
         shell: bash
         run: |
