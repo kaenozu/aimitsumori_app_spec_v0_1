@@ -45,6 +45,9 @@ app.*.map.json
 *.keystore
 /ios/Flutter/ReleaseSecrets.xcconfig
 
+# Playwright CLI session logs
+.playwright-cli/
+
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile
