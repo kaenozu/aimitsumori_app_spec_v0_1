@@ -24,24 +24,42 @@ GitHub Actions の `Production Android AAB` workflow で、本番署名鍵・本
 
 ## 実行
 
-1. `main` の `Actions` を開く
-2. `Production Android AAB` を選択する
-3. `Run workflow` を実行する
-4. `Build production-signed AAB` が成功したことを確認する
-5. Artifact `aimitsumori-production-aab-<commit SHA>` を取得する
+1. Actionsで `Production Android AAB` を開く
+2. workflowを実行するブランチとして **`main`** を選ぶ
+3. `release_ref` にビルド対象のannotated tagを入力する（現在のリリースは `v0.1.1`）
+4. `Run workflow` を実行する
+5. `Build production-signed AAB` が成功したことを確認する
+6. Artifact `aimitsumori-production-aab-<release commit SHA>` を取得する
 
-Artifactには次の2ファイルが含まれます。
+workflow自体は`main`上の最新リリースツールを使いますが、アプリソースは`release_ref`で指定したannotated tagを別ディレクトリへcheckoutしてビルドします。これにより、リリースパイプラインを改善した後でも、既存タグのソースを変更せず再現可能なAABを生成できます。
+
+workflowは次を拒否します。
+
+- `main`以外からのworkflow実行
+- 存在しないtag
+- lightweight tag
+- checkoutしたcommitとtagのcommitが異なる状態
+- tag名と`pubspec.yaml`のversionNameが異なる状態（例: `v0.1.1`と`0.1.2+3`）
+
+Artifactには次の3ファイルが含まれます。
 
 - `app-release.aab`
 - `app-release.aab.sha256`
+- `release-manifest.json`
 
-workflowはAABに対して `jarsigner -verify -strict` を実行し、SHA-256を生成します。署名鍵ファイルと `android/key.properties` は成功・失敗にかかわらずrunnerから削除します。
+workflowはAABに対して `jarsigner -verify -strict` を実行し、SHA-256を生成します。さらに、release tag、release commit SHA、versionName、versionCode、applicationId、AABのサイズとSHA-256、署名証明書のSHA-256フィンガープリントを `release-manifest.json` に記録します。Secret値、keystore、パスワードはmanifestへ含めません。
+
+署名鍵ファイルと `android/key.properties` は成功・失敗にかかわらずrunnerから削除します。
 
 ## 提出前確認
 
-- commit SHAとAABのSHA-256をリリース記録へ残す
-- `pubspec.yaml` のversionName / versionCodeを確認する
-- `CHANGELOG.md` に同じversionの見出しがあることを確認する
+- `release-manifest.json` のrefが指定したrelease tagと一致する
+- manifestのcommit SHAがrelease tagのcommitと一致する
+- manifestのversionName / versionCodeがGoogle Playへ登録する値と一致する
+- manifestのapplicationIdが `com.kaenozu.aimitsumori_app` である
+- manifestの署名証明書SHA-256がPlay App Signingのupload key証明書と一致する
+- `app-release.aab.sha256` とmanifest内のAAB SHA-256が一致する
+- `CHANGELOG.md` に同じversionの見出しがある
 - Google Play Consoleの内部テストへアップロードする
 - Android実機受入テストを実施する
 - AdMob、広告削除購入、購入復元、購入検証API障害時の挙動を確認する
@@ -51,3 +69,7 @@ workflowはAABに対して `jarsigner -verify -strict` を実行し、SHA-256を
 `Missing required repository secrets` の場合は、表示されたSecret名だけを確認し、値自体は共有しません。
 
 署名エラーの場合は、keystore、alias、各パスワードの組合せと、Play App Signingで登録したupload keyとの一致を確認します。
+
+release sourceの検証に失敗した場合は、`release_ref`がannotated tagであること、tagのcommit、`pubspec.yaml`のversionNameを確認します。
+
+`Generate release manifest` が失敗した場合は、`pubspec.yaml` のversion形式、`android/app/build.gradle.kts` のapplicationId、release commit SHA、署名証明書フィンガープリントを確認します。

@@ -24,11 +24,20 @@
 
 本番AABは [Android 本番AAB生成手順](docs/ANDROID_PRODUCTION_AAB.md) に従い、GitHub Actionsの `Production Android AAB` workflowから生成します。
 
+- [ ] workflowを`main`から実行した
+- [ ] `release_ref`に対象のannotated release tagを指定した
+- [ ] workflowがrelease tagのcommitをcheckoutした
+- [ ] release tag名と`pubspec.yaml`のversionNameが一致した
 - [ ] 必須Repository Secretsを登録した
 - [ ] `Build production-signed AAB` が成功した
 - [ ] `jarsigner -verify -strict` が成功した
 - [ ] `app-release.aab.sha256` をリリース記録へ保存した
-- [ ] AABのcommit SHAがリリース対象mainと一致している
+- [ ] `release-manifest.json` をリリース記録へ保存した
+- [ ] manifestのrefがrelease tagと一致している
+- [ ] manifestのcommit SHAがrelease tagのcommitと一致している
+- [ ] manifestのversionName / versionCode / applicationIdがGoogle Play提出内容と一致している
+- [ ] manifestの署名証明書SHA-256がPlay App Signingのupload key証明書と一致している
+- [ ] manifest内のAAB SHA-256が`app-release.aab.sha256`と一致している
 
 ## Android実機確認
 
