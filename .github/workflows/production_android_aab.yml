@@ -104,6 +104,38 @@ jobs:
           jarsigner -verify -strict "$aab"
           sha256sum "$aab" | tee app-release.aab.sha256
 
+      - name: Read signing certificate fingerprint
+        id: signing-certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          fingerprint="$(
+            keytool -exportcert -rfc \
+              -keystore android/app/upload-keystore.jks \
+              -alias "$ANDROID_KEY_ALIAS" \
+              -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+              | openssl x509 -noout -fingerprint -sha256 \
+              | cut -d= -f2
+          )"
+          if [[ ! "$fingerprint" =~ ^([0-9A-Fa-f]{2}:){31}[0-9A-Fa-f]{2}$ ]]; then
+            echo '::error::Failed to derive the signing certificate SHA-256 fingerprint.'
+            exit 1
+          fi
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tool/generate_android_release_manifest.py \
+            --aab build/app/outputs/bundle/release/app-release.aab \
+            --output release-manifest.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF_NAME" \
+            --commit-sha "$GITHUB_SHA" \
+            --signer-certificate-sha256 '${{ steps.signing-certificate.outputs.fingerprint }}'
+          cat release-manifest.json
+
       - name: Upload production AAB
         uses: actions/upload-artifact@v4
         with:
@@ -111,6 +143,7 @@ jobs:
           path: |
             build/app/outputs/bundle/release/app-release.aab
             app-release.aab.sha256
+            release-manifest.json
           if-no-files-found: error
           retention-days: 14
 
