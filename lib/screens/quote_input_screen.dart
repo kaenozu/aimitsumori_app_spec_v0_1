@@ -2,6 +2,8 @@
 /// PDF・カメラ・写真から見積を取り込み、OCR結果を確認して保存する画面。
 library;
 
+import '../utils/app_logger.dart';
+
 import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
@@ -101,7 +103,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
       final path = result?.files.single.path;
       if (path != null) await _process(path);
     } catch (error, stackTrace) {
-      debugPrint('PDF picker failed: $error\n$stackTrace');
+      AppLogger.debug('PDF picker failed: $error\n$stackTrace');
       if (mounted) {
         setState(() => _error = 'PDFを開けませんでした。ファイルを選び直してください。');
       }
@@ -141,7 +143,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
       );
       if (image != null) await _process(image.path);
     } catch (error, stackTrace) {
-      debugPrint('Image picker failed: $error\n$stackTrace');
+      AppLogger.debug('Image picker failed: $error\n$stackTrace');
       if (mounted) {
         setState(() => _error = '写真を開けませんでした。カメラ・写真へのアクセス権限を確認してください。');
       }
@@ -187,7 +189,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     } on OcrException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } catch (error, stackTrace) {
-      debugPrint('OCR processing failed: $error\n$stackTrace');
+      AppLogger.debug('OCR processing failed: $error\n$stackTrace');
       if (mounted) {
         setState(() => _error = '文字の読み取りに失敗しました。画像の明るさ・向き・解像度を確認してください。');
       }
@@ -338,7 +340,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
       ).showSnackBar(const SnackBar(content: Text('見積を保存しました。')));
       Navigator.pop(context, true);
     } catch (error, stackTrace) {
-      debugPrint('Quote save failed: $error\n$stackTrace');
+      AppLogger.debug('Quote save failed: $error\n$stackTrace');
       if (mounted) {
         setState(() => _error = '見積の保存に失敗しました。入力内容を確認して、もう一度お試しください。');
       }
@@ -406,9 +408,9 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
                 ],
               )
             else
-              Card(
-                key: const ValueKey('quote-ocr-unsupported'),
-                child: const Padding(
+              const Card(
+                key: ValueKey('quote-ocr-unsupported'),
+                child: Padding(
                   padding: EdgeInsets.all(16),
                   child: Text(
                     '見積書のOCR取込はAndroid・iOSで利用できます。モバイル端末でこの案件を開いてください。',

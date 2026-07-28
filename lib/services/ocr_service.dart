@@ -1,6 +1,8 @@
-/// ファイルパス: lib/services/ocr_service.dart
+﻿/// ファイルパス: lib/services/ocr_service.dart
 /// PDFまたは画像から見積書テキスト、位置情報、信頼度を抽出するサービス。
 library;
+
+import '../utils/app_logger.dart';
 
 import 'dart:io';
 
@@ -309,7 +311,7 @@ class OcrService {
         final file = File(path);
         if (await file.exists()) await file.delete();
       } catch (error) {
-        debugPrint('Temporary OCR image cleanup failed: $error');
+        AppLogger.debug('Temporary OCR image cleanup failed: $error');
       }
     }
   }
@@ -319,7 +321,7 @@ class OcrService {
       try {
         await _recognizer.close();
       } catch (error) {
-        debugPrint('OCR recognizer close failed: $error');
+        AppLogger.debug('OCR recognizer close failed: $error');
       }
     }
     await _clearTemporaryReviewImages();

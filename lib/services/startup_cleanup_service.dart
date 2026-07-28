@@ -1,7 +1,7 @@
 /// アプリ起動時に前回異常終了などで残った一時データを削除する。
 library;
 
-import 'package:flutter/foundation.dart';
+import '../utils/app_logger.dart';
 
 import 'scan_storage_service.dart';
 
@@ -16,7 +16,7 @@ class StartupCleanupService {
     try {
       await scanStorageService.cleanupAll();
     } catch (error, stackTrace) {
-      debugPrint('Startup scan cleanup failed: $error\n$stackTrace');
+      AppLogger.debug('Startup scan cleanup failed: $error\n$stackTrace');
     }
   }
 }

@@ -2,6 +2,33 @@
 
 このプロジェクトの主な変更を記録します。
 
+## [0.1.2] - 2026-07-28
+
+コード品質とリリース再現性を改善するパッチリリースです。
+
+### Changed
+
+- 金額表示などの共通処理をユーティリティへ集約し、画面・比較処理間の重複を削減
+- アプリ内ログ出力を共通ロガーへ統一し、リリースビルドでの不要な標準出力を抑制
+- 静的解析ルールを強化し、戻り値・未使用コード・非同期処理などの品質上の問題を検出しやすく改善
+- ソースコードと設定ファイルの改行コードをLFへ統一
+
+### Fixed
+
+- ID生成テストを追加し、短時間に連続生成した場合の衝突回帰を防止
+- 比較処理と画面実装のlint・フォーマット上の不整合を修正
+
+### Quality and release engineering
+
+- `flutter analyze` 0 errors、Unit / Widget test 153件成功をリリース前品質ゲートとして確認
+- Androidリリース監査manifest生成スクリプトと回帰テストをreleaseブランチへ同期
+- バージョンを `0.1.2+1` へ更新
+
+### Known release tasks
+
+- 本番署名AABを生成し、Google Play Consoleの内部テストへアップロードする必要があります。
+- Android実機で主要フロー、広告、購入・復元、購入検証失敗時の挙動を確認する必要があります。
+
 ## [0.1.1] - 2026-07-26
 
 初回配布前の信頼性・リリース運用を補強するパッチリリースです。
@@ -78,5 +105,6 @@
 - Android実機でのP0 / P1受入テスト結果はIssue #28で管理します。
 - GitHubの既定ブランチ変更とmain保護ルールの適用はIssue #26で管理します。
 
+[0.1.2]: https://github.com/kaenozu/aimitsumori_app_spec_v0_1/tree/v0.1.2
 [0.1.1]: https://github.com/kaenozu/aimitsumori_app_spec_v0_1/tree/v0.1.1
 [0.1.0]: https://github.com/kaenozu/aimitsumori_app_spec_v0_1/tree/v0.1.0

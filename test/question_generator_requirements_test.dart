@@ -8,7 +8,7 @@ void main() {
   test(
     'required missing scope is connected to the existing question generator',
     () {
-      final project = Project(
+      const project = Project(
         id: 'project-1',
         name: '外構工事',
         status: ProjectStatus.comparing,
@@ -50,7 +50,7 @@ void main() {
   );
 
   test('requirement question ids are deterministic and de-duplicated', () {
-    final project = Project(
+    const project = Project(
       id: 'project-1',
       name: '外構工事',
       status: ProjectStatus.comparing,

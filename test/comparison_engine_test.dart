@@ -219,7 +219,7 @@ void main() {
         report.quoteSnapshots.map((snapshot) => snapshot.totalAmountYen),
         everyElement(isNull),
       );
-      expect(report.summaryLines[0], '見積総額: 金額不明A社 不明 / 金額不明B社 不明、総額差は算出不能。');
+      expect(report.summaryLines[0], '見積総額: 金額不明A社 未入力 / 金額不明B社 未入力、総額差は算出不能。');
     },
   );
 

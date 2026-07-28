@@ -1,4 +1,6 @@
-library;
+﻿library;
+
+import '../utils/app_logger.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -85,7 +87,7 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
         _statusesLoaded = true;
       });
     } catch (error) {
-      debugPrint('OCR review state load failed: $error');
+      AppLogger.debug('OCR review state load failed: $error');
       if (mounted) setState(() => _statusesLoaded = true);
     }
   }
@@ -175,7 +177,7 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
       await _reviewStore.save(_reviewKey, _statuses);
       if (mounted) Navigator.pop(context, true);
     } catch (error, stackTrace) {
-      debugPrint('Scanned quote save failed: $error\n$stackTrace');
+      AppLogger.debug('Scanned quote save failed: $error\n$stackTrace');
       if (mounted) setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _saving = false);

@@ -1,5 +1,7 @@
-/// 見積書を複数ページ撮影し、画質確認後にまとめてOCRする画面。
+﻿/// 見積書を複数ページ撮影し、画質確認後にまとめてOCRする画面。
 library;
+
+import '../utils/app_logger.dart';
 
 import 'dart:async';
 import 'dart:io';
@@ -132,7 +134,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
             : 'カメラを開始できませんでした: ${error.description ?? error.code}';
       });
     } catch (error, stackTrace) {
-      debugPrint('Camera initialization failed: $error\n$stackTrace');
+      AppLogger.debug('Camera initialization failed: $error\n$stackTrace');
       if (!mounted) return;
       setState(() {
         _initializing = false;
@@ -152,7 +154,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
       try {
         await controller.stopImageStream();
       } catch (error) {
-        debugPrint('Camera image stream stop failed: $error');
+        AppLogger.debug('Camera image stream stop failed: $error');
       }
     }
     await controller.dispose();
@@ -274,7 +276,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
         });
       }
     } catch (error, stackTrace) {
-      debugPrint('Capture processing failed: $error\n$stackTrace');
+      AppLogger.debug('Capture processing failed: $error\n$stackTrace');
       if (mounted) setState(() => _error = '撮影画像を保存できませんでした。');
     } finally {
       if (temporary != null) await _deleteTemporary(temporary.path);
@@ -284,7 +286,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
         try {
           await controller.startImageStream(_analyzeFrame);
         } catch (error) {
-          debugPrint('Camera image stream restart failed: $error');
+          AppLogger.debug('Camera image stream restart failed: $error');
         }
       }
       if (mounted) setState(() => _capturing = false);
@@ -296,7 +298,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
       final file = File(path);
       if (await file.exists()) await file.delete();
     } catch (error) {
-      debugPrint('Camera temporary file cleanup failed: $error');
+      AppLogger.debug('Camera temporary file cleanup failed: $error');
     }
   }
 
@@ -363,7 +365,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
         Navigator.pop(context, true);
       }
     } catch (error, stackTrace) {
-      debugPrint('Batch OCR failed: $error\n$stackTrace');
+      AppLogger.debug('Batch OCR failed: $error\n$stackTrace');
       if (mounted) setState(() => _error = error.toString());
     } finally {
       if (mounted) {

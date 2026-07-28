@@ -2,7 +2,7 @@
 /// 比較レポート生成エンジン。
 library;
 
-import 'package:intl/intl.dart';
+import '../utils/formatting.dart';
 
 import 'data/category_master.dart';
 import 'models.dart';
@@ -137,7 +137,7 @@ class ComparisonEngine {
     final totalText = snapshots
         .map(
           (snapshot) =>
-              '${snapshot.contractorName} ${_formatYen(snapshot.totalAmountYen)}',
+              '${snapshot.contractorName} ${formatYen(snapshot.totalAmountYen)}',
         )
         .join(' / ');
     final knownTotals = snapshots
@@ -145,7 +145,7 @@ class ComparisonEngine {
         .map((snapshot) => snapshot.totalAmountYen!)
         .toList(growable: false);
     final spreadText = knownTotals.length >= 2
-        ? '、提示総額の幅は${_formatYen(knownTotals.reduce(_max) - knownTotals.reduce(_min))}'
+        ? '、提示総額の幅は${formatYen(knownTotals.reduce(_max) - knownTotals.reduce(_min))}'
         : '、総額差は算出不能';
 
     final scopeText = snapshots
@@ -172,9 +172,4 @@ class ComparisonEngine {
 
   int _max(int left, int right) => left > right ? left : right;
   int _min(int left, int right) => left < right ? left : right;
-
-  String _formatYen(int? value) {
-    if (value == null) return '不明';
-    return '${NumberFormat('#,##0', 'ja_JP').format(value)}円';
-  }
 }

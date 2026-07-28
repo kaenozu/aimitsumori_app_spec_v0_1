@@ -1,6 +1,8 @@
-/// ファイルパス: lib/screens/onboarding_screen.dart
+﻿/// ファイルパス: lib/screens/onboarding_screen.dart
 /// 初回起動時に3ステップの利用方法を案内し、サンプルデータを任意で登録する
 library;
+
+import '../utils/app_logger.dart';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -58,7 +60,7 @@ class _FirstRunGateState extends State<FirstRunGate> {
       if (!mounted) return;
       setState(() => _completed = completed);
     } catch (error) {
-      debugPrint('Onboarding preference load failed: $error');
+      AppLogger.debug('Onboarding preference load failed: $error');
       if (!mounted) return;
       setState(() => _completed = true);
     }

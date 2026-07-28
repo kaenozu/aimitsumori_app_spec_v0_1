@@ -1,5 +1,9 @@
-/// 見積書の改訂履歴、差分、比較対象選択を表示する画面。
+﻿/// 見積書の改訂履歴、差分、比較対象選択を表示する画面。
 library;
+
+import '../utils/app_logger.dart';
+
+import '../utils/formatting.dart';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -73,7 +77,7 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
         _error = null;
       });
     } catch (error, stackTrace) {
-      debugPrint('Quote revision load failed: $error\n$stackTrace');
+      AppLogger.debug('Quote revision load failed: $error\n$stackTrace');
       if (!mounted) return;
       setState(() {
         _error = '改訂履歴を読み込めませんでした。';
@@ -141,8 +145,8 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
                   '${revision.contractorName} 第${revision.revisionNumber}版',
                 ),
                 subtitle: Text(
-                  '${_date(revision.importedAt)} / '
-                  '総額 ${_yen(revision.quoteSnapshot.totalAmountYen)}',
+                  '${formatDate(revision.importedAt)} / '
+                  '総額 ${formatYen(revision.quoteSnapshot.totalAmountYen)}',
                 ),
                 onTap: () => Navigator.pop(context, revision),
               ),
@@ -208,7 +212,7 @@ class _QuoteRevisionScreenState extends State<QuoteRevisionScreen> {
       );
       if (saved == true) await _load();
     } catch (error, stackTrace) {
-      debugPrint('Quote revision import failed: $error\n$stackTrace');
+      AppLogger.debug('Quote revision import failed: $error\n$stackTrace');
       if (mounted) {
         _showMessage('見積書の取り込み画面を開けませんでした。');
       }
@@ -370,7 +374,7 @@ class _RevisionGroupCard extends StatelessWidget {
                     ordered[index].changeReason!,
                   if (ordered[index].parentRevisionId != null)
                     '親版: 第${byId[ordered[index].parentRevisionId]?.revisionNumber ?? '-'}版',
-                  '総額: ${_yen(ordered[index].quoteSnapshot.totalAmountYen)}',
+                  '総額: ${formatYen(ordered[index].quoteSnapshot.totalAmountYen)}',
                 ].join(' / '),
               ),
               trailing: IconButton(
@@ -492,6 +496,3 @@ class _DiffView extends StatelessWidget {
 String _date(int epoch) => DateFormat(
   'yyyy/MM/dd HH:mm',
 ).format(DateTime.fromMillisecondsSinceEpoch(epoch));
-
-String _yen(int? value) =>
-    value == null ? '未入力' : '${NumberFormat('#,##0', 'ja_JP').format(value)}円';

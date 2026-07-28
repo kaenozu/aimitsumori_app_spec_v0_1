@@ -2,7 +2,7 @@
 /// UI層からSQLite実装を隠す案件リポジトリ。
 library;
 
-import 'package:flutter/foundation.dart';
+import '../utils/app_logger.dart';
 
 import '../models.dart';
 import '../quote_revision_models.dart';
@@ -129,7 +129,7 @@ class ProjectRepository {
     } on ProjectRepositoryException {
       rethrow;
     } catch (error, stackTrace) {
-      debugPrint('$operation failed: $error\n$stackTrace');
+      AppLogger.debug('$operation failed: $error\n$stackTrace');
       throw ProjectRepositoryException(operation, error);
     }
   }
