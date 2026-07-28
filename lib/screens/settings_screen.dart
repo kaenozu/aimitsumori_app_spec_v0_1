@@ -1,6 +1,8 @@
-/// ファイルパス: lib/screens/settings_screen.dart
+﻿/// ファイルパス: lib/screens/settings_screen.dart
 /// テーマ、アプリ情報、全データ削除を管理する設定画面
 library;
+
+import '../utils/app_logger.dart';
 
 import 'package:flutter/material.dart';
 
@@ -116,7 +118,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (error) {
-      debugPrint('Delete all data failed: $error');
+      AppLogger.debug('Delete all data failed: $error');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('データを削除できませんでした。もう一度お試しください。')),

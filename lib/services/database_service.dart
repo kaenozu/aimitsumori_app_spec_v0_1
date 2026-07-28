@@ -1,6 +1,8 @@
-/// ファイルパス: lib/services/database_service.dart
+﻿/// ファイルパス: lib/services/database_service.dart
 /// 案件、見積、要望、改訂履歴、比較結果をSQLiteへ保存するサービス。
 library;
+
+import '../utils/app_logger.dart';
 
 import 'dart:convert';
 
@@ -552,7 +554,7 @@ class DatabaseService {
               as Map<String, dynamic>;
       return _reportFromJson(payload);
     } on Object catch (error, stackTrace) {
-      debugPrint('Corrupt comparison result was ignored: $error\n$stackTrace');
+      AppLogger.debug('Corrupt comparison result was ignored: $error\n$stackTrace');
       await db.delete(
         'comparison_results',
         where: 'project_id = ?',

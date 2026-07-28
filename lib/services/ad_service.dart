@@ -1,6 +1,8 @@
-/// ファイルパス: lib/services/ad_service.dart
+﻿/// ファイルパス: lib/services/ad_service.dart
 /// AdMob広告と広告削除の非消費型課金を管理するサービス。
 library;
+
+import '../utils/app_logger.dart';
 
 import 'dart:async';
 
@@ -126,7 +128,7 @@ class AdService {
     _purchaseSubscription ??= _inAppPurchase.purchaseStream.listen(
       _handlePurchaseUpdates,
       onError: (Object error, StackTrace stackTrace) {
-        debugPrint('Purchase stream error: $error\n$stackTrace');
+        AppLogger.debug('Purchase stream error: $error\n$stackTrace');
       },
     );
 
@@ -134,14 +136,14 @@ class AdService {
       try {
         await MobileAds.instance.initialize();
       } catch (error) {
-        debugPrint('Mobile Ads initialization failed: $error');
+        AppLogger.debug('Mobile Ads initialization failed: $error');
       }
     }
 
     try {
       await _loadRemoveAdsProduct();
     } catch (error) {
-      debugPrint('Remove ads product load failed: $error');
+      AppLogger.debug('Remove ads product load failed: $error');
     }
 
     await restorePurchases();
@@ -160,7 +162,7 @@ class AdService {
         adFree.value = true;
       }
     } catch (error) {
-      debugPrint('Ad entitlement cache load failed: $error');
+      AppLogger.debug('Ad entitlement cache load failed: $error');
     }
   }
 
@@ -170,7 +172,7 @@ class AdService {
       removeAdsProductId,
     });
     if (response.error != null) {
-      debugPrint('Product query failed: ${response.error}');
+      AppLogger.debug('Product query failed: ${response.error}');
       return;
     }
     for (final product in response.productDetails) {
@@ -235,7 +237,7 @@ class AdService {
                 }
               },
               onAdFailedToShowFullScreenContent: (failedAd, error) {
-                debugPrint('Rewarded ad failed to show: $error');
+                AppLogger.debug('Rewarded ad failed to show: $error');
                 failedAd.dispose();
                 if (!completer.isCompleted) {
                   completer.complete(RewardedAdOutcome.unavailable);
@@ -245,7 +247,7 @@ class AdService {
             ad.show(onUserEarnedReward: (_, _) => earnedReward = true);
           },
           onAdFailedToLoad: (error) {
-            debugPrint('Rewarded ad failed to load: $error');
+            AppLogger.debug('Rewarded ad failed to load: $error');
             if (!completer.isCompleted) {
               completer.complete(RewardedAdOutcome.unavailable);
             }
@@ -253,7 +255,7 @@ class AdService {
         ),
       );
     } catch (error) {
-      debugPrint('Rewarded ad request failed: $error');
+      AppLogger.debug('Rewarded ad request failed: $error');
       if (!completer.isCompleted) {
         completer.complete(RewardedAdOutcome.unavailable);
       }
@@ -275,7 +277,7 @@ class AdService {
         purchaseParam: PurchaseParam(productDetails: product),
       );
     } catch (error) {
-      debugPrint('Remove ads purchase start failed: $error');
+      AppLogger.debug('Remove ads purchase start failed: $error');
       return false;
     }
   }
@@ -297,7 +299,7 @@ class AdService {
     try {
       await _inAppPurchase.restorePurchases();
     } catch (error) {
-      debugPrint('Purchase restore failed: $error');
+      AppLogger.debug('Purchase restore failed: $error');
     }
   }
 
@@ -315,19 +317,19 @@ class AdService {
               await _setAdFree(true);
               break;
             case PurchaseVerificationResult.invalid:
-              debugPrint('Remove ads purchase verification rejected.');
+              AppLogger.debug('Remove ads purchase verification rejected.');
               await _setAdFree(false);
               break;
             case PurchaseVerificationResult.retryable:
               completePurchase = false;
-              debugPrint(
+              AppLogger.debug(
                 'Remove ads purchase verification is retryable; '
                 'preserving the current entitlement.',
               );
               break;
           }
         } else if (purchase.status == PurchaseStatus.error) {
-          debugPrint('Remove ads purchase failed: ${purchase.error}');
+          AppLogger.debug('Remove ads purchase failed: ${purchase.error}');
         } else if (purchase.status == PurchaseStatus.pending) {
           completePurchase = false;
         }
@@ -350,10 +352,10 @@ class AdService {
             )
           : await preferences.remove(_adFreeVerifiedAtKey);
       if (!cacheSaved || !timestampSaved) {
-        debugPrint('Ad entitlement cache was not persisted completely.');
+        AppLogger.debug('Ad entitlement cache was not persisted completely.');
       }
     } catch (error) {
-      debugPrint('Ad preference save failed: $error');
+      AppLogger.debug('Ad preference save failed: $error');
     }
     adFree.value = value;
   }

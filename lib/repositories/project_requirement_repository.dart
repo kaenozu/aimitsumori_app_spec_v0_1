@@ -1,7 +1,10 @@
 /// 案件要望をSQLiteへ保存する専用リポジトリ。
 library;
 
-import 'package:flutter/foundation.dart';
+
+
+import '../utils/app_logger.dart';
+
 import 'package:sqflite/sqflite.dart';
 
 import '../data/category_master.dart';
@@ -151,7 +154,7 @@ class ProjectRequirementRepository {
     } on ProjectRequirementRepositoryException {
       rethrow;
     } catch (error, stackTrace) {
-      debugPrint('$operation failed: $error\n$stackTrace');
+      AppLogger.debug('$operation failed: $error\n$stackTrace');
       throw ProjectRequirementRepositoryException(operation, error);
     }
   }

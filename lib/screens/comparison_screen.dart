@@ -2,13 +2,17 @@
 /// 比較画面 - 表形式と業者別カード形式、共有、広告解除を提供する。
 library;
 
+
+
+import '../utils/app_logger.dart';
+
+import '../utils/formatting.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -100,7 +104,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
     try {
       await _repository.saveComparisonResult(_report);
     } catch (error, stackTrace) {
-      debugPrint('Comparison result save failed: $error\n$stackTrace');
+      AppLogger.debug('Comparison result save failed: $error\n$stackTrace');
       if (notifyOnError && mounted) _showMessage(error.toString());
     }
   }
@@ -127,7 +131,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
           if (mounted) setState(() => _bannerLoaded = true);
         },
         onFailed: (error) {
-          debugPrint('Banner ad failed to load: $error');
+          AppLogger.debug('Banner ad failed to load: $error');
           _bannerAd = null;
           if (mounted) setState(() => _bannerLoaded = false);
         },
@@ -135,7 +139,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
       _bannerAd = ad;
       ad?.load();
     } catch (error, stackTrace) {
-      debugPrint('Banner ad request failed: $error\n$stackTrace');
+      AppLogger.debug('Banner ad request failed: $error\n$stackTrace');
       _bannerAd = null;
     }
   }
@@ -158,7 +162,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
       });
       await _saveReport(notifyOnError: true);
     } catch (error, stackTrace) {
-      debugPrint('Comparison refresh failed: $error\n$stackTrace');
+      AppLogger.debug('Comparison refresh failed: $error\n$stackTrace');
       if (mounted) _showMessage(error.toString());
     }
   }
@@ -182,7 +186,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
     try {
       outcome = await _adService.showRewardedAd();
     } catch (error) {
-      debugPrint('Rewarded ad flow failed: $error');
+      AppLogger.debug('Rewarded ad flow failed: $error');
       outcome = RewardedAdOutcome.unavailable;
     }
     if (!mounted) return;
@@ -323,7 +327,7 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
           break;
       }
     } catch (error, stackTrace) {
-      debugPrint('Comparison share failed: $error\n$stackTrace');
+      AppLogger.debug('Comparison share failed: $error\n$stackTrace');
       if (mounted) {
         _showMessage('比較結果を共有できませんでした。CSVまたはテキスト形式もお試しください。');
       }
@@ -524,7 +528,7 @@ class _QuoteOverview extends StatelessWidget {
                 '別途 ${snapshot.separateCategoryNames.length}件 / '
                 '不明 ${snapshot.unknownCategoryNames.length}件',
               ),
-              trailing: Text(_formatYen(snapshot.totalAmountYen)),
+              trailing: Text(formatYen(snapshot.totalAmountYen)),
             ),
         ],
       ),
@@ -595,8 +599,9 @@ class _ComparisonTable extends StatelessWidget {
                     width: 180,
                     child: Text(
                       '${cell.inclusionStatus.labelJa}\n'
-                      '${_formatYen(cell.amountYen)}\n'
-                      '${_formatQuantity(cell.quantity, cell.unit)}\n'
+'${formatYen(cell.amountYen)}\n'
+                       '${formatQuantity(cell.quantity, cell.unit)}\n'
+
                       '${cell.specification ?? '仕様未入力'}',
                     ),
                   ),
@@ -627,7 +632,7 @@ class _ContractorCards extends StatelessWidget {
                   snapshot.contractorName,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
-                Text('提示総額: ${_formatYen(snapshot.totalAmountYen)}'),
+                Text('提示総額: ${formatYen(snapshot.totalAmountYen)}'),
                 const Divider(),
                 for (final comparison in report.categoryComparisons)
                   Builder(
@@ -639,8 +644,9 @@ class _ContractorCards extends StatelessWidget {
                         contentPadding: EdgeInsets.zero,
                         title: Text(comparison.category.nameJa),
                         subtitle: Text(
-                          '${_formatYen(cell.amountYen)} / '
-                          '${_formatQuantity(cell.quantity, cell.unit)}\n'
+'${formatYen(cell.amountYen)} / '
+                           '${formatQuantity(cell.quantity, cell.unit)}\n'
+
                           '${cell.specification ?? '仕様未入力'}',
                         ),
                         trailing: Text(cell.inclusionStatus.labelJa),
@@ -678,17 +684,6 @@ class _QuestionList extends StatelessWidget {
       ),
     ),
   );
-}
-
-String _formatYen(int? value) =>
-    value == null ? '未入力' : '${NumberFormat('#,##0', 'ja_JP').format(value)}円';
-
-String _formatQuantity(double? quantity, String? unit) {
-  if (quantity == null) return '数量未入力';
-  final text = quantity == quantity.roundToDouble()
-      ? quantity.toInt().toString()
-      : quantity.toString();
-  return unit == null || unit.isEmpty ? text : '$text$unit';
 }
 
 enum _ShareFormat { pdf, image, csv, text }

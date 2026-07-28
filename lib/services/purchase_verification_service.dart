@@ -1,5 +1,7 @@
-/// ストア購入情報をバックエンドで検証する。
+﻿/// ストア購入情報をバックエンドで検証する。
 library;
+
+import '../utils/app_logger.dart';
 
 import 'dart:convert';
 import 'dart:io';
@@ -85,16 +87,16 @@ class PurchaseVerificationService implements PurchaseVerifier {
       }
       return PurchaseVerificationResult.retryable;
     } on SocketException catch (error, stackTrace) {
-      debugPrint('Purchase verification network failure: $error\n$stackTrace');
+      AppLogger.debug('Purchase verification network failure: $error\n$stackTrace');
       return PurchaseVerificationResult.retryable;
     } on HttpException catch (error, stackTrace) {
-      debugPrint('Purchase verification HTTP failure: $error\n$stackTrace');
+      AppLogger.debug('Purchase verification HTTP failure: $error\n$stackTrace');
       return PurchaseVerificationResult.retryable;
     } on FormatException catch (error, stackTrace) {
-      debugPrint('Purchase verification response failure: $error\n$stackTrace');
+      AppLogger.debug('Purchase verification response failure: $error\n$stackTrace');
       return PurchaseVerificationResult.retryable;
     } on Object catch (error, stackTrace) {
-      debugPrint('Purchase verification failed: $error\n$stackTrace');
+      AppLogger.debug('Purchase verification failed: $error\n$stackTrace');
       return PurchaseVerificationResult.retryable;
     } finally {
       client.close(force: true);

@@ -1,7 +1,9 @@
-/// ファイルパス: lib/main.dart
+﻿/// ファイルパス: lib/main.dart
 /// エントリポイント、広告・課金初期化、アプリテーマ
 /// 関連ファイル: lib/screens/onboarding_screen.dart, lib/services/ad_service.dart
 library;
+
+import '../utils/app_logger.dart';
 
 import 'package:flutter/material.dart';
 
@@ -21,7 +23,7 @@ Future<void> main() async {
   try {
     await AdService.instance.initialize();
   } catch (error) {
-    debugPrint('Ad service initialization failed: $error');
+    AppLogger.debug('Ad service initialization failed: $error');
   }
   runApp(const AimitsumoriApp());
 }
@@ -63,7 +65,7 @@ class _AimitsumoriAppState extends State<AimitsumoriApp> {
       final enabled = await _preferences.isDarkModeEnabled();
       if (mounted) setState(() => _darkModeEnabled = enabled);
     } catch (error) {
-      debugPrint('Dark mode preference load failed: $error');
+      AppLogger.debug('Dark mode preference load failed: $error');
     }
   }
 
@@ -73,7 +75,7 @@ class _AimitsumoriAppState extends State<AimitsumoriApp> {
     try {
       await _preferences.setDarkModeEnabled(enabled);
     } catch (error) {
-      debugPrint('Dark mode preference save failed: $error');
+      AppLogger.debug('Dark mode preference save failed: $error');
       if (mounted) setState(() => _darkModeEnabled = previous);
     }
   }

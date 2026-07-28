@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:intl/intl.dart';
+import '../utils/formatting.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -16,7 +17,6 @@ import 'value_normalizer.dart';
 class ComparisonExportService {
   ComparisonExportService._();
 
-  static final NumberFormat _yenFormat = NumberFormat('#,##0', 'ja_JP');
   static final DateFormat _dateFormat = DateFormat('yyyy-MM-dd HH:mm');
 
   static String toText(ComparisonReport report) {
@@ -38,7 +38,7 @@ class ComparisonExportService {
       for (final snapshot in report.quoteSnapshots) {
         buffer
           ..writeln(
-            '${snapshot.contractorName}: ${_formatYen(snapshot.totalAmountYen)}',
+            '${snapshot.contractorName}: ${formatYen(snapshot.totalAmountYen)}',
           )
           ..writeln('  見積内: ${snapshot.includedCategoryCount}カテゴリ')
           ..writeln(
@@ -58,10 +58,10 @@ class ComparisonExportService {
       for (final cell in comparison.cells) {
         final quantity = cell.quantity == null
             ? '未入力'
-            : '${_formatQuantity(cell.quantity!)}${cell.unit ?? ''}';
+            : '${formatQuantity(cell.quantity!, cell.unit ?? "")}';
         buffer.writeln(
           '- ${cell.contractorName}: ${cell.inclusionStatus.labelJa} / '
-          '金額 ${_formatYen(cell.amountYen)} / 数量 $quantity / '
+          '金額 ${formatYen(cell.amountYen)} / 数量 $quantity / '
           '仕様 ${cell.specification ?? "未入力"}',
         );
       }
@@ -264,10 +264,5 @@ class ComparisonExportService {
     return '"$text"';
   }
 
-  static String _formatYen(int? value) =>
-      value == null ? '未入力' : '${_yenFormat.format(value)}円';
-
-  static String _formatQuantity(double value) => value == value.roundToDouble()
-      ? value.toInt().toString()
-      : value.toString();
+  
 }

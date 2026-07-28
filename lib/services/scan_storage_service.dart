@@ -1,8 +1,11 @@
 library;
 
+
+
+import '../utils/app_logger.dart';
+
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -44,7 +47,7 @@ class ScanStorageService {
       final file = File(path);
       if (await file.exists()) await file.delete();
     } on FileSystemException catch (error, stackTrace) {
-      debugPrint('Scan file cleanup failed: $error\n$stackTrace');
+      AppLogger.debug('Scan file cleanup failed: $error\n$stackTrace');
     }
   }
 
@@ -79,7 +82,7 @@ class ScanStorageService {
     try {
       if (await directory.exists()) await directory.delete(recursive: true);
     } on FileSystemException catch (error, stackTrace) {
-      debugPrint('$operation failed: $error\n$stackTrace');
+      AppLogger.debug('$operation failed: $error\n$stackTrace');
     }
   }
 
