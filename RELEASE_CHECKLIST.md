@@ -24,6 +24,9 @@
 
 本番AABは [Android 本番AAB生成手順](docs/ANDROID_PRODUCTION_AAB.md) に従い、GitHub Actionsの `Production Android AAB` workflowから生成します。
 
+- [ ] Play Consoleの「最新のリリースとバンドル」またはApp Bundle Explorerで、登録済みの最大versionCodeを確認した
+- [ ] 今回のversionCodeが登録済みの最大値を上回る（初回アップロードで登録なしの場合は1でよい）
+- [ ] 既存のannotated release tagを移動・上書きしていない
 - [ ] workflowを`main`から実行した
 - [ ] `release_ref`に対象のannotated release tagを指定した
 - [ ] workflowがrelease tagのcommitをcheckoutした
