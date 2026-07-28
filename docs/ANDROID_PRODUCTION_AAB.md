@@ -22,11 +22,26 @@ GitHub Actions の `Production Android AAB` workflow で、本番署名鍵・本
 
 値はログ、Issue、PR本文、リポジトリ内ファイルへ記載しません。
 
+## versionCode の事前確認
+
+Google Playで使用済みになるのは、Play ConsoleへアップロードしたAPK/AABのversionCodeです。Git tagを作成しただけではversionCodeは使用済みになりません。
+
+現在の `Production Android AAB` workflowは本番AABをGitHub Actions Artifactとして生成するところまでで、Google Playへの自動アップロードは行いません。そのため、Play Consoleへ一度もAPK/AABをアップロードしていない初回リリースでは、`v0.1.2` の `0.1.2+1`（versionCode 1）を使用できます。
+
+アップロード前にPlay Consoleの「最新のリリースとバンドル」またはApp Bundle Explorerで、対象applicationIdに登録済みの最大versionCodeを確認します。
+
+- 登録済みversionCodeがない: `v0.1.2`（versionCode 1）を使用する
+- 登録済みversionCodeがある: 新しいversionCodeを最大値より大きくする
+- 既存のannotated release tagは移動・上書きしない
+- 修正が必要な場合はversionNameも更新し、新しいannotated tagを作成する
+
+例として、versionCode 2が既に登録済みなら `0.1.2+2` は使用できません。`0.1.3+3` など、最大versionCodeを超える新しいリリースを作成します。
+
 ## 実行
 
 1. Actionsで `Production Android AAB` を開く
 2. workflowを実行するブランチとして **`main`** を選ぶ
-3. `release_ref` にビルド対象のannotated tagを入力する（現在のリリースは `v0.1.1`）
+3. `release_ref` にビルド対象のannotated tagを入力する（現在のリリースは `v0.1.2`）
 4. `Run workflow` を実行する
 5. `Build production-signed AAB` が成功したことを確認する
 6. Artifact `aimitsumori-production-aab-<release commit SHA>` を取得する
@@ -53,6 +68,7 @@ workflowはAABに対して `jarsigner -verify -strict` を実行し、SHA-256を
 
 ## 提出前確認
 
+- Play Consoleで登録済みの最大versionCodeを確認し、今回のversionCodeがそれを上回ることを確認する
 - `release-manifest.json` のrefが指定したrelease tagと一致する
 - manifestのcommit SHAがrelease tagのcommitと一致する
 - manifestのversionName / versionCodeがGoogle Playへ登録する値と一致する
