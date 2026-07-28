@@ -2,13 +2,18 @@ name: Production Android AAB
 
 on:
   workflow_dispatch:
+    inputs:
+      release_ref:
+        description: 'Annotated release tag to build (for example: v0.1.1)'
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: production-android-aab-${{ github.ref }}
-  cancel-in-progress: true
+  group: production-android-aab-${{ inputs.release_ref }}
+  cancel-in-progress: false
 
 env:
   FLUTTER_VERSION: '3.44.0'
@@ -20,6 +25,7 @@ jobs:
     environment: production
     timeout-minutes: 60
     env:
+      RELEASE_REF: ${{ inputs.release_ref }}
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -30,8 +36,55 @@ jobs:
       REMOVE_ADS_PRODUCT_ID: ${{ secrets.REMOVE_ADS_PRODUCT_ID }}
       PURCHASE_VERIFICATION_URL: ${{ secrets.PURCHASE_VERIFICATION_URL }}
     steps:
-      - name: Check out repository
+      - name: Verify workflow runs from main
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != 'refs/heads/main' ]]; then
+            echo '::error::Run this workflow from the main branch.'
+            exit 1
+          fi
+
+      - name: Check out release source
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_ref }}
+          fetch-depth: 0
+          path: release-source
+
+      - name: Check out release tooling
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: release-tools
+
+      - name: Resolve release source
+        id: release-source
+        working-directory: release-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          tag_ref="refs/tags/$RELEASE_REF"
+          if ! git show-ref --verify --quiet "$tag_ref"; then
+            echo "::error::Release tag does not exist: $RELEASE_REF"
+            exit 1
+          fi
+          if [[ "$(git cat-file -t "$tag_ref")" != 'tag' ]]; then
+            echo "::error::Release ref must be an annotated tag: $RELEASE_REF"
+            exit 1
+          fi
+
+          source_sha="$(git rev-parse HEAD)"
+          tag_sha="$(git rev-parse "$RELEASE_REF^{commit}")"
+          if [[ "$source_sha" != "$tag_sha" ]]; then
+            echo '::error::Checked-out source does not match the release tag commit.'
+            exit 1
+          fi
+
+          echo "ref=$RELEASE_REF" >> "$GITHUB_OUTPUT"
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "Building $RELEASE_REF at $source_sha"
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -80,8 +133,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
-          cat > android/key.properties <<EOF
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode \
+            > release-source/android/app/upload-keystore.jks
+          cat > release-source/android/key.properties <<EOF
           storePassword=$ANDROID_KEYSTORE_PASSWORD
           keyPassword=$ANDROID_KEY_PASSWORD
           keyAlias=$ANDROID_KEY_ALIAS
@@ -89,9 +143,11 @@ jobs:
           EOF
 
       - name: Resolve dependencies
+        working-directory: release-source
         run: flutter pub get
 
       - name: Build production AAB
+        working-directory: release-source
         shell: pwsh
         run: ./tool/build_android_release.ps1 -Artifact appbundle
 
@@ -99,10 +155,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          aab='build/app/outputs/bundle/release/app-release.aab'
-          test -s "$aab"
-          jarsigner -verify -strict "$aab"
-          sha256sum "$aab" | tee app-release.aab.sha256
+          source_aab='release-source/build/app/outputs/bundle/release/app-release.aab'
+          test -s "$source_aab"
+          cp "$source_aab" app-release.aab
+          jarsigner -verify -strict app-release.aab
+          sha256sum app-release.aab | tee app-release.aab.sha256
 
       - name: Read signing certificate fingerprint
         id: signing-certificate
@@ -111,7 +168,7 @@ jobs:
           set -euo pipefail
           fingerprint="$(
             keytool -exportcert -rfc \
-              -keystore android/app/upload-keystore.jks \
+              -keystore release-source/android/app/upload-keystore.jks \
               -alias "$ANDROID_KEY_ALIAS" \
               -storepass "$ANDROID_KEYSTORE_PASSWORD" \
               | openssl x509 -noout -fingerprint -sha256 \
@@ -127,13 +184,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 tool/generate_android_release_manifest.py \
-            --aab build/app/outputs/bundle/release/app-release.aab \
+          python3 release-tools/tool/generate_android_release_manifest.py \
+            --aab app-release.aab \
+            --pubspec release-source/pubspec.yaml \
+            --gradle release-source/android/app/build.gradle.kts \
             --output release-manifest.json \
             --repository "$GITHUB_REPOSITORY" \
-            --ref "$GITHUB_REF_NAME" \
-            --commit-sha "$GITHUB_SHA" \
-            --signer-certificate-sha256 '${{ steps.signing-certificate.outputs.fingerprint }}'
+            --ref '${{ steps.release-source.outputs.ref }}' \
+            --commit-sha '${{ steps.release-source.outputs.sha }}' \
+            --signer-certificate-sha256 '${{ steps.signing-certificate.outputs.fingerprint }}' \
+            --require-version-tag
           cat release-manifest.json
 
           checksum_file_sha="$(cut -d' ' -f1 app-release.aab.sha256)"
@@ -146,9 +206,9 @@ jobs:
       - name: Upload production AAB
         uses: actions/upload-artifact@v4
         with:
-          name: aimitsumori-production-aab-${{ github.sha }}
+          name: aimitsumori-production-aab-${{ steps.release-source.outputs.sha }}
           path: |
-            build/app/outputs/bundle/release/app-release.aab
+            app-release.aab
             app-release.aab.sha256
             release-manifest.json
           if-no-files-found: error
@@ -157,4 +217,6 @@ jobs:
       - name: Remove signing material
         if: always()
         shell: bash
-        run: rm -f android/key.properties android/app/upload-keystore.jks
+        run: >-
+          rm -f release-source/android/key.properties
+          release-source/android/app/upload-keystore.jks
