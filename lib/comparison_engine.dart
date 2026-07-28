@@ -170,6 +170,6 @@ class ComparisonEngine {
     ];
   }
 
-int _max(int left, int right) => left > right ? left : right;
-int _min(int left, int right) => left < right ? left : right;
+  int _max(int left, int right) => left > right ? left : right;
+  int _min(int left, int right) => left < right ? left : right;
 }

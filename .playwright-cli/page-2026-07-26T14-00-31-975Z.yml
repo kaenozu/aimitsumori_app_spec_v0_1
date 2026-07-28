@@ -1,0 +1,207 @@
+- generic [ref=f8e2]:
+  - generic [ref=f8e3]:
+    - link "Skip to content" [ref=f8e4] [cursor=pointer]:
+      - /url: "#start-of-content"
+    - banner "Global navigation menu" [ref=f8e8]:
+      - generic [ref=f8e9]:
+        - generic [ref=f8e10]:
+          - button "Open menu" [ref=f8e12] [cursor=pointer]
+          - link "Homepage (g then d)" [ref=f8e15] [cursor=pointer]:
+            - /url: /
+        - generic [ref=f8e18]:
+          - navigation "Breadcrumbs" [ref=f8e19]:
+            - list [ref=f8e20]:
+              - listitem [ref=f8e21]:
+                - link "kaenozu" [ref=f8e22] [cursor=pointer]:
+                  - /url: /kaenozu
+              - listitem [ref=f8e24]:
+                - link "aimitsumori_app_spec_v0_1" [ref=f8e25] [cursor=pointer]:
+                  - /url: /kaenozu/aimitsumori_app_spec_v0_1
+                - button "Switch repository (alt shift r)" [ref=f8e28] [cursor=pointer]
+          - button "Search or jump to… (forward slash)" [ref=f8e31] [cursor=pointer]
+        - generic [ref=f8e34]:
+          - generic [ref=f8e35]:
+            - generic [ref=f8e38]:
+              - link "Chat with Copilot" [ref=f8e40] [cursor=pointer]:
+                - /url: /copilot
+              - button "Open Copilot…" [ref=f8e45] [cursor=pointer]
+            - button "Create new..." [ref=f8e47] [cursor=pointer]
+            - generic [ref=f8e49]:
+              - link "All issues" [ref=f8e50] [cursor=pointer]:
+                - /url: /issues
+              - link "All pull requests" [ref=f8e54] [cursor=pointer]:
+                - /url: /pulls
+              - link "All repositories" [ref=f8e57] [cursor=pointer]:
+                - /url: /repos
+          - link "You have no unread notifications (g then n)" [ref=f8e60] [cursor=pointer]:
+            - /url: /notifications
+          - button "Open user navigation menu" [ref=f8e64] [cursor=pointer]:
+            - img "User avatar" [ref=f8e65]
+      - heading "Repository navigation" [level=2] [ref=f8e66]
+      - navigation "Repository" [ref=f8e67]:
+        - list [ref=f8e68]:
+          - listitem [ref=f8e69]:
+            - link "Code" [ref=f8e70] [cursor=pointer]:
+              - /url: /kaenozu/aimitsumori_app_spec_v0_1
+          - listitem [ref=f8e72]:
+            - link "Issues (2)" [ref=f8e73] [cursor=pointer]:
+              - /url: /kaenozu/aimitsumori_app_spec_v0_1/issues
+              - generic [ref=f8e74]: Issues
+              - generic [ref=f8e75]:
+                - generic [ref=f8e76]: "2"
+                - generic [ref=f8e77]: (2)
+          - listitem [ref=f8e78]:
+            - link "Pull requests" [ref=f8e79] [cursor=pointer]:
+              - /url: /kaenozu/aimitsumori_app_spec_v0_1/pulls
+          - listitem [ref=f8e81]:
+            - link "Agents" [ref=f8e82] [cursor=pointer]:
+              - /url: /kaenozu/aimitsumori_app_spec_v0_1/agents?author=kaenozu
+          - listitem [ref=f8e84]:
+            - link "Actions" [ref=f8e85] [cursor=pointer]:
+              - /url: /kaenozu/aimitsumori_app_spec_v0_1/actions
+          - listitem [ref=f8e87]:
+            - link "Projects" [ref=f8e88] [cursor=pointer]:
+              - /url: /kaenozu/aimitsumori_app_spec_v0_1/projects
+          - listitem [ref=f8e90]:
+            - link "Security and quality" [ref=f8e91] [cursor=pointer]:
+              - /url: /kaenozu/aimitsumori_app_spec_v0_1/security
+          - listitem [ref=f8e93]:
+            - link "Insights" [ref=f8e94] [cursor=pointer]:
+              - /url: /kaenozu/aimitsumori_app_spec_v0_1/network/dependencies
+          - listitem [ref=f8e96]:
+            - link "Settings" [ref=f8e97] [cursor=pointer]:
+              - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings
+  - main [ref=f8e101]:
+    - generic [ref=f8e103]:
+      - 'heading "Settings: kaenozu/aimitsumori_app_spec_v0_1" [level=1] [ref=f8e104]'
+      - generic [ref=f8e106]:
+        - navigation "General settings" [ref=f8e109]:
+          - list [ref=f8e111]:
+            - listitem [ref=f8e112]:
+              - link "General" [ref=f8e113] [cursor=pointer]:
+                - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings
+            - listitem [ref=f8e115]
+            - listitem [ref=f8e116]:
+              - generic [ref=f8e119]:
+                - heading "Access" [level=2] [ref=f8e121]
+                - list "Access" [ref=f8e122]:
+                  - listitem [ref=f8e123]:
+                    - link "Collaborators" [ref=f8e124] [cursor=pointer]:
+                      - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/access
+            - listitem [ref=f8e126]
+            - listitem [ref=f8e127]:
+              - generic [ref=f8e130]:
+                - heading "Code, planning, and automation" [level=2] [ref=f8e132]
+                - list "Code, planning, and automation" [ref=f8e133]:
+                  - listitem [ref=f8e134]:
+                    - link "Branches" [ref=f8e135] [cursor=pointer]:
+                      - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/branches
+                  - listitem [ref=f8e137]:
+                    - link "Tags" [ref=f8e138] [cursor=pointer]:
+                      - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/tag_protection
+                  - listitem [ref=f8e140]:
+                    - button "Rules" [ref=f8e141] [cursor=pointer]
+                  - listitem [ref=f8e143]:
+                    - button "Actions" [ref=f8e144] [cursor=pointer]
+                  - listitem [ref=f8e146]:
+                    - link "Webhooks" [ref=f8e147] [cursor=pointer]:
+                      - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/hooks
+                  - listitem [ref=f8e149]:
+                    - button "Copilot" [ref=f8e150] [cursor=pointer]
+                  - listitem [ref=f8e152]:
+                    - button "Planning" [ref=f8e153] [cursor=pointer]
+                  - listitem [ref=f8e155]:
+                    - link "Environments" [ref=f8e156] [cursor=pointer]:
+                      - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/environments
+                  - listitem [ref=f8e158]:
+                    - link "Codespaces" [ref=f8e159] [cursor=pointer]:
+                      - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/codespaces
+                  - listitem [ref=f8e161]:
+                    - link "Pages" [ref=f8e162] [cursor=pointer]:
+                      - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/pages
+            - listitem [ref=f8e164]
+            - listitem [ref=f8e165]:
+              - generic [ref=f8e168]:
+                - heading "Security and quality" [level=2] [ref=f8e170]
+                - list "Security and quality" [ref=f8e171]:
+                  - listitem [ref=f8e172]:
+                    - link "Advanced Security" [ref=f8e173] [cursor=pointer]:
+                      - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/security_analysis
+                  - listitem [ref=f8e175]:
+                    - link "Deploy keys" [ref=f8e176] [cursor=pointer]:
+                      - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/keys
+                  - listitem [ref=f8e178]:
+                    - button "Secrets and variables" [expanded] [ref=f8e179] [cursor=pointer]
+                    - list "Secrets and variables" [ref=f8e181]:
+                      - listitem [ref=f8e182]:
+                        - link "Actions" [ref=f8e183] [cursor=pointer]:
+                          - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/secrets/actions
+                      - listitem [ref=f8e185]:
+                        - link "Agents" [ref=f8e186] [cursor=pointer]:
+                          - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/secrets/agents
+                      - listitem [ref=f8e188]:
+                        - link "Codespaces" [ref=f8e189] [cursor=pointer]:
+                          - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/secrets/codespaces
+                      - listitem [ref=f8e191]:
+                        - link "Dependabot" [ref=f8e192] [cursor=pointer]:
+                          - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/secrets/dependabot
+            - listitem [ref=f8e194]
+            - listitem [ref=f8e195]:
+              - generic [ref=f8e198]:
+                - heading "Integrations" [level=2] [ref=f8e200]
+                - list "Integrations" [ref=f8e201]:
+                  - listitem [ref=f8e202]:
+                    - link "GitHub Apps" [ref=f8e203] [cursor=pointer]:
+                      - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/installations
+                  - listitem [ref=f8e205]:
+                    - link "Email notifications" [ref=f8e206] [cursor=pointer]:
+                      - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/notifications
+        - generic [ref=f8e208]:
+          - heading [level=2] [ref=f8e210]:
+            - link "Actions secrets" [ref=f8e211] [cursor=pointer]:
+              - /url: /kaenozu/aimitsumori_app_spec_v0_1/settings/secrets/actions
+            - text: / New secret
+          - generic [ref=f8e213]:
+            - generic [ref=f8e215]:
+              - generic [ref=f8e216]: Name *
+              - textbox "Name" [ref=f8e218]:
+                - /placeholder: YOUR_SECRET_NAME
+            - generic [ref=f8e221]:
+              - generic [ref=f8e222]: Secret *
+              - textbox "Secret" [ref=f8e224]
+            - button "Add secret" [ref=f8e226] [cursor=pointer]
+  - contentinfo [ref=f8e229]:
+    - heading "Footer" [level=2] [ref=f8e230]
+    - generic [ref=f8e231]:
+      - generic [ref=f8e232]:
+        - link "GitHub Homepage" [ref=f8e233] [cursor=pointer]:
+          - /url: https://github.com
+        - generic [ref=f8e236]: © 2026 GitHub, Inc.
+      - navigation "Footer" [ref=f8e237]:
+        - heading "Footer navigation" [level=3] [ref=f8e238]
+        - list "Footer navigation" [ref=f8e239]:
+          - listitem [ref=f8e240]:
+            - link "Terms" [ref=f8e241] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/github-terms/github-terms-of-service
+          - listitem [ref=f8e242]:
+            - link "Privacy" [ref=f8e243] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/privacy-policies/github-privacy-statement
+          - listitem [ref=f8e244]:
+            - link "Security" [ref=f8e245] [cursor=pointer]:
+              - /url: https://github.com/security
+          - listitem [ref=f8e246]:
+            - link "Status" [ref=f8e247] [cursor=pointer]:
+              - /url: https://www.githubstatus.com/
+          - listitem [ref=f8e248]:
+            - link "Community" [ref=f8e249] [cursor=pointer]:
+              - /url: https://github.community/
+          - listitem [ref=f8e250]:
+            - link "Docs" [ref=f8e251] [cursor=pointer]:
+              - /url: https://docs.github.com/
+          - listitem [ref=f8e252]:
+            - link "Contact" [ref=f8e253] [cursor=pointer]:
+              - /url: https://support.github.com?tags=dotcom-footer
+          - listitem [ref=f8e254]:
+            - button "Manage cookies" [ref=f8e256] [cursor=pointer]
+          - listitem [ref=f8e257]:
+            - button "Do not share my personal information" [ref=f8e259] [cursor=pointer]

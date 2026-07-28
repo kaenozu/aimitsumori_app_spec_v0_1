@@ -1,0 +1,87 @@
+- main [ref=e4]:
+  - generic [ref=e6]:
+    - link "新しいチャット" [ref=e7] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e10]: Gemini
+    - text: side_nav_expand
+  - generic [ref=e13]:
+    - link "アップグレード" [ref=e16]:
+      - generic [ref=e17]:
+        - img [ref=e18]: spark
+        - generic [ref=e19]: アップグレード
+    - generic [ref=e22]:
+      - generic: play_arrow
+      - button "一時チャット" [ref=e26] [cursor=pointer]:
+        - img [ref=e28]: gemini_chat_temp
+  - generic [ref=e31]:
+    - navigation "サイド ナビゲーション" [ref=e32]:
+      - generic [ref=e34]:
+        - button "サイドバーを閉じる" [ref=e35] [cursor=pointer]:
+          - img [ref=e37]: side_nav
+        - generic [ref=e40]:
+          - generic [ref=e41]:
+            - navigation "メインの操作メニュー" [ref=e42]:
+              - link "チャットを新規作成" [ref=e44] [cursor=pointer]:
+                - /url: /app
+                - img [ref=e47]: gemini_chat
+              - link "チャットを検索" [ref=e53] [cursor=pointer]:
+                - /url: /search
+                - img [ref=e56]: search
+            - text: image_create library
+          - generic [ref=e61]:
+            - navigation "その他の操作メニュー" [ref=e62]:
+              - link "画像" [ref=e64] [cursor=pointer]:
+                - /url: /images
+                - img [ref=e67]: image_create
+              - link "ライブラリ" [ref=e73] [cursor=pointer]:
+                - /url: library
+                - img [ref=e76]: library
+            - generic [ref=e81]:
+              - button "「ノートブック」を切り替える" [expanded] [ref=e82] [cursor=pointer]:
+                - generic [ref=e83]: ノートブック
+                - img [ref=e85]: keyboard_arrow_down
+              - navigation [ref=e89]:
+                - link "ノートブックを新規作成" [ref=e91] [cursor=pointer]:
+                  - /url: /notebooks/create
+                  - img [ref=e94]: add_2
+                - link "原神" [ref=e101] [cursor=pointer]:
+                  - /url: /notebook/d99081e9-902e-48f5-9810-03cfe8c33b47
+                  - img [ref=e104]: notebook
+                - 'link "OpenCode and Codex CLI: Advanced AI Coding Agent Guide" [ref=e111] [cursor=pointer]':
+                  - /url: /notebook/d54f13a2-dfe8-4570-8d91-f3587b1c3269
+                  - img [ref=e114]: notebook
+                - link "すべてのノートブック" [ref=e120] [cursor=pointer]:
+                  - /url: /notebooks/view
+                  - img [ref=e123]: more_horiz
+            - generic [ref=e132]:
+              - text: 接続できませんでした
+              - link "再読み込み" [ref=e133] [cursor=pointer]:
+                - /url: "#"
+          - group [ref=e134]:
+            - generic [ref=e136]:
+              - 'link "Google アカウント: もち（eno）（neoenox@gmail.com）" [ref=e137] [cursor=pointer]':
+                - /url: https://accounts.google.com/SignOutOptions?continue=https://gemini.google.com
+                - generic [ref=e140]: もち（eno）
+              - button "設定" [ref=e145] [cursor=pointer]:
+                - img [ref=e147]: settings
+    - generic [ref=e154]:
+      - generic [ref=e155]:
+        - heading "Gemini との会話" [level=1] [ref=e156]
+        - heading "もち さん、さっそく進めましょう" [level=1] [ref=e170]
+      - generic [ref=e173]:
+        - group [ref=e174]:
+          - generic [ref=e177]:
+            - textbox "Gemini へのプロンプトを入力" [ref=e183]:
+              - text: Gemini に相談
+              - paragraph [ref=e184]
+            - button "アップロードとツール" [ref=e190] [cursor=pointer]:
+              - img [ref=e192]: plus
+            - generic [ref=e194]:
+              - group [ref=e197]:
+                - 'button "モード選択ツールを開く（現在のモデル: Flash）" [ref=e198]':
+                  - generic [ref=e200]:
+                    - generic [ref=e201]: Flash
+                    - img [ref=e203]: keyboard_arrow_down
+              - button "マイク" [ref=e211] [cursor=pointer]:
+                - img [ref=e213]: mic
+        - paragraph [ref=e217]
