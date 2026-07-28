@@ -9,7 +9,6 @@ linter:
     avoid_types_as_parameter_names: true
     avoid_unused_constructor_parameters: true
     avoid_void_async: true
-    cascade_invocations: true
     constant_identifier_names: true
     curly_braces_in_flow_control_structures: true
     invalid_case_patterns: true
