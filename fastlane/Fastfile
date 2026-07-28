@@ -1,0 +1,48 @@
+default_platform(:android)
+
+def required_env!(name)
+  value = ENV[name]
+  UI.user_error!("Missing required environment variable: #{name}") if value.to_s.strip.empty?
+  value
+end
+
+platform :android do
+  desc "Validate the Google Play service account credentials"
+  lane :validate_play_credentials do
+    validate_play_store_json_key(
+      json_key_data: required_env!("PLAY_SERVICE_ACCOUNT_JSON")
+    )
+  end
+
+  desc "Upload an existing AAB to the Google Play internal testing track"
+  lane :internal do |options|
+    credentials = required_env!("PLAY_SERVICE_ACCOUNT_JSON")
+    aab_path = options[:aab] || ENV["PLAY_AAB_PATH"] || "app-release.aab"
+    resolved_aab_path = File.expand_path(aab_path, Dir.pwd)
+    UI.user_error!("AAB was not found: #{resolved_aab_path}") unless File.file?(resolved_aab_path)
+    UI.user_error!("AAB is empty: #{resolved_aab_path}") unless File.size(resolved_aab_path).positive?
+
+    release_status = (
+      options[:release_status] || ENV.fetch("PLAY_RELEASE_STATUS", "completed")
+    ).to_s
+    allowed_statuses = %w[completed draft halted inProgress]
+    unless allowed_statuses.include?(release_status)
+      UI.user_error!(
+        "PLAY_RELEASE_STATUS must be one of: #{allowed_statuses.join(', ')}"
+      )
+    end
+
+    upload_to_play_store(
+      package_name: "com.kaenozu.aimitsumori_app",
+      json_key_data: credentials,
+      aab: resolved_aab_path,
+      track: "internal",
+      release_status: release_status,
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+end
