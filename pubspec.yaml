@@ -1,7 +1,7 @@
 name: aimitsumori_app
 description: "相見積もり支援アプリ - 見積書比較"
 publish_to: 'none'
-version: 0.1.1+2
+version: 0.1.2+1
 
 environment:
   sdk: ^3.12.0
