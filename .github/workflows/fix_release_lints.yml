@@ -1,0 +1,76 @@
+name: Fix release lints
+
+on:
+  push:
+    branches:
+      - release/v0.1.2
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fix-release-v0.1.2-lints
+  cancel-in-progress: true
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out release branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/v0.1.2
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Remove blocking-I/O lint
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('analysis_options.yaml')
+          content = path.read_text(encoding='utf-8')
+          expected = '    avoid_slow_async_io: true\n'
+          if expected not in content:
+              raise SystemExit('avoid_slow_async_io rule not found')
+          path.write_text(content.replace(expected, ''), encoding='utf-8')
+          PY
+
+      - name: Apply targeted analyzer fixes
+        run: |
+          dart fix --apply --code=prefer_const_constructors
+          dart fix --apply --code=cascade_invocations
+          dart fix --apply --code=unnecessary_string_interpolations
+          dart fix --apply --code=unnecessary_null_checks
+          dart format lib test integration_test
+
+      - name: Verify analyzer
+        run: flutter analyze
+
+      - name: Commit lint fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          if git diff --quiet; then
+            echo 'No lint fixes required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add analysis_options.yaml lib test integration_test
+          git commit -m 'fix: resolve v0.1.2 analyzer findings'
+          git push origin HEAD:release/v0.1.2
