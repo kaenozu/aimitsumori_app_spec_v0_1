@@ -2,8 +2,6 @@
 /// 比較画面 - 表形式と業者別カード形式、共有、広告解除を提供する。
 library;
 
-
-
 import '../utils/app_logger.dart';
 
 import '../utils/formatting.dart';
@@ -599,9 +597,8 @@ class _ComparisonTable extends StatelessWidget {
                     width: 180,
                     child: Text(
                       '${cell.inclusionStatus.labelJa}\n'
-'${formatYen(cell.amountYen)}\n'
-                       '${formatQuantity(cell.quantity, cell.unit)}\n'
-
+                      '${formatYen(cell.amountYen)}\n'
+                      '${formatQuantity(cell.quantity, cell.unit)}\n'
                       '${cell.specification ?? '仕様未入力'}',
                     ),
                   ),
@@ -644,9 +641,8 @@ class _ContractorCards extends StatelessWidget {
                         contentPadding: EdgeInsets.zero,
                         title: Text(comparison.category.nameJa),
                         subtitle: Text(
-'${formatYen(cell.amountYen)} / '
-                           '${formatQuantity(cell.quantity, cell.unit)}\n'
-
+                          '${formatYen(cell.amountYen)} / '
+                          '${formatQuantity(cell.quantity, cell.unit)}\n'
                           '${cell.specification ?? '仕様未入力'}',
                         ),
                         trailing: Text(cell.inclusionStatus.labelJa),

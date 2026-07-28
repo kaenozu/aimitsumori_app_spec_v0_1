@@ -1,8 +1,6 @@
 /// 案件要望をSQLiteへ保存する専用リポジトリ。
 library;
 
-
-
 import '../utils/app_logger.dart';
 
 import 'package:sqflite/sqflite.dart';

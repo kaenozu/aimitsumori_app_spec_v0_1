@@ -2,10 +2,7 @@
 /// UI層からSQLite実装を隠す案件リポジトリ。
 library;
 
-
-
 import '../utils/app_logger.dart';
-
 
 import '../models.dart';
 import '../quote_revision_models.dart';

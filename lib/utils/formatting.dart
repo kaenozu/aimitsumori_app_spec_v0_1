@@ -17,5 +17,5 @@ String formatQuantity(double? quantity, String? unit) {
 }
 
 String formatDate(int epoch) => DateFormat(
-      'yyyy/MM/dd HH:mm',
-    ).format(DateTime.fromMillisecondsSinceEpoch(epoch));
+  'yyyy/MM/dd HH:mm',
+).format(DateTime.fromMillisecondsSinceEpoch(epoch));

@@ -263,6 +263,4 @@ class ComparisonExportService {
     text = text.replaceAll('"', '""');
     return '"$text"';
   }
-
-  
 }
