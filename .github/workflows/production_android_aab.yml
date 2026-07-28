@@ -136,6 +136,13 @@ jobs:
             --signer-certificate-sha256 '${{ steps.signing-certificate.outputs.fingerprint }}'
           cat release-manifest.json
 
+          checksum_file_sha="$(cut -d' ' -f1 app-release.aab.sha256)"
+          manifest_sha="$(python3 -c 'import json; print(json.load(open("release-manifest.json", encoding="utf-8"))["aab"]["sha256"])')"
+          if [[ "$manifest_sha" != "$checksum_file_sha" ]]; then
+            echo '::error::release-manifest.json AAB SHA-256 does not match app-release.aab.sha256.'
+            exit 1
+          fi
+
       - name: Upload production AAB
         uses: actions/upload-artifact@v4
         with:
