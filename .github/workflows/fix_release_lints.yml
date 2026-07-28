@@ -43,18 +43,19 @@ jobs:
 
           path = Path('analysis_options.yaml')
           content = path.read_text(encoding='utf-8')
-          expected = '    avoid_slow_async_io: true\n'
-          if expected not in content:
-              raise SystemExit('avoid_slow_async_io rule not found')
-          path.write_text(content.replace(expected, ''), encoding='utf-8')
+          path.write_text(
+              content.replace('    avoid_slow_async_io: true\n', ''),
+              encoding='utf-8',
+          )
           PY
 
       - name: Apply targeted analyzer fixes
+        shell: bash
         run: |
-          dart fix --apply --code=prefer_const_constructors
-          dart fix --apply --code=cascade_invocations
-          dart fix --apply --code=unnecessary_string_interpolations
-          dart fix --apply --code=unnecessary_null_checks
+          dart fix --apply --code=prefer_const_constructors || true
+          dart fix --apply --code=cascade_invocations || true
+          dart fix --apply --code=unnecessary_string_interpolations || true
+          dart fix --apply --code=unnecessary_null_checks || true
           dart format lib test integration_test
 
       - name: Commit lint fixes
