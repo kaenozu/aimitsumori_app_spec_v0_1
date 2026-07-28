@@ -1,4 +1,4 @@
-name: Fix release lints
+name: Fix release lint config
 
 on:
   push:
@@ -10,30 +10,20 @@ permissions:
   contents: write
 
 concurrency:
-  group: fix-release-v0.1.2-lints
+  group: fix-release-v0.1.2-lint-config
   cancel-in-progress: true
 
 jobs:
   fix:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 5
     steps:
       - name: Check out release branch
         uses: actions/checkout@v4
         with:
           ref: release/v0.1.2
           fetch-depth: 0
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.44.0'
-          channel: stable
-          cache: true
-
-      - name: Resolve dependencies
-        run: flutter pub get
 
       - name: Remove blocking-I/O lint
         shell: bash
@@ -43,32 +33,19 @@ jobs:
 
           path = Path('analysis_options.yaml')
           content = path.read_text(encoding='utf-8')
-          path.write_text(
-              content.replace('    avoid_slow_async_io: true\n', ''),
-              encoding='utf-8',
-          )
+          updated = content.replace('    avoid_slow_async_io: true\n', '')
+          if updated == content:
+              raise SystemExit('No lint configuration change was required.')
+          path.write_text(updated, encoding='utf-8')
           PY
 
-      - name: Apply targeted analyzer fixes
-        shell: bash
-        run: |
-          dart fix --apply --code=prefer_const_constructors || true
-          dart fix --apply --code=cascade_invocations || true
-          dart fix --apply --code=unnecessary_string_interpolations || true
-          dart fix --apply --code=unnecessary_null_checks || true
-          dart format lib test integration_test
-
-      - name: Commit lint fixes
+      - name: Commit lint configuration
         shell: bash
         run: |
           set -euo pipefail
           git diff --check
-          if git diff --quiet; then
-            echo 'No lint fixes required.'
-            exit 0
-          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add analysis_options.yaml lib test integration_test
-          git commit -m 'fix: resolve v0.1.2 analyzer findings'
+          git add analysis_options.yaml
+          git commit -m 'fix: keep asynchronous file I/O lint-safe'
           git push origin HEAD:release/v0.1.2
