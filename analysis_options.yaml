@@ -6,7 +6,6 @@ linter:
     avoid_empty_else: true
     avoid_print: true
     avoid_relative_lib_imports: true
-    avoid_slow_async_io: true
     avoid_types_as_parameter_names: true
     avoid_unused_constructor_parameters: true
     avoid_void_async: true

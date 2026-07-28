@@ -9,13 +9,13 @@ class SampleData {
 
   static Project project() {
     const createdAt = 1784160000000;
-    return Project(
+    return const Project(
       id: 'sample-exterior-001',
       name: '新築外構 3社相見積もり',
       status: ProjectStatus.needsReview,
       createdAtEpochMillis: createdAt,
       updatedAtEpochMillis: createdAt + 3000,
-      quotes: const [
+      quotes: [
         ContractorQuote(
           id: 'quote-a',
           contractorName: 'A社',

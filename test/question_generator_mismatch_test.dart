@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('quantity and unit mismatches generate separate questions', () {
-    final project = Project(
+    const project = Project(
       id: 'project-1',
       name: '案件',
       status: ProjectStatus.comparing,

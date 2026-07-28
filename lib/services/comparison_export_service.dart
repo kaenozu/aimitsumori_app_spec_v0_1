@@ -58,7 +58,7 @@ class ComparisonExportService {
       for (final cell in comparison.cells) {
         final quantity = cell.quantity == null
             ? '未入力'
-            : '${formatQuantity(cell.quantity!, cell.unit ?? "")}';
+            : formatQuantity(cell.quantity, cell.unit ?? "");
         buffer.writeln(
           '- ${cell.contractorName}: ${cell.inclusionStatus.labelJa} / '
           '金額 ${formatYen(cell.amountYen)} / 数量 $quantity / '

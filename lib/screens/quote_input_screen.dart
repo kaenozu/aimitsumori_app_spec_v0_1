@@ -1,4 +1,4 @@
-﻿/// ファイルパス: lib/screens/quote_input_screen.dart
+/// ファイルパス: lib/screens/quote_input_screen.dart
 /// PDF・カメラ・写真から見積を取り込み、OCR結果を確認して保存する画面。
 library;
 
@@ -408,9 +408,9 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
                 ],
               )
             else
-              Card(
-                key: const ValueKey('quote-ocr-unsupported'),
-                child: const Padding(
+              const Card(
+                key: ValueKey('quote-ocr-unsupported'),
+                child: Padding(
                   padding: EdgeInsets.all(16),
                   child: Text(
                     '見積書のOCR取込はAndroid・iOSで利用できます。モバイル端末でこの案件を開いてください。',

@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('CSV exports untrusted text as text rather than formulas', () {
-    final project = Project(
+    const project = Project(
       id: 'project-1',
       name: '=HYPERLINK("https://example.com")',
       status: ProjectStatus.comparing,
