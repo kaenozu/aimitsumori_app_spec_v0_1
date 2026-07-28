@@ -28,7 +28,11 @@
 - [ ] `Build production-signed AAB` が成功した
 - [ ] `jarsigner -verify -strict` が成功した
 - [ ] `app-release.aab.sha256` をリリース記録へ保存した
-- [ ] AABのcommit SHAがリリース対象mainと一致している
+- [ ] `release-manifest.json` をリリース記録へ保存した
+- [ ] manifestのcommit SHAがリリース対象mainと一致している
+- [ ] manifestのversionName / versionCode / applicationIdがGoogle Play提出内容と一致している
+- [ ] manifestの署名証明書SHA-256がPlay App Signingのupload key証明書と一致している
+- [ ] manifest内のAAB SHA-256が`app-release.aab.sha256`と一致している
 
 ## Android実機確認
 
