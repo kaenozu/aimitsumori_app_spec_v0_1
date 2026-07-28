@@ -4,9 +4,22 @@ on:
   workflow_dispatch:
     inputs:
       release_ref:
-        description: 'Annotated release tag to build (for example: v0.1.1)'
+        description: 'Annotated release tag to build (for example: v0.1.2)'
         required: true
         type: string
+      publish_to_internal:
+        description: 'Upload the signed AAB to Google Play internal testing'
+        required: true
+        default: false
+        type: boolean
+      play_release_status:
+        description: 'Use completed for installable releases; use draft for first-upload troubleshooting'
+        required: true
+        default: completed
+        type: choice
+        options:
+          - completed
+          - draft
 
 permissions:
   contents: read
@@ -35,6 +48,9 @@ jobs:
       ADMOB_ANDROID_REWARDED_ID: ${{ secrets.ADMOB_ANDROID_REWARDED_ID }}
       REMOVE_ADS_PRODUCT_ID: ${{ secrets.REMOVE_ADS_PRODUCT_ID }}
       PURCHASE_VERIFICATION_URL: ${{ secrets.PURCHASE_VERIFICATION_URL }}
+      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+      FASTLANE_SKIP_UPDATE_CHECK: 'true'
+      FASTLANE_HIDE_CHANGELOG: 'true'
     steps:
       - name: Verify workflow runs from main
         shell: bash
@@ -102,6 +118,17 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Set up Ruby
+        if: ${{ inputs.publish_to_internal }}
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+
+      - name: Install fastlane
+        if: ${{ inputs.publish_to_internal }}
+        working-directory: release-tools
+        run: bundle install --jobs 4 --retry 3
+
       - name: Validate production secrets
         shell: bash
         run: |
@@ -117,6 +144,9 @@ jobs:
             REMOVE_ADS_PRODUCT_ID
             PURCHASE_VERIFICATION_URL
           )
+          if [[ '${{ inputs.publish_to_internal }}' == 'true' ]]; then
+            required+=(PLAY_SERVICE_ACCOUNT_JSON)
+          fi
           missing=()
           for name in "${required[@]}"; do
             if [[ -z "${!name:-}" ]]; then
@@ -128,6 +158,11 @@ jobs:
             printf '  - %s\n' "${missing[@]}" >&2
             exit 1
           fi
+
+      - name: Validate Google Play API credentials
+        if: ${{ inputs.publish_to_internal }}
+        working-directory: release-tools
+        run: bundle exec fastlane android validate_play_credentials
 
       - name: Configure production signing
         shell: bash
@@ -165,7 +200,7 @@ jobs:
             jarsigner -verify -strict app-release.aab || {
               rc=$?
               if jarsigner -verify app-release.aab 2>&1 | grep -q 'jar verified'; then
-                echo 'JAR signature scheme verified (exit code $rc is benign for AAB v2/v3 signing)'
+                echo "JAR signature scheme verified (exit code $rc is benign for AAB v2/v3 signing)"
               else
                 exit $rc
               fi
@@ -215,7 +250,7 @@ jobs:
             exit 1
           fi
 
-      - name: Upload production AAB
+      - name: Upload production AAB artifact
         uses: actions/upload-artifact@v4
         with:
           name: aimitsumori-production-aab-${{ steps.release-source.outputs.sha }}
@@ -225,6 +260,14 @@ jobs:
             release-manifest.json
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload to Google Play internal testing
+        if: ${{ inputs.publish_to_internal }}
+        working-directory: release-tools
+        env:
+          PLAY_AAB_PATH: ${{ github.workspace }}/app-release.aab
+          PLAY_RELEASE_STATUS: ${{ inputs.play_release_status }}
+        run: bundle exec fastlane android internal
 
       - name: Remove signing material
         if: always()
