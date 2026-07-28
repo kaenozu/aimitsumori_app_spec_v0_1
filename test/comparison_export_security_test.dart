@@ -10,7 +10,7 @@ void main() {
       status: ProjectStatus.comparing,
       createdAtEpochMillis: 1,
       updatedAtEpochMillis: 1,
-      quotes: const [
+      quotes: [
         ContractorQuote(
           id: 'quote-1',
           contractorName: '+SUM(A1:A2)',
