@@ -76,6 +76,13 @@ def generate_manifest(args: argparse.Namespace) -> dict[str, object]:
         raise ValueError("commit SHA must contain exactly 40 hexadecimal digits")
 
     version_name, version_code = _parse_version(pubspec_path)
+    if args.require_version_tag:
+        expected_ref = f"v{version_name}"
+        if args.ref != expected_ref:
+            raise ValueError(
+                f"release ref must match pubspec version tag {expected_ref}: {args.ref}"
+            )
+
     application_id = _parse_application_id(gradle_path)
 
     return {
@@ -111,6 +118,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--commit-sha", required=True)
     parser.add_argument("--signer-certificate-sha256", required=True)
     parser.add_argument("--generated-at-utc")
+    parser.add_argument("--require-version-tag", action="store_true")
     return parser
 
 
