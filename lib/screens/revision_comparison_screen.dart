@@ -109,6 +109,6 @@ class RevisionComparisonScreen extends StatelessWidget {
           const SizedBox(height: 24),
         ],
       ),
-    );
+);
   }
 }

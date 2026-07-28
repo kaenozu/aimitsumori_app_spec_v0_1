@@ -8,21 +8,24 @@
 
 ### Changed
 
-- 金額表示などの共通処理をユーティリティへ集約し、画面・比較処理間の重複を削減
-- アプリ内ログ出力を共通ロガーへ統一し、リリースビルドでの不要な標準出力を抑制
-- 静的解析ルールを強化し、戻り値・未使用コード・非同期処理などの品質上の問題を検出しやすく改善
-- ソースコードと設定ファイルの改行コードをLFへ統一
+- `debugPrint` を `AppLogger`（`dart:developer/log` ベース）に置き換え。本番リリースビルドでも開発者ログを出力可能に。
+- `_formatYen` / `_formatQuantity` / `_formatDate` の重複実装を `lib/utils/formatting.dart` へ集約。`comparison_screen.dart`、`quote_revision_screen.dart`、`revision_comparison_screen.dart`、`comparison_export_service.dart` から private 関数を削除。
+- `logging` パッケージを直接依存に追加。
+- ソースコードと設定ファイルの改行コードをLFへ統一（`.gitattributes` で `*.dart`・`*.yaml` 等を `eol=lf` に指定）。
+- 静的解析ルールを強化し、戻り値・未使用コード・非同期処理などの品質上の問題を検出しやすく改善。
 
 ### Fixed
 
-- ID生成テストを追加し、短時間に連続生成した場合の衝突回帰を防止
-- 比較処理と画面実装のlint・フォーマット上の不整合を修正
+- ID生成テストを追加し、短時間に連続生成した場合の衝突回帰を防止。
+- 比較処理と画面実装のlint・フォーマット上の不整合を修正。
 
 ### Quality and release engineering
 
-- `flutter analyze` 0 errors、Unit / Widget test 153件成功をリリース前品質ゲートとして確認
-- Androidリリース監査manifest生成スクリプトと回帰テストをreleaseブランチへ同期
-- バージョンを `0.1.2+1` へ更新
+- GitHub Freeプラン（プライベートリポジトリ）で Ruleset API が利用できない場合にスキップするよう `configure_github_repository.ps1` を修正。代わりに CI と production environment を主ゲートとして使用。
+- `production` GitHub Environment を設定し、デプロイブランチを `main` のみに制限。
+- Androidリリース監査manifest生成スクリプトと回帰テストをreleaseブランチへ同期。
+- `flutter analyze` 0 errors、Unit / Widget test 153件成功をリリース前品質ゲートとして確認。
+- バージョンを `0.1.2+1` へ更新。
 
 ### Known release tasks
 
