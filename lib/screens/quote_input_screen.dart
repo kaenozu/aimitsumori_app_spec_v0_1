@@ -243,6 +243,28 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     }
   }
 
+  void _confirmNonCriticalItems() {
+    final bundle = _reviewBundle;
+    if (bundle == null) return;
+    final updated = Map<String, OcrReviewStatus>.from(_reviewStatuses);
+    for (final line in bundle.lines) {
+      if (line.severity != OcrReviewSeverity.critical &&
+          (_statusFor(line) == OcrReviewStatus.pending)) {
+        updated[line.id] = OcrReviewStatus.confirmed;
+      }
+    }
+    for (final issue in bundle.issues) {
+      if (issue.severity != OcrReviewSeverity.critical &&
+          (_reviewStatuses[issue.id] ?? issue.initialStatus) ==
+              OcrReviewStatus.pending) {
+        updated[issue.id] = OcrReviewStatus.confirmed;
+      }
+    }
+    setState(() => _reviewStatuses = updated);
+    final documentKey = _documentReviewKey;
+    if (documentKey != null) unawaited(_reviewStore.save(documentKey, updated));
+  }
+
   int _criticalPendingCount() {
     final bundle = _reviewBundle;
     if (bundle == null) return 0;
@@ -468,6 +490,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
                   bundle: bundle,
                   statuses: _reviewStatuses,
                   onStatusChanged: _setReviewStatus,
+                  onConfirmNonCritical: _confirmNonCriticalItems,
                 ),
               ],
               const SizedBox(height: 20),

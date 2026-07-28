@@ -1,4 +1,4 @@
-﻿library;
+library;
 
 import '../utils/app_logger.dart';
 
@@ -96,6 +96,27 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
     if (!_statusesLoaded) return;
     setState(() => _statuses[id] = status);
     unawaited(_reviewStore.save(_reviewKey, _statuses));
+  }
+
+  void _confirmNonCriticalItems() {
+    final bundle = widget.result.reviewBundle;
+    final updated = Map<String, OcrReviewStatus>.from(_statuses);
+    for (final line in bundle.lines) {
+      if (line.severity != OcrReviewSeverity.critical &&
+          (_statuses[line.id] ?? line.initialStatus) ==
+              OcrReviewStatus.pending) {
+        updated[line.id] = OcrReviewStatus.confirmed;
+      }
+    }
+    for (final issue in bundle.issues) {
+      if (issue.severity != OcrReviewSeverity.critical &&
+          (_statuses[issue.id] ?? issue.initialStatus) ==
+              OcrReviewStatus.pending) {
+        updated[issue.id] = OcrReviewStatus.confirmed;
+      }
+    }
+    setState(() => _statuses = updated);
+    unawaited(_reviewStore.save(_reviewKey, updated));
   }
 
   int get _criticalPendingCount {
@@ -223,8 +244,8 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
               color: Theme.of(context).colorScheme.tertiaryContainer,
               child: ListTile(
                 leading: const Icon(Icons.priority_high),
-                title: Text('優先度1の要確認箇所: $reviewCount件'),
-                subtitle: const Text('原画像とOCR結果を照合してから保存してください。'),
+                title: Text('構造化できた明細・要確認候補: $reviewCount件'),
+                subtitle: const Text('小計・税・ページ情報は除外しています。重大な不一致だけ確認してください。'),
               ),
             ),
             const SizedBox(height: 12),
@@ -232,6 +253,7 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
               bundle: bundle,
               statuses: _statuses,
               onStatusChanged: _setStatus,
+              onConfirmNonCritical: _confirmNonCriticalItems,
             ),
             const SizedBox(height: 16),
             TextFormField(

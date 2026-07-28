@@ -6,6 +6,7 @@ library;
 import '../utils/app_logger.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'repositories/project_repository.dart';
 import 'repositories/project_requirement_repository.dart';
@@ -98,6 +99,11 @@ class _AimitsumoriAppState extends State<AimitsumoriApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '相見積もり比較',
+      // Japanese locale keeps CJK glyph fallback aligned with Japanese forms
+      // instead of allowing the device default to select Chinese glyphs.
+      locale: const Locale('ja', 'JP'),
+      supportedLocales: const [Locale('ja', 'JP')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       debugShowCheckedModeBanner: false,
       theme: _theme(Brightness.light),
       darkTheme: _theme(Brightness.dark),

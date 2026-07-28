@@ -43,6 +43,12 @@ void main() {
     expect(OcrConfidenceEngine.extractAmountCandidates('数量 500個'), isEmpty);
   });
 
+  test('standalone numbers and address fragments are not prices', () {
+    expect(OcrConfidenceEngine.extractAmountCandidates('1'), isEmpty);
+    expect(OcrConfidenceEngine.extractAmountCandidates('熊谷市見晴町82-3'), isEmpty);
+    expect(OcrConfidenceEngine.extractAmountCandidates('控ブロック7段C120'), isEmpty);
+  });
+
   test('native OCR confidence below threshold requires review', () {
     final result = engine.analyze(
       rawText: 'フェンス 100,000円',

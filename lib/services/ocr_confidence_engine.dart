@@ -31,20 +31,20 @@ class OcrConfidenceEngine {
   const OcrConfidenceEngine();
 
   static const Map<String, List<String>> categoryKeywords = {
-    'concrete': ['土間コンクリート', 'コンクリート', '生コン', '刷毛引き', '金鏝'],
-    'gravel_paving': ['砂利', '砕石', '舗装', '防草シート', 'アスファルト'],
-    'carport': ['カーポート', 'サイクルポート', '駐輪場'],
-    'fence': ['フェンス', '目隠し', 'メッシュフェンス'],
-    'gate': ['門柱', '門扉', '機能門柱', 'ポスト', '表札'],
+    'concrete': ['土間コンクリート', 'コンクリート', '生コン', '刷毛引き', '金鏝', 'コンクリート舗装'],
+    'gravel_paving': ['砂利', '砕石', '舗装', '防草シート', 'アスファルト', 'インターロッキング'],
+    'carport': ['カーポート', 'サイクルポート', '駐輪場', 'サイクル'],
+    'fence': ['フェンス', '目隠し', 'メッシュフェンス', 'ブロック', '化粧ブロック'],
+    'gate': ['門柱', '門扉', '機能門柱', 'ポスト', '表札', '宅配ボックス'],
     'approach': ['アプローチ', 'インターロッキング', '平板', 'タイル'],
-    'earthwork': ['造成', '掘削', '根切', '盛土', '整地'],
+    'earthwork': ['造成', '掘削', '根切', '盛土', '整地', '鋤取り'],
     'soil_disposal': ['残土', '発生土', '土処分'],
     'drainage': ['排水', '雨水', '桝', '側溝', '水勾配'],
     'lighting': ['照明', '電気', 'ライト', '配線', 'コンセント'],
     'planting': ['植栽', '芝', '樹木', '庭木'],
     'demolition': ['解体', '撤去', '処分'],
     'protection': ['養生'],
-    'machinery_transport': ['重機回送', '重機運搬', '回送費'],
+    'machinery_transport': ['重機回送', '重機運搬', '回送費', '重機損料'],
     'overhead': ['諸経費', '現場管理費', '一般管理費'],
     'application': ['申請', '届出', '許可'],
     'discount': ['値引', '割引', '出精値引'],
@@ -230,6 +230,30 @@ class OcrConfidenceEngine {
     final hasCurrencyMarker = RegExp(r'[¥円]').hasMatch(token);
     final before = text.substring(0, tokenStart).trimRight();
     final after = text.substring(tokenEnd).trimLeft();
+
+    // Unmarked small numbers in estimate descriptions are overwhelmingly
+    // quantities, dimensions, model numbers, or specification counts. Keep
+    // explicitly marked prices such as 500円, but require a price-like size
+    // when the OCR line has no currency marker.
+    if (!hasCurrencyMarker) {
+      final unmarkedValue = _parseAmountToken(token);
+      if (unmarkedValue != null && unmarkedValue < 1000) return false;
+    }
+
+    // Standalone OCR numbers are usually quantities, page numbers, or
+    // checkbox fragments, not prices. They must not become a quote amount.
+    if (!hasCurrencyMarker &&
+        RegExp(r'^[+-]?\d+(?:[.,]\d+)?$').hasMatch(text.trim())) {
+      return false;
+    }
+
+    // Japanese addresses such as 熊谷市見晴町82-3 are frequently split into
+    // two numeric OCR tokens. A number touching a hyphen is not a yen value.
+    if (!hasCurrencyMarker &&
+        ((before.isNotEmpty && before.endsWith('-')) ||
+            (after.isNotEmpty && after.startsWith('-')))) {
+      return false;
+    }
 
     if (!hasCurrencyMarker) {
       if (before.isNotEmpty && './:'.contains(before[before.length - 1])) {

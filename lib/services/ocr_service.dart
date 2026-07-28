@@ -1,10 +1,11 @@
-﻿/// ファイルパス: lib/services/ocr_service.dart
+/// ファイルパス: lib/services/ocr_service.dart
 /// PDFまたは画像から見積書テキスト、位置情報、信頼度を抽出するサービス。
 library;
 
 import '../utils/app_logger.dart';
 
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
@@ -15,7 +16,9 @@ import 'package:pdf_image_renderer/pdf_image_renderer.dart';
 
 import '../models.dart';
 import '../ocr_models.dart';
+import '../quote_structure.dart';
 import 'ocr_confidence_engine.dart';
+import 'quote_structure_service.dart';
 
 class OcrService {
   static const _maxInputBytes = 30 * 1024 * 1024;
@@ -57,13 +60,17 @@ class OcrService {
       throw RangeError.range(pageCount, 1, _maxPdfPages, 'pageCount');
     }
     if (pageCount <= 5) return 2.0;
-    if (pageCount <= 15) return 1.5;
+    // Multi-page estimates are commonly A4 documents. Keeping the render
+    // size moderate prevents ML Kit from stalling on later pages on devices
+    // with limited memory while preserving enough resolution for Japanese text.
+    if (pageCount <= 15) return 1.25;
     if (pageCount <= 30) return 1.25;
     return 1.0;
   }
 
   final TextRecognizer _recognizer;
   final OcrConfidenceEngine confidenceEngine;
+  final QuoteStructureService structureService = const QuoteStructureService();
   final List<String> _temporaryReviewImagePaths = [];
 
   OcrReviewBundle? lastReviewBundle;
@@ -135,7 +142,76 @@ class OcrService {
         );
       }
     }
-    return _RecognizedDocument(text: result.text, lines: interpretations);
+    return _RecognizedDocument(
+      text: result.text,
+      lines: _mergeSameRowLines(interpretations),
+    );
+  }
+
+  List<OcrLineInterpretation> _mergeSameRowLines(
+    List<OcrLineInterpretation> input,
+  ) {
+    if (input.length < 2) return input;
+    final sorted = [...input]
+      ..sort((a, b) => a.recognizedLine.boundingRect.top.compareTo(
+            b.recognizedLine.boundingRect.top,
+          ));
+    final groups = <List<OcrLineInterpretation>>[];
+    for (final interpretation in sorted) {
+      final rect = interpretation.recognizedLine.boundingRect;
+      final group = groups.isEmpty ? null : groups.last;
+      if (group == null) {
+        groups.add([interpretation]);
+        continue;
+      }
+      final previousRect = group.last.recognizedLine.boundingRect;
+      final verticalOverlap =
+          (math.min(rect.bottom, previousRect.bottom) -
+                  math.max(rect.top, previousRect.top)) /
+              math.max(rect.height, previousRect.height);
+      if (verticalOverlap >= 0.45) {
+        group.add(interpretation);
+      } else {
+        groups.add([interpretation]);
+      }
+    }
+
+    return [
+      for (final group in groups)
+        if (group.length == 1)
+          group.single
+        else
+          _reanalyzeMergedRow(group),
+    ];
+  }
+
+  OcrLineInterpretation _reanalyzeMergedRow(
+    List<OcrLineInterpretation> group,
+  ) {
+    final ordered = [...group]
+      ..sort((a, b) => a.recognizedLine.boundingRect.left.compareTo(
+            b.recognizedLine.boundingRect.left,
+          ));
+    final first = ordered.first.recognizedLine;
+    final rects = ordered.map((item) => item.recognizedLine.boundingRect);
+    final mergedRect = OcrBoundingRect(
+      left: rects.map((rect) => rect.left).reduce(math.min),
+      top: rects.map((rect) => rect.top).reduce(math.min),
+      right: rects.map((rect) => rect.right).reduce(math.max),
+      bottom: rects.map((rect) => rect.bottom).reduce(math.max),
+    );
+    final rawText = ordered
+        .map((item) => item.recognizedLine.rawText)
+        .join(' ');
+    return confidenceEngine.analyze(
+      rawText: rawText,
+      pageNumber: first.pageNumber,
+      boundingRect: mergedRect,
+      sourceImagePath: first.sourceImagePath,
+      nativeOcrConfidence: ordered
+          .map((item) => item.recognizedLine.confidence)
+          .reduce((a, b) => (a + b) / 2),
+    );
   }
 
   Future<_RecognizedDocument> _recognizePdf(String filePath) async {
@@ -165,7 +241,7 @@ class OcrService {
             width: size.width,
             height: size.height,
             scale: renderScale,
-          );
+          ).timeout(const Duration(seconds: 30));
           if (bytes == null || bytes.isEmpty) continue;
 
           final renderedFile = File(
@@ -181,12 +257,17 @@ class OcrService {
           final page = await _recognizeImage(
             renderedFile.path,
             pageNumber: pageIndex + 1,
-          );
+          ).timeout(const Duration(seconds: 45));
           if (page.text.trim().isNotEmpty) {
             if (textBuffer.isNotEmpty) textBuffer.writeln();
             textBuffer.writeln(page.text.trim());
           }
           lines.addAll(page.lines);
+        } catch (error, stackTrace) {
+          // A single damaged or unusually large page must not leave the
+          // whole import stuck indefinitely. Keep the successful pages and
+          // let the review screen show the resulting partial extraction.
+          AppLogger.debug('OCR page ${pageIndex + 1} skipped: $error\n$stackTrace');
         } finally {
           await renderer.closePage(pageIndex: pageIndex);
         }
@@ -210,7 +291,17 @@ class OcrService {
     final totalAmount = _parseTotalAmount(textLines);
     final items = <RawQuoteLineItem>[];
 
-    for (final interpretation in document.lines) {
+    final structuredRows = structureService.classify(
+      document.lines.map((interpretation) => interpretation.recognizedLine),
+    );
+    final lineRows = structuredRows.where(
+      (row) => row.type == QuoteRowType.lineItem,
+    );
+
+    for (final row in lineRows) {
+      final interpretation = document.lines.firstWhere(
+        (value) => value.recognizedLine.id == row.line.id,
+      );
       final categoryId = interpretation.categoryId;
       if (categoryId == null) continue;
       final line = interpretation.recognizedLine;
@@ -235,10 +326,18 @@ class OcrService {
           .map((item) => item.amountYen)
           .whereType<int>(),
     );
+    // Unresolved amount-only fragments (addresses, page fragments, and
+    // isolated numbers) remain in `extractedText` as evidence, but are not
+    // actionable quote lines. Showing every one of them created the former
+    // 200+ confirmation queue. Only a structurally identified line item
+    // with a critical confidence issue requires user review.
+    final reviewRows = structuredRows.where(
+      (row) =>
+          row.type == QuoteRowType.lineItem &&
+          row.line.severity == OcrReviewSeverity.critical,
+    );
     lastReviewBundle = OcrReviewBundle(
-      lines: document.lines
-          .map((interpretation) => interpretation.recognizedLine)
-          .toList(growable: false),
+      lines: reviewRows.map((row) => row.line).toList(growable: false),
       issues: aggregateIssues,
     );
 

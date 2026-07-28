@@ -11,11 +11,13 @@ class OcrReviewOverview extends StatelessWidget {
     required this.bundle,
     required this.statuses,
     required this.onStatusChanged,
+    this.onConfirmNonCritical,
   });
 
   final OcrReviewBundle bundle;
   final Map<String, OcrReviewStatus> statuses;
   final void Function(String id, OcrReviewStatus status) onStatusChanged;
+  final VoidCallback? onConfirmNonCritical;
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +69,17 @@ class OcrReviewOverview extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             const Text('低信頼度・複数候補・計算不一致を確認してください。状態は端末内に保存されます。'),
+            if (onConfirmNonCritical != null) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  onPressed: onConfirmNonCritical,
+                  icon: const Icon(Icons.done_all),
+                  label: const Text('低リスク項目を一括確認済みにする'),
+                ),
+              ),
+            ],
             for (final issue in bundle.issues) ...[
               const Divider(),
               _IssueRow(
@@ -142,6 +155,13 @@ class OcrLineReviewPanel extends StatelessWidget {
           maxLines: compact ? 2 : 4,
           overflow: TextOverflow.ellipsis,
         ),
+        if (line.amountCandidates.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            _priceMeaning(line),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
         const SizedBox(height: 8),
         OcrCropPreview(line: line, height: compact ? 72 : 92),
         if (status == OcrReviewStatus.pending) ...[
@@ -163,6 +183,17 @@ class OcrLineReviewPanel extends StatelessWidget {
       child: body,
     );
   }
+
+  String _priceMeaning(OcrRecognizedLine line) {
+    final amounts = line.amountCandidates;
+    if (amounts.length >= 2) {
+      return '単価 ${_yen(amounts[amounts.length - 2])} × 明細金額 ${_yen(amounts.last)}';
+    }
+    return 'この行の明細金額 ${_yen(amounts.single)}';
+  }
+
+  String _yen(int value) =>
+      '${value.toString().replaceAllMapped(RegExp(r'(?<!^)(?=(\d{3})+$)'), (_) => ',')}円';
 }
 
 class _IssueRow extends StatelessWidget {
