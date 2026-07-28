@@ -23,6 +23,7 @@ class GenerateAndroidReleaseManifestTest(unittest.TestCase):
         version: str = "0.1.1+2",
         application_id: str = "com.kaenozu.aimitsumori_app",
         fingerprint: str = VALID_FINGERPRINT,
+        release_ref: str = "v0.1.1",
     ) -> subprocess.CompletedProcess[str]:
         aab = root / "app-release.aab"
         pubspec = root / "pubspec.yaml"
@@ -51,13 +52,14 @@ class GenerateAndroidReleaseManifestTest(unittest.TestCase):
                 "--repository",
                 "kaenozu/aimitsumori_app_spec_v0_1",
                 "--ref",
-                "main",
+                release_ref,
                 "--commit-sha",
                 VALID_COMMIT,
                 "--signer-certificate-sha256",
                 fingerprint,
                 "--generated-at-utc",
                 "2026-07-28T00:00:00Z",
+                "--require-version-tag",
             ],
             text=True,
             capture_output=True,
@@ -71,6 +73,7 @@ class GenerateAndroidReleaseManifestTest(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             manifest = json.loads((root / "release-manifest.json").read_text())
+            self.assertEqual(manifest["ref"], "v0.1.1")
             self.assertEqual(manifest["versionName"], "0.1.1")
             self.assertEqual(manifest["versionCode"], 2)
             self.assertEqual(
@@ -99,6 +102,12 @@ class GenerateAndroidReleaseManifestTest(unittest.TestCase):
             result = self._run(Path(directory), fingerprint="not-a-fingerprint")
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("64 hexadecimal digits", result.stderr)
+
+    def test_rejects_release_ref_that_does_not_match_version(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            result = self._run(Path(directory), release_ref="main")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("must match pubspec version tag v0.1.1", result.stderr)
 
 
 if __name__ == "__main__":
