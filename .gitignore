@@ -33,6 +33,10 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Ruby / Bundler
+.bundle/
+vendor/bundle/
+
 # Symbolication related
 app.*.symbols
 
@@ -44,6 +48,18 @@ app.*.map.json
 *.jks
 *.keystore
 /ios/Flutter/ReleaseSecrets.xcconfig
+
+# Google Play service-account credentials
+/play-service-account.json
+/service-account.json
+/google-play-service-account.json
+/fastlane/*.json
+
+# fastlane generated files
+/fastlane/report.xml
+/fastlane/Preview.html
+/fastlane/screenshots/
+/fastlane/test_output/
 
 # Playwright CLI session logs
 .playwright-cli/
