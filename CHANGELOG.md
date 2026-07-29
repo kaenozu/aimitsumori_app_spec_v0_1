@@ -2,6 +2,28 @@
 
 このプロジェクトの主な変更を記録します。
 
+## [0.1.3] - 2026-07-29
+
+Play Console内部テスト自動アップロードに対応したリリースです。
+
+### Added
+
+- fastlane + `production_android_aab.yml` workflow による、署名済みAABのPlay Console内部テストへの自動アップロード。
+- 日本語OCRレビュー画面でOCR信頼度の低い値をハイライト表示し、確認漏れを防止。
+- `TextNormalizer.normalize()` で全角円記号 `￥`（U+FFE5）を `¥`（U+00A5）に正規化。
+
+### Changed
+
+- OCR信頼度エンジンに基づき、信頼度80%未満の金額・数量を `OcrConfidenceEngine` が自動マーク。レビュー画面で視覚的に確認可能。
+- `OcrService` の `processBatch` 内で信頼度データを `OcrResult` に含めて返すよう改善。
+
+### Quality and release engineering
+
+- `production` GitHub Environment に `PLAY_SERVICE_ACCOUNT_JSON` を追加し、fastlane から Play Publisher API へ認証可能に。
+- `GEMFILE_GEMFILE_LOCK` を Repository Secret に追加し、`Gemfile.lock` のないランナー上でも `bundle install` が成功するよう対応。
+- アップロード検証として `google-play-cli` で確認用コマンドを CI ログへ出力。
+- `flutter analyze` 0 errors、CI全job（format / analyze / test / E2E / release compile）通過済み。
+
 ## [0.1.2] - 2026-07-28
 
 コード品質とリリース再現性を改善するパッチリリースです。
@@ -108,6 +130,7 @@
 - Android実機でのP0 / P1受入テスト結果はIssue #28で管理します。
 - GitHubの既定ブランチ変更とmain保護ルールの適用はIssue #26で管理します。
 
+[0.1.3]: https://github.com/kaenozu/aimitsumori_app_spec_v0_1/tree/v0.1.3
 [0.1.2]: https://github.com/kaenozu/aimitsumori_app_spec_v0_1/tree/v0.1.2
 [0.1.1]: https://github.com/kaenozu/aimitsumori_app_spec_v0_1/tree/v0.1.1
 [0.1.0]: https://github.com/kaenozu/aimitsumori_app_spec_v0_1/tree/v0.1.0
