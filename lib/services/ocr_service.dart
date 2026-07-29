@@ -153,9 +153,11 @@ class OcrService {
   ) {
     if (input.length < 2) return input;
     final sorted = [...input]
-      ..sort((a, b) => a.recognizedLine.boundingRect.top.compareTo(
-            b.recognizedLine.boundingRect.top,
-          ));
+      ..sort(
+        (a, b) => a.recognizedLine.boundingRect.top.compareTo(
+          b.recognizedLine.boundingRect.top,
+        ),
+      );
     final groups = <List<OcrLineInterpretation>>[];
     for (final interpretation in sorted) {
       final rect = interpretation.recognizedLine.boundingRect;
@@ -167,8 +169,8 @@ class OcrService {
       final previousRect = group.last.recognizedLine.boundingRect;
       final verticalOverlap =
           (math.min(rect.bottom, previousRect.bottom) -
-                  math.max(rect.top, previousRect.top)) /
-              math.max(rect.height, previousRect.height);
+              math.max(rect.top, previousRect.top)) /
+          math.max(rect.height, previousRect.height);
       if (verticalOverlap >= 0.45) {
         group.add(interpretation);
       } else {
@@ -178,20 +180,17 @@ class OcrService {
 
     return [
       for (final group in groups)
-        if (group.length == 1)
-          group.single
-        else
-          _reanalyzeMergedRow(group),
+        if (group.length == 1) group.single else _reanalyzeMergedRow(group),
     ];
   }
 
-  OcrLineInterpretation _reanalyzeMergedRow(
-    List<OcrLineInterpretation> group,
-  ) {
+  OcrLineInterpretation _reanalyzeMergedRow(List<OcrLineInterpretation> group) {
     final ordered = [...group]
-      ..sort((a, b) => a.recognizedLine.boundingRect.left.compareTo(
-            b.recognizedLine.boundingRect.left,
-          ));
+      ..sort(
+        (a, b) => a.recognizedLine.boundingRect.left.compareTo(
+          b.recognizedLine.boundingRect.left,
+        ),
+      );
     final first = ordered.first.recognizedLine;
     final rects = ordered.map((item) => item.recognizedLine.boundingRect);
     final mergedRect = OcrBoundingRect(
@@ -234,14 +233,16 @@ class OcrService {
         await renderer.openPage(pageIndex: pageIndex);
         try {
           final size = await renderer.getPageSize(pageIndex: pageIndex);
-          final bytes = await renderer.renderPage(
-            pageIndex: pageIndex,
-            x: 0,
-            y: 0,
-            width: size.width,
-            height: size.height,
-            scale: renderScale,
-          ).timeout(const Duration(seconds: 30));
+          final bytes = await renderer
+              .renderPage(
+                pageIndex: pageIndex,
+                x: 0,
+                y: 0,
+                width: size.width,
+                height: size.height,
+                scale: renderScale,
+              )
+              .timeout(const Duration(seconds: 30));
           if (bytes == null || bytes.isEmpty) continue;
 
           final renderedFile = File(
@@ -267,7 +268,9 @@ class OcrService {
           // A single damaged or unusually large page must not leave the
           // whole import stuck indefinitely. Keep the successful pages and
           // let the review screen show the resulting partial extraction.
-          AppLogger.debug('OCR page ${pageIndex + 1} skipped: $error\n$stackTrace');
+          AppLogger.debug(
+            'OCR page ${pageIndex + 1} skipped: $error\n$stackTrace',
+          );
         } finally {
           await renderer.closePage(pageIndex: pageIndex);
         }
