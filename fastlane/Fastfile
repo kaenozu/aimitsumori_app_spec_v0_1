@@ -1,0 +1,65 @@
+def required_file_path(options, option_name, environment_name)
+  value = options[option_name] || ENV[environment_name]
+  if value.to_s.strip.empty?
+    UI.user_error!(
+      "Provide #{option_name}: or set #{environment_name}.",
+    )
+  end
+
+  path = File.expand_path(value)
+  UI.user_error!("File does not exist: #{path}") unless File.file?(path)
+  path
+end
+
+def app_package_name
+  package_name = CredentialsManager::AppfileConfig.try_fetch_value(:package_name)
+  UI.user_error!("package_name is not configured in fastlane/Appfile.") if package_name.to_s.empty?
+  package_name
+end
+
+def play_json_key(options)
+  required_file_path(options, :json_key, "PLAY_SERVICE_ACCOUNT_JSON_PATH")
+end
+
+def android_aab(options)
+  required_file_path(options, :aab, "AAB_PATH")
+end
+
+default_platform(:android)
+
+platform :android do
+  desc "Validate Google Play service-account credentials for the internal track"
+  lane :validate_play_credentials do |options|
+    package_name = app_package_name
+    version_codes = google_play_track_version_codes(
+      package_name: package_name,
+      track: "internal",
+      json_key: play_json_key(options),
+    )
+
+    UI.success(
+      "Google Play credentials are valid for #{package_name} " \
+      "(internal track version codes: #{version_codes.join(', ')}).",
+    )
+  end
+
+  desc "Upload a signed Android App Bundle to the Google Play internal track"
+  lane :internal do |options|
+    json_key = play_json_key(options)
+    aab = android_aab(options)
+
+    validate_play_credentials(json_key: json_key)
+
+    upload_to_play_store(
+      package_name: app_package_name,
+      track: "internal",
+      release_status: "completed",
+      json_key: json_key,
+      aab: aab,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: true,
+    )
+  end
+end

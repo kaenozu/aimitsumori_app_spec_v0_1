@@ -25,6 +25,7 @@ class TextNormalizer {
 
     normalized = normalized
         .replaceAll(RegExp(r'[―−‐-–—]'), '-')
+        .replaceAll('￥', '¥')
         .replaceAll('【', '[')
         .replaceAll('】', ']')
         .replaceAll('「', '[')

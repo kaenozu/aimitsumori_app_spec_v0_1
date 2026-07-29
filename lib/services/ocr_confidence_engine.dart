@@ -216,7 +216,7 @@ class OcrConfidenceEngine {
 
   static int? _parseAmountToken(String? token) {
     if (token == null || token.isEmpty) return null;
-    final numericText = token.replaceAll(RegExp(r'[¥円,\s]'), '');
+    final numericText = token.replaceAll(RegExp(r'[¥￥円,\s]'), '');
     return int.tryParse(numericText);
   }
 
