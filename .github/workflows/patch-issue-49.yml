@@ -1,0 +1,117 @@
+name: Patch issue 49 fail closed
+
+on:
+  push:
+    branches:
+      - fix/issue-49-durable-purchase-retry
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: fix/issue-49-durable-purchase-retry
+      - name: Apply reviewed fail-closed patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('lib/services/ad_service.dart')
+          text = path.read_text(encoding='utf-8')
+          old_clear = '''  Future<void> _clearVerificationRetry(PurchaseDetails purchase) async {
+            final store = _verificationRetryStore;
+            if (store == null) return;
+            _pendingVerificationRetries = await store.remove(
+              _purchaseIdentity(purchase),
+            );
+            _scheduleVerificationRetry();
+          }
+          '''
+          new_clear = '''  Future<void> _clearVerificationRetry(PurchaseDetails purchase) async {
+            final store = _verificationRetryStore;
+            if (store == null) return;
+            try {
+              _pendingVerificationRetries = await store.remove(
+                _purchaseIdentity(purchase),
+              );
+              _scheduleVerificationRetry();
+            } catch (error) {
+              // Retry bookkeeping cleanup must not block a definitive valid/invalid
+              // entitlement result. A stale retry record is safe: it only causes a
+              // later re-verification and expires by policy.
+              AppLogger.debug('Purchase verification retry cleanup failed: $error');
+            }
+          }
+          '''
+          if old_clear not in text:
+              raise SystemExit('clear retry block not found')
+          text = text.replace(old_clear, new_clear, 1)
+
+          old_retry = '''            case PurchaseVerificationResult.retryable:
+              final retry = await _recordVerificationRetry(purchase);
+              completePurchase =
+                  PurchaseVerificationRetryPolicy.shouldCompleteStoreTransaction(
+                    retry,
+                    DateTime.now(),
+                  );
+              if (completePurchase) {
+                AppLogger.debug(
+                  'Purchase verification is still retryable after the store '
+                  'completion window; completing the store transaction without '
+                  'granting a new entitlement and retaining durable retry state.',
+                );
+              } else {
+                AppLogger.debug(
+                  'Remove ads purchase verification is retryable; preserving '
+                  'the current entitlement and retrying with durable backoff.',
+                );
+              }
+              break;
+          '''
+          new_retry = '''            case PurchaseVerificationResult.retryable:
+              // Fail closed before touching retry storage. If persistence itself
+              // fails, finally must not acknowledge/complete the store transaction.
+              completePurchase = false;
+              try {
+                final retry = await _recordVerificationRetry(purchase);
+                completePurchase =
+                    PurchaseVerificationRetryPolicy.shouldCompleteStoreTransaction(
+                      retry,
+                      DateTime.now(),
+                    );
+              } catch (error) {
+                AppLogger.debug(
+                  'Purchase verification retry state persistence failed: $error',
+                );
+              }
+              if (completePurchase) {
+                AppLogger.debug(
+                  'Purchase verification is still retryable after the store '
+                  'completion window; completing the store transaction without '
+                  'granting a new entitlement and retaining durable retry state.',
+                );
+              } else {
+                AppLogger.debug(
+                  'Remove ads purchase verification is retryable; preserving '
+                  'the current entitlement and retrying with durable backoff.',
+                );
+              }
+              break;
+          '''
+          if old_retry not in text:
+              raise SystemExit('retryable block not found')
+          path.write_text(text.replace(old_retry, new_retry, 1), encoding='utf-8')
+      - name: Format and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          dart format lib/services/ad_service.dart
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add lib/services/ad_service.dart
+          git commit -m 'fix(#49): fail closed when retry persistence fails'
+          git push origin HEAD:fix/issue-49-durable-purchase-retry
