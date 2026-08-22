@@ -2,6 +2,19 @@
 
 このプロジェクトの主な変更を記録します。
 
+## [0.1.4] - 2026-08-18
+
+Androidリリース候補のバージョン情報を更新したメタデータリリースです。
+
+### Changed
+
+- `pubspec.yaml` のバージョンを `0.1.3+2` から `0.1.4+3` へ更新。
+
+### Release status
+
+- v0.1.3以降、現時点の`main`で確認できる変更は上記バージョン更新のみです。未確認の機能変更はこのエントリへ含めません。
+- 本エントリ追加だけではタグ作成・Production AAB生成・Play Console公開を実行しません。既存のrelease blockerと品質ゲートを満たした後にリリース判断します。
+
 ## [0.1.3] - 2026-07-29
 
 Play Console内部テスト自動アップロードに対応したリリースです。
@@ -130,6 +143,7 @@ Play Console内部テスト自動アップロードに対応したリリース�
 - Android実機でのP0 / P1受入テスト結果はIssue #28で管理します。
 - GitHubの既定ブランチ変更とmain保護ルールの適用はIssue #26で管理します。
 
+[0.1.4]: https://github.com/kaenozu/aimitsumori_app_spec_v0_1/tree/v0.1.4
 [0.1.3]: https://github.com/kaenozu/aimitsumori_app_spec_v0_1/tree/v0.1.3
 [0.1.2]: https://github.com/kaenozu/aimitsumori_app_spec_v0_1/tree/v0.1.2
 [0.1.1]: https://github.com/kaenozu/aimitsumori_app_spec_v0_1/tree/v0.1.1
