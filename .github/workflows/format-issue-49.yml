@@ -1,5 +1,6 @@
 name: Format issue 49 branch
 
+# Temporary branch-only formatter; removed after the formatted commit is produced.
 on:
   push:
     branches:
