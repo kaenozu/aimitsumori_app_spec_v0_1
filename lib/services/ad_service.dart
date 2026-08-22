@@ -5,12 +5,15 @@ library;
 import '../utils/app_logger.dart';
 
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'purchase_verification_retry_store.dart';
 import 'purchase_verification_service.dart';
 
 enum RewardedAdOutcome { rewarded, unavailable, dismissed }
@@ -39,6 +42,7 @@ class AdService {
   static const String _adFreePreferenceKey = 'ad_free_verified_cache_v2';
   static const String _adFreeVerifiedAtKey = 'ad_free_verified_at_v2';
   static const Duration _verificationGracePeriod = Duration(days: 7);
+  static const Duration _retryRestoreFallback = Duration(minutes: 15);
 
   static const String _configuredAndroidBannerId = String.fromEnvironment(
     'ADMOB_ANDROID_BANNER_ID',
@@ -72,6 +76,9 @@ class AdService {
 
   StreamSubscription<List<PurchaseDetails>>? _purchaseSubscription;
   ProductDetails? _removeAdsProduct;
+  PurchaseVerificationRetryStore? _verificationRetryStore;
+  List<PurchaseVerificationRetryState> _pendingVerificationRetries = const [];
+  Timer? _verificationRetryTimer;
   bool _initialized = false;
 
   bool get isSupportedPlatform =>
@@ -123,6 +130,7 @@ class AdService {
     _initialized = true;
 
     await _loadRecentVerifiedEntitlement();
+    await _loadVerificationRetryState();
     if (!isSupportedPlatform) return;
 
     _purchaseSubscription ??= _inAppPurchase.purchaseStream.listen(
@@ -146,7 +154,11 @@ class AdService {
       AppLogger.debug('Remove ads product load failed: $error');
     }
 
+    // Restoring is also the durable retry transport: after process death the
+    // store re-emits a real PurchaseDetails instance, which is then verified
+    // against the persisted retry state instead of reconstructing store data.
     await restorePurchases();
+    _scheduleVerificationRetry();
   }
 
   Future<void> _loadRecentVerifiedEntitlement() async {
@@ -163,6 +175,19 @@ class AdService {
       }
     } catch (error) {
       AppLogger.debug('Ad entitlement cache load failed: $error');
+    }
+  }
+
+  Future<void> _loadVerificationRetryState() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final store = PurchaseVerificationRetryStore(preferences);
+      _verificationRetryStore = store;
+      await store.prune();
+      _pendingVerificationRetries = store.load();
+    } catch (error) {
+      AppLogger.debug('Purchase verification retry state load failed: $error');
+      _pendingVerificationRetries = const [];
     }
   }
 
@@ -303,6 +328,71 @@ class AdService {
     }
   }
 
+  String _purchaseIdentity(PurchaseDetails purchase) {
+    final raw = [
+      purchase.productID,
+      purchase.purchaseID ?? '',
+      purchase.transactionDate ?? '',
+      purchase.verificationData.source,
+      purchase.verificationData.serverVerificationData,
+    ].join('\u001f');
+    return sha256.convert(utf8.encode(raw)).toString();
+  }
+
+  Future<PurchaseVerificationRetryState> _recordVerificationRetry(
+    PurchaseDetails purchase,
+  ) async {
+    var store = _verificationRetryStore;
+    if (store == null) {
+      final preferences = await SharedPreferences.getInstance();
+      store = PurchaseVerificationRetryStore(preferences);
+      _verificationRetryStore = store;
+    }
+    final identity = _purchaseIdentity(purchase);
+    _pendingVerificationRetries = await store.recordRetry(identity);
+    _scheduleVerificationRetry();
+    return _pendingVerificationRetries.firstWhere(
+      (state) => state.identity == identity,
+    );
+  }
+
+  Future<void> _clearVerificationRetry(PurchaseDetails purchase) async {
+    final store = _verificationRetryStore;
+    if (store == null) return;
+    _pendingVerificationRetries = await store.remove(_purchaseIdentity(purchase));
+    _scheduleVerificationRetry();
+  }
+
+  void _scheduleVerificationRetry() {
+    _verificationRetryTimer?.cancel();
+    _verificationRetryTimer = null;
+    if (!isSupportedPlatform || _pendingVerificationRetries.isEmpty) return;
+
+    final nowMillis = DateTime.now().millisecondsSinceEpoch;
+    final earliest = _pendingVerificationRetries
+        .map((state) => state.nextAttemptAtMillis)
+        .reduce((left, right) => left < right ? left : right);
+    final delayMillis = earliest <= nowMillis ? 0 : earliest - nowMillis;
+    _verificationRetryTimer = Timer(
+      Duration(milliseconds: delayMillis),
+      () => unawaited(_retryPendingPurchases()),
+    );
+  }
+
+  Future<void> _retryPendingPurchases() async {
+    _verificationRetryTimer = null;
+    await restorePurchases();
+    // Store callbacks normally reschedule using the next persisted backoff.
+    // If a store emits nothing, retry later instead of spinning immediately.
+    if (_pendingVerificationRetries.isNotEmpty &&
+        _verificationRetryTimer == null) {
+      _verificationRetryTimer = Timer(
+        _retryRestoreFallback,
+        () => unawaited(_retryPendingPurchases()),
+      );
+    }
+  }
+
   Future<void> _handlePurchaseUpdates(List<PurchaseDetails> purchases) async {
     for (final purchase in purchases) {
       if (purchase.productID != removeAdsProductId) continue;
@@ -314,21 +404,37 @@ class AdService {
           final result = await _verifier.verify(purchase);
           switch (result) {
             case PurchaseVerificationResult.valid:
+              await _clearVerificationRetry(purchase);
               await _setAdFree(true);
               break;
             case PurchaseVerificationResult.invalid:
+              await _clearVerificationRetry(purchase);
               AppLogger.debug('Remove ads purchase verification rejected.');
               await _setAdFree(false);
               break;
             case PurchaseVerificationResult.retryable:
-              completePurchase = false;
-              AppLogger.debug(
-                'Remove ads purchase verification is retryable; '
-                'preserving the current entitlement.',
-              );
+              final retry = await _recordVerificationRetry(purchase);
+              completePurchase =
+                  PurchaseVerificationRetryPolicy.shouldCompleteStoreTransaction(
+                    retry,
+                    DateTime.now(),
+                  );
+              if (completePurchase) {
+                AppLogger.debug(
+                  'Purchase verification is still retryable after the store '
+                  'completion window; completing the store transaction without '
+                  'granting a new entitlement and retaining durable retry state.',
+                );
+              } else {
+                AppLogger.debug(
+                  'Remove ads purchase verification is retryable; preserving '
+                  'the current entitlement and retrying with durable backoff.',
+                );
+              }
               break;
           }
         } else if (purchase.status == PurchaseStatus.error) {
+          await _clearVerificationRetry(purchase);
           AppLogger.debug('Remove ads purchase failed: ${purchase.error}');
         } else if (purchase.status == PurchaseStatus.pending) {
           completePurchase = false;
@@ -361,6 +467,8 @@ class AdService {
   }
 
   Future<void> dispose() async {
+    _verificationRetryTimer?.cancel();
+    _verificationRetryTimer = null;
     await _purchaseSubscription?.cancel();
     _purchaseSubscription = null;
     adFree.dispose();
