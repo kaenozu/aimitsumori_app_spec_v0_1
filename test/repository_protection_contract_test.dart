@@ -14,7 +14,9 @@ void main() {
     expect(script, contains("Applied ruleset '"));
     expect(
       script,
-      contains('Repository protection was not applied; do not treat local JSON validation as protection success.'),
+      contains(
+        'Repository protection was not applied; do not treat local JSON validation as protection success.',
+      ),
     );
   });
 
