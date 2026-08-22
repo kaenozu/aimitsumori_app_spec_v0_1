@@ -1,11 +1,17 @@
 [CmdletBinding()]
 param(
     [string]$Repository = 'kaenozu/aimitsumori_app_spec_v0_1',
-    [switch]$ValidateOnly
+    [Alias('ValidateOnly')]
+    [switch]$ValidateConfigOnly,
+    [switch]$ValidateAppliedProtection
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if ($ValidateConfigOnly -and $ValidateAppliedProtection) {
+    throw 'Specify only one of -ValidateConfigOnly or -ValidateAppliedProtection.'
+}
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $rulesetPath = Join-Path $repositoryRoot '.github/rulesets/main-required-checks.json'
@@ -48,6 +54,47 @@ function Invoke-GhJsonAllowMissing {
     return $LASTEXITCODE -eq 0
 }
 
+function Assert-AppliedProtection {
+    param(
+        [Parameter(Mandatory)]
+        [string]$RepositoryName,
+        [Parameter(Mandatory)]
+        [object]$LocalRuleset
+    )
+
+    $repositoryState = Invoke-GhJson @('api', "repos/$RepositoryName")
+    Assert-Condition ($repositoryState.full_name -eq $RepositoryName) "Authenticated account cannot access $RepositoryName."
+    Assert-Condition ($repositoryState.default_branch -eq 'main') 'GitHub default branch is not main.'
+
+    $branchState = Invoke-GhJson @('api', "repos/$RepositoryName/branches/main")
+    Assert-Condition ([bool]$branchState.protected) 'GitHub reports main as unprotected.'
+
+    $rulesets = @(Invoke-GhJson @('api', "repos/$RepositoryName/rulesets") 2>$null)
+    $matching = $rulesets |
+        Where-Object { $_.name -eq $LocalRuleset.name -and $_.target -eq 'branch' } |
+        Select-Object -First 1
+    Assert-Condition ($null -ne $matching) "Applied ruleset '$($LocalRuleset.name)' was not found on GitHub."
+
+    $appliedRuleset = Invoke-GhJson @('api', "repos/$RepositoryName/rulesets/$($matching.id)")
+    Assert-Condition ($appliedRuleset.enforcement -eq 'active') 'Applied ruleset is not active.'
+    Assert-Condition (@($appliedRuleset.conditions.ref_name.include) -contains 'refs/heads/main') 'Applied ruleset does not target refs/heads/main.'
+
+    $appliedStatusRule = @($appliedRuleset.rules | Where-Object { $_.type -eq 'required_status_checks' }) | Select-Object -First 1
+    Assert-Condition ($null -ne $appliedStatusRule) 'Applied ruleset is missing required_status_checks.'
+    Assert-Condition ([bool]$appliedStatusRule.parameters.strict_required_status_checks_policy) 'Applied required status checks are not strict.'
+    $appliedChecks = @($appliedStatusRule.parameters.required_status_checks | ForEach-Object { $_.context })
+    foreach ($check in $expectedChecks) {
+        Assert-Condition ($appliedChecks -contains $check) "Applied ruleset is missing required status check: $check"
+    }
+
+    $pullRequestRule = @($appliedRuleset.rules | Where-Object { $_.type -eq 'pull_request' }) | Select-Object -First 1
+    Assert-Condition ($null -ne $pullRequestRule) 'Applied ruleset does not require pull requests.'
+    Assert-Condition (@($appliedRuleset.rules | Where-Object { $_.type -eq 'non_fast_forward' }).Count -gt 0) 'Applied ruleset does not block force pushes.'
+    Assert-Condition (@($appliedRuleset.rules | Where-Object { $_.type -eq 'deletion' }).Count -gt 0) 'Applied ruleset does not block branch deletion.'
+
+    Write-Host 'GitHub applied protection is active and matches the checked-in contract.'
+}
+
 Assert-Condition (Test-Path -LiteralPath $rulesetPath) "Ruleset file not found: $rulesetPath"
 $ruleset = Get-Content -LiteralPath $rulesetPath -Raw | ConvertFrom-Json
 Assert-Condition ($ruleset.name -eq 'main-required-checks') 'Unexpected ruleset name.'
@@ -64,8 +111,8 @@ foreach ($check in $expectedChecks) {
     Assert-Condition ($configuredChecks -contains $check) "Ruleset is missing required status check: $check"
 }
 
-if ($ValidateOnly) {
-    Write-Host 'Repository ruleset configuration is valid.'
+if ($ValidateConfigOnly) {
+    Write-Host 'Checked-in repository ruleset configuration is valid. GitHub applied protection was not checked.'
     exit 0
 }
 
@@ -75,6 +122,11 @@ Assert-Condition ($null -ne $ghCommand) 'GitHub CLI (gh) is required.'
 & gh auth status
 if ($LASTEXITCODE -ne 0) {
     throw 'GitHub CLI is not authenticated. Run gh auth login first.'
+}
+
+if ($ValidateAppliedProtection) {
+    Assert-AppliedProtection -RepositoryName $Repository -LocalRuleset $ruleset
+    exit 0
 }
 
 $repositoryState = Invoke-GhJson @('api', "repos/$Repository")
@@ -91,38 +143,29 @@ if ($repositoryState.default_branch -ne 'main') {
     Write-Host 'Default branch is already main.'
 }
 
-# --- Ruleset (may fail on Free plan for private repos) ---
 $rulesets = @(Invoke-GhJson @('api', "repos/$Repository/rulesets") 2>$null)
 if ($null -eq $rulesets -or $rulesets.Count -eq 0 -or $rulesets[0].GetType().Name -eq 'String') {
-    Write-Host 'Rulesets API not available (Free plan on private repo). Skipping ruleset creation.'
-    Write-Host 'Branch protection must be set manually via GitHub UI or by upgrading to GitHub Pro.'
-} else {
-    $existingRuleset = $rulesets |
-        Where-Object { $_.name -eq $ruleset.name -and $_.target -eq 'branch' } |
-        Select-Object -First 1
-
-    if ($null -eq $existingRuleset) {
-        Write-Host "Creating active ruleset '$($ruleset.name)'..."
-        $appliedRuleset = Invoke-GhJson @(
-            'api', '--method', 'POST', "repos/$Repository/rulesets", '--input', $rulesetPath
-        )
-    } else {
-        Write-Host "Updating active ruleset '$($ruleset.name)' (id: $($existingRuleset.id))..."
-        $appliedRuleset = Invoke-GhJson @(
-            'api', '--method', 'PUT', "repos/$Repository/rulesets/$($existingRuleset.id)", '--input', $rulesetPath
-        )
-    }
-
-    Assert-Condition ($appliedRuleset.enforcement -eq 'active') 'Ruleset enforcement verification failed.'
-    $appliedStatusRule = @($appliedRuleset.rules | Where-Object { $_.type -eq 'required_status_checks' }) | Select-Object -First 1
-    $appliedChecks = @($appliedStatusRule.parameters.required_status_checks | ForEach-Object { $_.context })
-    foreach ($check in $expectedChecks) {
-        Assert-Condition ($appliedChecks -contains $check) "Applied ruleset is missing required status check: $check"
-    }
-    Write-Host "Ruleset '$($appliedRuleset.name)' is active."
+    throw 'Rulesets API is unavailable. Repository protection was not applied; do not treat local JSON validation as protection success.'
 }
 
-# --- Production Environment ---
+$existingRuleset = $rulesets |
+    Where-Object { $_.name -eq $ruleset.name -and $_.target -eq 'branch' } |
+    Select-Object -First 1
+
+if ($null -eq $existingRuleset) {
+    Write-Host "Creating active ruleset '$($ruleset.name)'..."
+    $appliedRuleset = Invoke-GhJson @(
+        'api', '--method', 'POST', "repos/$Repository/rulesets", '--input', $rulesetPath
+    )
+} else {
+    Write-Host "Updating active ruleset '$($ruleset.name)' (id: $($existingRuleset.id))..."
+    $appliedRuleset = Invoke-GhJson @(
+        'api', '--method', 'PUT', "repos/$Repository/rulesets/$($existingRuleset.id)", '--input', $rulesetPath
+    )
+}
+
+Assert-Condition ($appliedRuleset.enforcement -eq 'active') 'Ruleset enforcement verification failed.'
+
 $envResponse = Invoke-GhJson @(
     'api', '--method', 'PUT', "repos/$Repository/environments/production",
     '-f', 'deployment_branch_policy.protected_branches=false',
@@ -130,7 +173,6 @@ $envResponse = Invoke-GhJson @(
 )
 Write-Host "Environment '$($envResponse.name)' ready."
 
-# Add main branch to deployment policy (ignore if already exists)
 $branchPolicyAdded = Invoke-GhJsonAllowMissing @(
     'api', '--method', 'POST',
     "repos/$Repository/environments/production/deployment-branch-policies",
@@ -142,16 +184,12 @@ if ($branchPolicyAdded) {
     Write-Host 'Deployment branch policy for main already exists.'
 }
 
+Assert-AppliedProtection -RepositoryName $Repository -LocalRuleset $ruleset
+
 Write-Host ''
 Write-Host "Configured repository: $Repository"
 Write-Host 'Default branch: main'
-$existingRuleset | Out-Null
+Write-Host "Ruleset '$($ruleset.name)': active and verified on GitHub"
 Write-Host 'Production environment: configured (main branch only)'
 Write-Host 'Required checks:'
 $expectedChecks | ForEach-Object { Write-Host "  - $_" }
-if ($null -eq $rulesets -or $rulesets.Count -eq 0 -or $rulesets[0].GetType().Name -eq 'String') {
-    Write-Host ''
-    Write-Host 'Note: This repo uses GitHub Free plan (private). Rulesets are not available.'
-    Write-Host 'The CI workflow and production environment are the primary gates.'
-    Write-Host 'For branch protection, upgrade to GitHub Pro or make the repo public.'
-}
