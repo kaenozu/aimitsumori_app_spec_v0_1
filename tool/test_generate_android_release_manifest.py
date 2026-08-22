@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -108,6 +109,25 @@ class GenerateAndroidReleaseManifestTest(unittest.TestCase):
             result = self._run(Path(directory), release_ref="main")
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("must match pubspec version tag v0.1.1", result.stderr)
+
+    def test_repository_pubspec_version_has_changelog_entry(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        pubspec = (root / "pubspec.yaml").read_text(encoding="utf-8")
+        match = re.search(
+            r"^version:\s*([0-9]+\.[0-9]+\.[0-9]+)\+[0-9]+\s*$",
+            pubspec,
+            re.MULTILINE,
+        )
+        self.assertIsNotNone(
+            match, "pubspec.yaml version must use x.y.z+build format"
+        )
+        release_version = match.group(1)
+        changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn(
+            f"## [{release_version}]",
+            changelog,
+            f"CHANGELOG.md must contain a release entry for {release_version}",
+        )
 
 
 if __name__ == "__main__":
