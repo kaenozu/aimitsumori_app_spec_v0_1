@@ -2,7 +2,7 @@
 /// 比較レポート生成エンジン。
 library;
 
-import '../utils/formatting.dart';
+import 'utils/formatting.dart';
 
 import 'data/category_master.dart';
 import 'models.dart';
