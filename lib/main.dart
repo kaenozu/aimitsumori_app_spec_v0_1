@@ -3,7 +3,7 @@
 /// 関連ファイル: lib/screens/onboarding_screen.dart, lib/services/ad_service.dart
 library;
 
-import '../utils/app_logger.dart';
+import 'utils/app_logger.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
