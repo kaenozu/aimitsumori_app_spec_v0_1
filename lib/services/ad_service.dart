@@ -1,4 +1,4 @@
-﻿/// ファイルパス: lib/services/ad_service.dart
+/// ファイルパス: lib/services/ad_service.dart
 /// AdMob広告と広告削除の非消費型課金を管理するサービス。
 library;
 
@@ -359,7 +359,9 @@ class AdService {
   Future<void> _clearVerificationRetry(PurchaseDetails purchase) async {
     final store = _verificationRetryStore;
     if (store == null) return;
-    _pendingVerificationRetries = await store.remove(_purchaseIdentity(purchase));
+    _pendingVerificationRetries = await store.remove(
+      _purchaseIdentity(purchase),
+    );
     _scheduleVerificationRetry();
   }
 

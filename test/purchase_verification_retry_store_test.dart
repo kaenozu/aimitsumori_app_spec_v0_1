@@ -34,10 +34,7 @@ void main() {
 
     expect(states, hasLength(1));
     expect(states.single.attemptCount, 2);
-    expect(
-      states.single.firstSeenAtMillis,
-      now.millisecondsSinceEpoch,
-    );
+    expect(states.single.firstSeenAtMillis, now.millisecondsSinceEpoch);
   });
 
   test('backoff grows and is capped', () {
@@ -88,10 +85,7 @@ void main() {
     final now = DateTime.utc(2026, 8, 1);
     await store.recordRetry('purchase-1', now: now);
 
-    expect(
-      store.load(now: now.add(const Duration(days: 8))),
-      isEmpty,
-    );
+    expect(store.load(now: now.add(const Duration(days: 8))), isEmpty);
   });
 
   test('successful or invalid verification can remove retry state', () async {

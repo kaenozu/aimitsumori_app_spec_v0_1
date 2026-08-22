@@ -66,13 +66,12 @@ class PurchaseVerificationRetryPolicy {
   static bool shouldCompleteStoreTransaction(
     PurchaseVerificationRetryState state,
     DateTime now,
-  ) => now.millisecondsSinceEpoch - state.firstSeenAtMillis >=
+  ) =>
+      now.millisecondsSinceEpoch - state.firstSeenAtMillis >=
       storeCompletionWindow.inMilliseconds;
 
-  static bool isExpired(
-    PurchaseVerificationRetryState state,
-    DateTime now,
-  ) => now.millisecondsSinceEpoch - state.firstSeenAtMillis >=
+  static bool isExpired(PurchaseVerificationRetryState state, DateTime now) =>
+      now.millisecondsSinceEpoch - state.firstSeenAtMillis >=
       retentionWindow.inMilliseconds;
 }
 
@@ -91,10 +90,15 @@ class PurchaseVerificationRetryStore {
       final decoded = jsonDecode(raw);
       if (decoded is! List<dynamic>) return const [];
       final states = decoded
-          .map((item) => PurchaseVerificationRetryState.fromJson(
-                item as Map<String, dynamic>,
-              ))
-          .where((state) => !PurchaseVerificationRetryPolicy.isExpired(state, current))
+          .map(
+            (item) => PurchaseVerificationRetryState.fromJson(
+              item as Map<String, dynamic>,
+            ),
+          )
+          .where(
+            (state) =>
+                !PurchaseVerificationRetryPolicy.isExpired(state, current),
+          )
           .toList();
       return states;
     } on Object {
@@ -135,7 +139,9 @@ class PurchaseVerificationRetryStore {
     String identity, {
     DateTime? now,
   }) async {
-    final states = load(now: now).where((state) => state.identity != identity).toList();
+    final states = load(
+      now: now,
+    ).where((state) => state.identity != identity).toList();
     await _save(states);
     return states;
   }
