@@ -1,0 +1,32 @@
+name: Repository Protection
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  applied-protection:
+    name: Applied main protection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate checked-in ruleset contract
+        shell: pwsh
+        run: ./tool/configure_github_repository.ps1 -ValidateConfigOnly
+
+      - name: Validate GitHub applied protection
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./tool/configure_github_repository.ps1 -ValidateAppliedProtection
