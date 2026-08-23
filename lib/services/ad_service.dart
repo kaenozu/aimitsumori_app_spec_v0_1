@@ -1,4 +1,4 @@
-﻿/// ファイルパス: lib/services/ad_service.dart
+/// ファイルパス: lib/services/ad_service.dart
 /// AdMob広告と広告削除の非消費型課金を管理するサービス。
 library;
 
@@ -224,6 +224,11 @@ class AdService {
         request: const AdRequest(),
         rewardedAdLoadCallback: RewardedAdLoadCallback(
           onAdLoaded: (ad) {
+            if (completer.isCompleted) {
+              ad.dispose();
+              return;
+            }
+
             var earnedReward = false;
             ad.fullScreenContentCallback = FullScreenContentCallback(
               onAdDismissedFullScreenContent: (dismissedAd) {
