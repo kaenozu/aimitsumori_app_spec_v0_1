@@ -166,6 +166,14 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (!await _confirmCriticalItems()) return;
 
+    final totalAmountYen = int.tryParse(
+      _totalController.text.trim().replaceAll(',', ''),
+    );
+    if (totalAmountYen == null) {
+      setState(() => _error = '提示総額を整数（円）で入力してください。');
+      return;
+    }
+
     setState(() {
       _saving = true;
       _error = null;
@@ -174,9 +182,7 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
       final source = widget.result.quote;
       final corrected = RawQuoteData(
         contractorName: _contractorController.text.trim(),
-        totalAmountYen: int.parse(
-          _totalController.text.trim().replaceAll(',', ''),
-        ),
+        totalAmountYen: totalAmountYen,
         lineItems: source.lineItems,
         extractedText: source.extractedText,
         sourcePath: source.sourcePath,
