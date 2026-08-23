@@ -44,18 +44,18 @@ void main() {
     await tester.pumpWidget(
       AimitsumoriApp(repository: repository, adService: MockAdMobService()),
     );
-    await tester.pumpAndSettle();
+    await _pumpForUi(tester);
 
     await tester.tap(find.byKey(const ValueKey('create-project-button')));
-    await tester.pumpAndSettle();
+    await _pumpForUi(tester);
     await tester.enterText(
       find.byKey(const ValueKey('project-name-field')),
       'Sprint 5 E2E案件',
     );
     await tester.tap(find.text('次へ'));
-    await tester.pumpAndSettle();
+    await _pumpForUi(tester);
     await tester.tap(find.byKey(const ValueKey('skip-requirements-button')));
-    await tester.pumpAndSettle();
+    await _pumpForUi(tester);
 
     final createdProjects = await repository.getProjects();
     expect(createdProjects, hasLength(1));
@@ -102,14 +102,14 @@ void main() {
     );
 
     await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pumpAndSettle();
+    await _pumpForUi(tester);
     await database.close();
 
     repository = ProjectRepository(databaseService: database);
     await tester.pumpWidget(
       AimitsumoriApp(repository: repository, adService: MockAdMobService()),
     );
-    await tester.pumpAndSettle();
+    await _pumpForUi(tester);
 
     final projectCard = find.byKey(ValueKey('project-card-${project.id}'));
     expect(projectCard, findsOneWidget);
@@ -118,11 +118,17 @@ void main() {
     expect(persisted!.quotes, hasLength(2));
 
     await tester.tap(projectCard);
-    await tester.pumpAndSettle();
+    await _pumpForUi(tester);
     expect(find.text('A社'), findsWidgets);
     expect(find.text('B社'), findsWidgets);
     expect(find.text('順位・総合点は付けず、条件差と不明点を確認します。'), findsOneWidget);
   }, skip: !Platform.isAndroid);
+}
+
+Future<void> _pumpForUi(WidgetTester tester) async {
+  for (var i = 0; i < 10; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }
 
 Future<void> _saveQuoteThroughEditor(
@@ -158,7 +164,7 @@ Future<void> _saveQuoteThroughEditor(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  await _pumpForUi(tester);
 
   await _enterText(
     tester,
@@ -220,7 +226,7 @@ Future<void> _openAndVerifyComparison(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  await _pumpForUi(tester);
 
   expect(find.text('A社'), findsWidgets);
   expect(find.text('B社'), findsWidgets);
@@ -244,7 +250,7 @@ Future<void> _enterText(WidgetTester tester, Key key, String value) async {
   } else {
     await tester.ensureVisible(finder);
   }
-  await tester.pumpAndSettle();
+  await _pumpForUi(tester);
   await tester.enterText(finder, value);
   await tester.pump();
 }
@@ -253,7 +259,7 @@ Future<void> _tapSave(WidgetTester tester) async {
   FocusManager.instance.primaryFocus?.unfocus();
   await tester.pump();
   await tester.tap(find.byKey(const ValueKey('quote-save-button')));
-  await tester.pumpAndSettle();
+  await _pumpForUi(tester);
 }
 
 Future<void> _expectQuoteCount(
