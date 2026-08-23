@@ -3,9 +3,7 @@ library;
 import '../utils/app_logger.dart';
 
 import 'dart:async';
-import 'dart:convert';
 
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -63,7 +61,7 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
   bool _saving = false;
   String? _error;
 
-  String get _reviewKey => widget.result.quote.sourcePath;
+  String get _reviewKey => widget.result.documentKey;
 
   @override
   void initState() {
@@ -187,13 +185,10 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
       final quote = corrected.toContractorQuote(
         id: IdGenerator.prefixed('quote'),
       );
-      final sourceHash = sha256
-          .convert(utf8.encode(source.extractedText))
-          .toString();
       await _repository.saveQuote(
         widget.project.id,
         quote,
-        sourceFileHash: sourceHash,
+        sourceFileHash: _reviewKey,
       );
       await _reviewStore.save(_reviewKey, _statuses);
       if (mounted) Navigator.pop(context, true);
