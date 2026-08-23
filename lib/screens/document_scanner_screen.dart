@@ -6,9 +6,9 @@ import '../utils/app_logger.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models.dart';
@@ -57,6 +57,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
   bool _initializing = true;
   bool _capturing = false;
   bool _processing = false;
+  bool _evaluatingFrame = false;
   bool _autoCapture = true;
   bool _awaitingDocumentChange = false;
   bool _flashEnabled = false;
@@ -161,54 +162,50 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
   }
 
   void _analyzeFrame(CameraImage image) {
-    if (_capturing || _processing) return;
+    if (_capturing || _processing || _evaluatingFrame) return;
     final now = DateTime.now();
     if (now.difference(_lastAnalyzedAt) < _analysisInterval) return;
     _lastAnalyzedAt = now;
 
     final plane = image.planes.first;
-    final current = plane.bytes;
-    final motion = _calculateMotion(current);
-    final result = widget.qualityService.evaluateLuma(
+    final evaluation = _CameraFrameEvaluation(
       width: image.width,
       height: image.height,
       bytesPerRow: plane.bytesPerRow,
-      luma: current,
-      motion: motion,
-      detectRotation: false,
+      luma: Uint8List.fromList(plane.bytes),
+      previousLuma: _previousLuma,
     );
-    _previousLuma = Uint8List.fromList(current);
+    _previousLuma = evaluation.luma;
+    _evaluatingFrame = true;
+    unawaited(
+      compute(_evaluateCameraFrame, evaluation).then<void>((result) {
+        _evaluatingFrame = false;
+        if (!mounted) return;
 
-    if (result.isAcceptable) {
-      _stableSince ??= now;
-    } else {
-      _stableSince = null;
-      _awaitingDocumentChange = false;
-    }
-    if (mounted) setState(() => _quality = result);
+        if (result.isAcceptable) {
+          _stableSince ??= now;
+        } else {
+          _stableSince = null;
+          _awaitingDocumentChange = false;
+        }
+        setState(() => _quality = result);
 
-    final stableSince = _stableSince;
-    if (_autoCapture &&
-        !_awaitingDocumentChange &&
-        stableSince != null &&
-        now.difference(stableSince) >= _stableDuration &&
-        now.difference(_lastCapturedAt) >= _captureCooldown) {
-      _stableSince = null;
-      unawaited(_capturePage(auto: true));
-    }
-  }
-
-  double _calculateMotion(Uint8List current) {
-    final previous = _previousLuma;
-    if (previous == null || previous.length != current.length) return 0;
-    final step = math.max(1, current.length ~/ 8000);
-    var difference = 0.0;
-    var count = 0;
-    for (var index = 0; index < current.length; index += step) {
-      difference += (current[index] - previous[index]).abs();
-      count++;
-    }
-    return count == 0 ? 0 : (difference / count / 255).clamp(0, 1).toDouble();
+        final stableSince = _stableSince;
+        if (_autoCapture &&
+            !_awaitingDocumentChange &&
+            stableSince != null &&
+            now.difference(stableSince) >= _stableDuration &&
+            now.difference(_lastCapturedAt) >= _captureCooldown) {
+          _stableSince = null;
+          unawaited(_capturePage(auto: true));
+        }
+      }).catchError((Object error, StackTrace stackTrace) {
+        _evaluatingFrame = false;
+        AppLogger.debug(
+          'Camera frame quality analysis failed: $error\n$stackTrace',
+        );
+      }),
+    );
   }
 
   Future<void> _capturePage({bool auto = false}) async {
@@ -634,6 +631,46 @@ class _PageThumbnail extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CameraFrameEvaluation {
+  const _CameraFrameEvaluation({
+    required this.width,
+    required this.height,
+    required this.bytesPerRow,
+    required this.luma,
+    this.previousLuma,
+  });
+
+  final int width;
+  final int height;
+  final int bytesPerRow;
+  final Uint8List luma;
+  final Uint8List? previousLuma;
+}
+
+/// フレームの輝度・ブレ判定はUIスレッドを塞がないようIsolateで行う。
+ScanQualityResult _evaluateCameraFrame(_CameraFrameEvaluation input) {
+  return const ScanQualityService().evaluateLuma(
+    width: input.width,
+    height: input.height,
+    bytesPerRow: input.bytesPerRow,
+    luma: input.luma,
+    motion: _frameMotion(input.previousLuma, input.luma),
+    detectRotation: false,
+  );
+}
+
+double _frameMotion(Uint8List? previous, Uint8List current) {
+  if (previous == null || previous.length != current.length) return 0;
+  final step = math.max(1, current.length ~/ 8000);
+  var difference = 0.0;
+  var count = 0;
+  for (var index = 0; index < current.length; index += step) {
+    difference += (current[index] - previous[index]).abs();
+    count++;
+  }
+  return count == 0 ? 0 : (difference / count / 255).clamp(0, 1).toDouble();
 }
 
 class _DocumentGuidePainter extends CustomPainter {
