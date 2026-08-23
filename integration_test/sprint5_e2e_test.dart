@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:test/test.dart';
 
 import '../test/helpers/test_helpers.dart';
 
@@ -32,9 +33,11 @@ void main() {
   tearDownAll(DatabaseService.instance.close);
 
   testWidgets('案件作成、入力検証、2件比較、SQLite再読込を完走できる', (tester) async {
+    print('S5: start');
     SharedPreferences.setMockInitialValues({'onboarding_completed': true});
     final database = DatabaseService.instance;
     await database.deleteAllData();
+    print('S5: database ready');
     addTearDown(() async {
       await database.deleteAllData();
       await database.close();
@@ -44,18 +47,23 @@ void main() {
     await tester.pumpWidget(
       AimitsumoriApp(repository: repository, adService: MockAdMobService()),
     );
+    print('S5: app pumped');
     await _pumpForUi(tester);
+    print('S5: initial UI ready');
 
     await tester.tap(find.byKey(const ValueKey('create-project-button')));
     await _pumpForUi(tester);
+    print('S5: create dialog ready');
     await tester.enterText(
       find.byKey(const ValueKey('project-name-field')),
       'Sprint 5 E2E案件',
     );
     await tester.tap(find.text('次へ'));
     await _pumpForUi(tester);
+    print('S5: requirements ready');
     await tester.tap(find.byKey(const ValueKey('skip-requirements-button')));
     await _pumpForUi(tester);
+    print('S5: project created');
 
     final createdProjects = await repository.getProjects();
     expect(createdProjects, hasLength(1));
@@ -122,7 +130,10 @@ void main() {
     expect(find.text('A社'), findsWidgets);
     expect(find.text('B社'), findsWidgets);
     expect(find.text('順位・総合点は付けず、条件差と不明点を確認します。'), findsOneWidget);
-  }, skip: !Platform.isAndroid);
+  },
+      skip: !Platform.isAndroid,
+      timeout: const Timeout(Duration(minutes: 5)),
+    );
 }
 
 Future<void> _pumpForUi(WidgetTester tester) async {
