@@ -32,108 +32,110 @@ void main() {
   setUpAll(initializeDatabase);
   tearDownAll(DatabaseService.instance.close);
 
-  testWidgets('案件作成、入力検証、2件比較、SQLite再読込を完走できる', (tester) async {
-    print('S5: start');
-    SharedPreferences.setMockInitialValues({'onboarding_completed': true});
-    final database = DatabaseService.instance;
-    await database.deleteAllData();
-    print('S5: database ready');
-    addTearDown(() async {
+  testWidgets(
+    '案件作成、入力検証、2件比較、SQLite再読込を完走できる',
+    (tester) async {
+      print('S5: start');
+      SharedPreferences.setMockInitialValues({'onboarding_completed': true});
+      final database = DatabaseService.instance;
       await database.deleteAllData();
+      print('S5: database ready');
+      addTearDown(() async {
+        await database.deleteAllData();
+        await database.close();
+      });
+
+      var repository = ProjectRepository(databaseService: database);
+      await tester.pumpWidget(
+        AimitsumoriApp(repository: repository, adService: MockAdMobService()),
+      );
+      print('S5: app pumped');
+      await _pumpForUi(tester);
+      print('S5: initial UI ready');
+
+      await tester.tap(find.byKey(const ValueKey('create-project-button')));
+      await _pumpForUi(tester);
+      print('S5: create dialog ready');
+      await tester.enterText(
+        find.byKey(const ValueKey('project-name-field')),
+        'Sprint 5 E2E案件',
+      );
+      await tester.tap(find.text('次へ'));
+      await _pumpForUi(tester);
+      print('S5: requirements ready');
+      await tester.tap(find.byKey(const ValueKey('skip-requirements-button')));
+      await _pumpForUi(tester);
+      print('S5: project created');
+
+      final createdProjects = await repository.getProjects();
+      expect(createdProjects, hasLength(1));
+      final project = createdProjects.single;
+
+      await _saveQuoteThroughEditor(
+        tester,
+        project: project,
+        repository: repository,
+        contractorName: 'A社',
+        amount: '1200000',
+        quantity: '12.5',
+        expectedQuoteCountBeforeSave: 0,
+        verifyValidation: true,
+      );
+      await _saveQuoteThroughEditor(
+        tester,
+        project: project,
+        repository: repository,
+        contractorName: 'B社',
+        amount: '1350000',
+        quantity: '13',
+        expectedQuoteCountBeforeSave: 1,
+      );
+
+      final reloaded = await repository.getProject(project.id);
+      expect(reloaded, isNotNull);
+      final persistedProject = reloaded!;
+      expect(persistedProject.quotes, hasLength(2));
+
+      final quoteA = persistedProject.quotes.singleWhere(
+        (quote) => quote.contractorName == 'A社',
+      );
+      final quoteB = persistedProject.quotes.singleWhere(
+        (quote) => quote.contractorName == 'B社',
+      );
+      expect(_unitPrice(quoteA), 96000);
+      expect(_unitPrice(quoteB), closeTo(103846.1538, 0.0001));
+
+      await _openAndVerifyComparison(
+        tester,
+        project: persistedProject,
+        repository: repository,
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _pumpForUi(tester);
       await database.close();
-    });
 
-    var repository = ProjectRepository(databaseService: database);
-    await tester.pumpWidget(
-      AimitsumoriApp(repository: repository, adService: MockAdMobService()),
-    );
-    print('S5: app pumped');
-    await _pumpForUi(tester);
-    print('S5: initial UI ready');
+      repository = ProjectRepository(databaseService: database);
+      await tester.pumpWidget(
+        AimitsumoriApp(repository: repository, adService: MockAdMobService()),
+      );
+      await _pumpForUi(tester);
 
-    await tester.tap(find.byKey(const ValueKey('create-project-button')));
-    await _pumpForUi(tester);
-    print('S5: create dialog ready');
-    await tester.enterText(
-      find.byKey(const ValueKey('project-name-field')),
-      'Sprint 5 E2E案件',
-    );
-    await tester.tap(find.text('次へ'));
-    await _pumpForUi(tester);
-    print('S5: requirements ready');
-    await tester.tap(find.byKey(const ValueKey('skip-requirements-button')));
-    await _pumpForUi(tester);
-    print('S5: project created');
+      final projectCard = find.byKey(ValueKey('project-card-${project.id}'));
+      expect(projectCard, findsOneWidget);
+      final persisted = await repository.getProject(project.id);
+      expect(persisted, isNotNull);
+      expect(persisted!.quotes, hasLength(2));
 
-    final createdProjects = await repository.getProjects();
-    expect(createdProjects, hasLength(1));
-    final project = createdProjects.single;
-
-    await _saveQuoteThroughEditor(
-      tester,
-      project: project,
-      repository: repository,
-      contractorName: 'A社',
-      amount: '1200000',
-      quantity: '12.5',
-      expectedQuoteCountBeforeSave: 0,
-      verifyValidation: true,
-    );
-    await _saveQuoteThroughEditor(
-      tester,
-      project: project,
-      repository: repository,
-      contractorName: 'B社',
-      amount: '1350000',
-      quantity: '13',
-      expectedQuoteCountBeforeSave: 1,
-    );
-
-    final reloaded = await repository.getProject(project.id);
-    expect(reloaded, isNotNull);
-    final persistedProject = reloaded!;
-    expect(persistedProject.quotes, hasLength(2));
-
-    final quoteA = persistedProject.quotes.singleWhere(
-      (quote) => quote.contractorName == 'A社',
-    );
-    final quoteB = persistedProject.quotes.singleWhere(
-      (quote) => quote.contractorName == 'B社',
-    );
-    expect(_unitPrice(quoteA), 96000);
-    expect(_unitPrice(quoteB), closeTo(103846.1538, 0.0001));
-
-    await _openAndVerifyComparison(
-      tester,
-      project: persistedProject,
-      repository: repository,
-    );
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    await _pumpForUi(tester);
-    await database.close();
-
-    repository = ProjectRepository(databaseService: database);
-    await tester.pumpWidget(
-      AimitsumoriApp(repository: repository, adService: MockAdMobService()),
-    );
-    await _pumpForUi(tester);
-
-    final projectCard = find.byKey(ValueKey('project-card-${project.id}'));
-    expect(projectCard, findsOneWidget);
-    final persisted = await repository.getProject(project.id);
-    expect(persisted, isNotNull);
-    expect(persisted!.quotes, hasLength(2));
-
-    await tester.tap(projectCard);
-    await _pumpForUi(tester);
-    expect(find.text('A社'), findsWidgets);
-    expect(find.text('B社'), findsWidgets);
-    expect(find.text('順位・総合点は付けず、条件差と不明点を確認します。'), findsOneWidget);
-  },
-      skip: !Platform.isAndroid,
-      timeout: const Timeout(Duration(minutes: 5)),
-    );
+      await tester.tap(projectCard);
+      await _pumpForUi(tester);
+      expect(find.text('A社'), findsWidgets);
+      expect(find.text('B社'), findsWidgets);
+      expect(find.text('順位・総合点は付けず、条件差と不明点を確認します。'), findsOneWidget);
+    },
+    skip: !Platform.isAndroid,
+    timeout: const Timeout(Duration(minutes: 5)),
+  );
 }
 
 Future<void> _pumpForUi(WidgetTester tester) async {
