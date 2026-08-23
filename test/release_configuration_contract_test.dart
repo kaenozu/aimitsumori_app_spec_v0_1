@@ -1,8 +1,20 @@
 import 'dart:io';
 
+import 'package:aimitsumori_app/screens/settings_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('settings screen version matches pubspec', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final match = RegExp(
+      r'^version:\s*(.+)$',
+      multiLine: true,
+    ).firstMatch(pubspec);
+
+    expect(match, isNotNull);
+    expect(SettingsScreen.appVersion, match!.group(1)?.trim());
+  });
+
   test('Android release build requires purchase verification URL', () {
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
 
