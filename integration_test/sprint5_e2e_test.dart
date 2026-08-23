@@ -19,7 +19,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../helpers/test_helpers.dart';
+import '../test/helpers/test_helpers.dart';
 
 void main() {
   if (Platform.isAndroid) {
