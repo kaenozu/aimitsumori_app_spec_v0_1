@@ -138,15 +138,13 @@ jobs:
           profile: pixel_6
           disk-size: 4096M
           disable-animations: true
+          # Override the default userdata size after AVD creation; ubuntu runners
+          # may not have enough free space for the action's default partition.
           pre-emulator-launch-script: |
             set -euo pipefail
             config="$HOME/.android/avd/test.avd/config.ini"
             sed -i '/^disk.dataPartition.size=/d' "$config"
-            printf '%s
-' 'disk.dataPartition.size=4294967296' >> "$config"
-          # Keep userdata below the free-space floor of ubuntu-24.04 runners.
-          # The default 7.2 GB partition can exceed the runner's available disk.
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -partition-size 4096
+            printf '%s\n' 'disk.dataPartition.size=4294967296' >> "$config"
           script: flutter test -d emulator-5554 test/integration/sprint5_e2e_test.dart -r expanded
 
   release-apk:
