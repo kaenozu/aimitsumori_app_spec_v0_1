@@ -14,7 +14,6 @@ import 'package:aimitsumori_app/screens/comparison_screen.dart';
 import 'package:aimitsumori_app/screens/quote_input_screen.dart';
 import 'package:aimitsumori_app/services/database_initializer.dart';
 import 'package:aimitsumori_app/services/database_service.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
