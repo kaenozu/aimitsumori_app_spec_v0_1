@@ -223,14 +223,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _showCreateDialog() async {
-    final controller = TextEditingController();
+    var enteredName = '';
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('案件作成'),
         content: TextField(
           key: const ValueKey('project-name-field'),
-          controller: controller,
           maxLength: 100,
           decoration: const InputDecoration(
             labelText: '案件名',
@@ -238,6 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           autofocus: true,
           textInputAction: TextInputAction.done,
+          onChanged: (value) => enteredName = value,
           onSubmitted: (value) {
             final trimmed = value.trim();
             if (trimmed.isNotEmpty && trimmed.length <= 100) {
@@ -256,7 +256,7 @@ class _HomeScreenState extends State<HomeScreen> {
           FilledButton(
             onPressed: () async {
               await HapticService.lightImpact();
-              final value = controller.text.trim();
+              final value = enteredName.trim();
               if (value.isNotEmpty &&
                   value.length <= 100 &&
                   dialogContext.mounted) {
@@ -268,7 +268,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
-    controller.dispose();
     if (name == null || !mounted) return;
 
     try {
