@@ -136,6 +136,7 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_6
+          disk-size: 4096M
           disable-animations: true
           # Keep userdata below the free-space floor of ubuntu-24.04 runners.
           # The default 7.2 GB partition can exceed the runner's available disk.
