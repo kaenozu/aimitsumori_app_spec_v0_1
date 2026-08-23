@@ -148,7 +148,7 @@ jobs:
             config="$HOME/.android/avd/test.avd/config.ini"
             sed -i '/^disk.dataPartition.size=/d' "$config"
             printf '%s\n' 'disk.dataPartition.size=4294967296' >> "$config"
-          script: flutter test -d emulator-5554 test/integration/sprint5_e2e_test.dart -r expanded
+          script: flutter test -d emulator-5554 integration_test/sprint5_e2e_test.dart -r expanded
 
   release-apk:
     name: Release APK compile
