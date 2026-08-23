@@ -2,6 +2,16 @@
 
 このプロジェクトの主な変更を記録します。
 
+## [0.1.5] - 2026-08-23
+
+Google Play Internal testing向けの次versionです。
+
+### Release engineering
+
+- versionCodeを4へ更新し、既存のPlay Console version code 3との衝突を回避。
+- Production Android AAB workflowから署名・manifest・SHA-256を検証する。
+- Play Console Internal trackへの投入は、AAB検証後に実行する。
+
 ## [0.1.4] - 2026-08-18
 
 Androidリリース候補のバージョン情報を更新したメタデータリリースです。
