@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:aimitsumori_app/data/category_master.dart';
 import 'package:aimitsumori_app/main.dart';
 import 'package:aimitsumori_app/models.dart';
+import 'package:aimitsumori_app/ocr_models.dart';
 import 'package:aimitsumori_app/repositories/project_repository.dart';
 import 'package:aimitsumori_app/screens/comparison_screen.dart';
 import 'package:aimitsumori_app/screens/quote_input_screen.dart';
@@ -108,6 +109,7 @@ void main() {
       quantity: '12.5',
       expectedQuoteCountBeforeSave: 0,
       verifyValidation: true,
+      expectCriticalConfirmation: true,
     );
     await _saveQuoteThroughEditor(
       tester,
@@ -205,6 +207,7 @@ Future<void> _saveQuoteThroughEditor(
   required String quantity,
   required int expectedQuoteCountBeforeSave,
   bool verifyValidation = false,
+  bool expectCriticalConfirmation = false,
 }) async {
   final navigator = tester.state<NavigatorState>(find.byType(Navigator).first);
   debugPrint('S5: BEGIN ui.navigator.push quote editor $contractorName');
@@ -227,6 +230,19 @@ Future<void> _saveQuoteThroughEditor(
             ),
           ],
         ),
+        initialReviewBundle: expectCriticalConfirmation
+            ? const OcrReviewBundle(
+                lines: [],
+                issues: [
+                  OcrReviewIssue(
+                    id: 's5-critical-confirmation',
+                    reason: OcrReviewReason.totalMismatch,
+                    severity: OcrReviewSeverity.critical,
+                    message: 'Sprint 5 E2E critical review fixture',
+                  ),
+                ],
+              )
+            : null,
       ),
     ),
   );
@@ -269,7 +285,10 @@ Future<void> _saveQuoteThroughEditor(
     await _enterText(tester, const ValueKey('quote-line-quantity-0'), quantity);
   }
 
-  await _tapSave(tester);
+  await _tapSave(
+    tester,
+    expectCriticalConfirmation: expectCriticalConfirmation,
+  );
   expect(
     await _awaitRouteResult(
       tester,
@@ -332,39 +351,71 @@ Future<void> _enterText(WidgetTester tester, Key key, String value) async {
   await _awaitStep('ui.pump after enterText $key', tester.pump());
 }
 
-Future<void> _tapSave(WidgetTester tester) async {
+Future<void> _tapSave(
+  WidgetTester tester, {
+  bool expectCriticalConfirmation = false,
+}) async {
   FocusManager.instance.primaryFocus?.unfocus();
   await _awaitStep('ui.pump before quote save', tester.pump());
   await _awaitStep(
     'ui.tap quote-save-button',
     tester.tap(find.byKey(const ValueKey('quote-save-button'))),
   );
-  await _pumpForUi(tester);
-  await _tapCriticalSaveConfirmationIfShown(tester);
+  await _tapCriticalSaveConfirmation(
+    tester,
+    required: expectCriticalConfirmation,
+  );
 }
 
-Future<void> _tapCriticalSaveConfirmationIfShown(WidgetTester tester) async {
+Future<void> _tapCriticalSaveConfirmation(
+  WidgetTester tester, {
+  required bool required,
+}) async {
   const buttonLabel = '未確認のまま保存';
   const dialogTitle = '重大な未確認項目があります';
-  final button = find.text(buttonLabel);
   debugPrint('S5: BEGIN ui.detect critical-save confirmation');
-  final deadline = DateTime.now().add(const Duration(seconds: 5));
+  final deadline = DateTime.now().add(const Duration(seconds: 10));
   var pumpIndex = 0;
-  while (button.evaluate().isEmpty && DateTime.now().isBefore(deadline)) {
+  Finder? visibleButton;
+  while (DateTime.now().isBefore(deadline)) {
+    final dialogs = find.byType(AlertDialog);
+    final titles = find
+        .descendant(of: dialogs, matching: find.text(dialogTitle))
+        .hitTestable();
+    final buttons = find
+        .descendant(of: dialogs, matching: find.text(buttonLabel))
+        .hitTestable();
+    if (titles.evaluate().length == 1 && buttons.evaluate().length == 1) {
+      visibleButton = buttons;
+      break;
+    }
     pumpIndex++;
     await _awaitStep(
       'ui.pump detecting critical-save confirmation $pumpIndex',
       tester.pump(const Duration(milliseconds: 100)),
     );
   }
-  if (button.evaluate().isEmpty) {
+  if (visibleButton == null) {
+    final dialogText = find
+        .byType(AlertDialog)
+        .evaluate()
+        .map((element) => element.widget.toStringShort());
+    debugPrint(
+      'S5: TIMEOUT ui.detect critical-save confirmation '
+      'required=$required pumps=$pumpIndex dialogs=$dialogText',
+    );
+    if (required) {
+      fail('Timed out waiting for visible critical-save confirmation');
+    }
     debugPrint('S5: END ui.detect critical-save confirmation (not shown)');
     return;
   }
 
-  expect(find.text(dialogTitle), findsOneWidget);
   debugPrint('S5: MARKER critical-save confirmation detected');
-  await _awaitStep('ui.tap critical-save confirmation', tester.tap(button));
+  await _awaitStep(
+    'ui.tap critical-save confirmation',
+    tester.tap(visibleButton),
+  );
   await _pumpForUi(tester);
   debugPrint('S5: END ui.detect critical-save confirmation (tapped)');
 }

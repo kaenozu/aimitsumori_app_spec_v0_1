@@ -30,6 +30,7 @@ class QuoteInputScreen extends StatefulWidget {
     this.ocrService,
     this.reviewStore,
     this.initialQuote,
+    this.initialReviewBundle,
     this.revisionIntent = const QuoteImportIntent.newQuote(),
   });
 
@@ -38,6 +39,7 @@ class QuoteInputScreen extends StatefulWidget {
   final OcrService? ocrService;
   final OcrReviewStore? reviewStore;
   final RawQuoteData? initialQuote;
+  final OcrReviewBundle? initialReviewBundle;
   final QuoteImportIntent revisionIntent;
 
   @override
@@ -75,6 +77,13 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
 
     _rawQuote = initialQuote;
     _documentReviewKey = initialQuote.sourcePath;
+    _reviewBundle = widget.initialReviewBundle;
+    _reviewStatuses = {
+      for (final line in widget.initialReviewBundle?.lines ?? const [])
+        line.id: line.initialStatus,
+      for (final issue in widget.initialReviewBundle?.issues ?? const [])
+        issue.id: issue.initialStatus,
+    };
     _contractorController.text = initialQuote.contractorName;
     _totalController.text = initialQuote.totalAmountYen == null
         ? ''
