@@ -340,6 +340,33 @@ Future<void> _tapSave(WidgetTester tester) async {
     tester.tap(find.byKey(const ValueKey('quote-save-button'))),
   );
   await _pumpForUi(tester);
+  await _tapCriticalSaveConfirmationIfShown(tester);
+}
+
+Future<void> _tapCriticalSaveConfirmationIfShown(WidgetTester tester) async {
+  const buttonLabel = '未確認のまま保存';
+  const dialogTitle = '重大な未確認項目があります';
+  final button = find.text(buttonLabel);
+  debugPrint('S5: BEGIN ui.detect critical-save confirmation');
+  final deadline = DateTime.now().add(const Duration(seconds: 5));
+  var pumpIndex = 0;
+  while (button.evaluate().isEmpty && DateTime.now().isBefore(deadline)) {
+    pumpIndex++;
+    await _awaitStep(
+      'ui.pump detecting critical-save confirmation $pumpIndex',
+      tester.pump(const Duration(milliseconds: 100)),
+    );
+  }
+  if (button.evaluate().isEmpty) {
+    debugPrint('S5: END ui.detect critical-save confirmation (not shown)');
+    return;
+  }
+
+  expect(find.text(dialogTitle), findsOneWidget);
+  debugPrint('S5: MARKER critical-save confirmation detected');
+  await _awaitStep('ui.tap critical-save confirmation', tester.tap(button));
+  await _pumpForUi(tester);
+  debugPrint('S5: END ui.detect critical-save confirmation (tapped)');
 }
 
 Future<void> _expectQuoteCount(
