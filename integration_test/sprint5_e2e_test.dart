@@ -283,6 +283,11 @@ Future<void> _saveQuoteThroughEditor(
       expectedQuoteCountBeforeSave,
     );
     await _enterText(tester, const ValueKey('quote-line-quantity-0'), quantity);
+    // Let the autovalidating FormField settle after correcting the invalid
+    // quantity before driving the final save. Without this bounded wait, the
+    // Android runner can still present the previous validation state when the
+    // save handler synchronously calls FormState.validate().
+    await _pumpForUi(tester);
   }
 
   await _tapSave(
