@@ -321,6 +321,12 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     final rawQuote = _rawQuote;
     if (rawQuote == null || _saving) return;
     final formValid = _formKey.currentState?.validate() ?? false;
+    debugPrint(
+      'QUOTE_SAVE_PREFLIGHT formValid=$formValid '
+      'reviewBundleIssues=${_reviewBundle?.issues.length ?? 0} '
+      'reviewBundleLines=${_reviewBundle?.lines.length ?? 0} '
+      'criticalPending=${_criticalPendingCount()}',
+    );
     AppLogger.debug(
       'Quote save preflight: formValid=$formValid '
       'reviewBundleIssues=${_reviewBundle?.issues.length ?? 0} '
