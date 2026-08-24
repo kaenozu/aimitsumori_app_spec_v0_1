@@ -207,9 +207,11 @@ class OcrService {
       pageNumber: first.pageNumber,
       boundingRect: mergedRect,
       sourceImagePath: first.sourceImagePath,
-      nativeOcrConfidence: ordered
-          .map((item) => item.recognizedLine.confidence)
-          .reduce((a, b) => (a + b) / 2),
+      nativeOcrConfidence: OcrConfidenceEngine.averageNativeConfidence(
+        ordered
+            .map((item) => item.recognizedLine.confidence)
+            .toList(growable: false),
+      ),
     );
   }
 

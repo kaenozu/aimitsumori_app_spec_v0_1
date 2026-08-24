@@ -49,6 +49,16 @@ void main() {
     expect(OcrConfidenceEngine.extractAmountCandidates('控ブロック7段C120'), isEmpty);
   });
 
+  test('merged row confidence is the arithmetic mean of the lines', () {
+    // 逐次 (a+b)/2 だと ((0.9+0.5)/2+0.4)/2 = 0.55 になり、後半の値が過剰に重み付けされる。
+    expect(
+      OcrConfidenceEngine.averageNativeConfidence([0.9, 0.5, 0.4]),
+      closeTo(0.6, 1e-9),
+    );
+    expect(OcrConfidenceEngine.averageNativeConfidence(const []), 0);
+    expect(OcrConfidenceEngine.averageNativeConfidence([0.8]), 0.8);
+  });
+
   test('native OCR confidence below threshold requires review', () {
     final result = engine.analyze(
       rawText: 'フェンス 100,000円',

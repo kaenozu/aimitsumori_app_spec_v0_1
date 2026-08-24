@@ -189,7 +189,9 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
     }
     if (!mounted) return;
 
-    final unlocked = outcome != RewardedAdOutcome.dismissed;
+    final unlocked =
+        outcome == RewardedAdOutcome.rewarded ||
+        outcome == RewardedAdOutcome.unavailable;
     setState(() {
       _unlocking = false;
       _detailsUnlocked = unlocked;

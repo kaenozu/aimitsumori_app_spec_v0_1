@@ -15,6 +15,24 @@ import 'purchase_verification_service.dart';
 
 enum RewardedAdOutcome { rewarded, unavailable, dismissed }
 
+/// リワード広告のロード完了とタイムアウトの競合を調停する。
+/// 一度確定したら二度と変わらず、確定後の遅延ロード広告は表示できない。
+@visibleForTesting
+class RewardedAdLoadGate {
+  final Completer<RewardedAdOutcome> _completer =
+      Completer<RewardedAdOutcome>();
+
+  bool get canPresent => !_completer.isCompleted;
+
+  Future<RewardedAdOutcome> get outcome => _completer.future;
+
+  bool settle(RewardedAdOutcome value) {
+    if (_completer.isCompleted) return false;
+    _completer.complete(value);
+    return true;
+  }
+}
+
 class AdService {
   AdService._({PurchaseVerifier? verifier})
     : _verifier = verifier ?? const PurchaseVerificationService();
@@ -211,57 +229,51 @@ class AdService {
       return RewardedAdOutcome.unavailable;
     }
 
-    final completer = Completer<RewardedAdOutcome>();
+    final gate = RewardedAdLoadGate();
     Timer? timeout;
     try {
       timeout = Timer(const Duration(seconds: 20), () {
-        if (!completer.isCompleted) {
-          completer.complete(RewardedAdOutcome.unavailable);
-        }
+        gate.settle(RewardedAdOutcome.unavailable);
       });
       await RewardedAd.load(
         adUnitId: rewardedAdUnitId,
         request: const AdRequest(),
         rewardedAdLoadCallback: RewardedAdLoadCallback(
           onAdLoaded: (ad) {
+            if (!gate.canPresent) {
+              ad.dispose();
+              return;
+            }
             var earnedReward = false;
             ad.fullScreenContentCallback = FullScreenContentCallback(
               onAdDismissedFullScreenContent: (dismissedAd) {
                 dismissedAd.dispose();
-                if (!completer.isCompleted) {
-                  completer.complete(
-                    earnedReward
-                        ? RewardedAdOutcome.rewarded
-                        : RewardedAdOutcome.dismissed,
-                  );
-                }
+                gate.settle(
+                  earnedReward
+                      ? RewardedAdOutcome.rewarded
+                      : RewardedAdOutcome.dismissed,
+                );
               },
               onAdFailedToShowFullScreenContent: (failedAd, error) {
                 AppLogger.debug('Rewarded ad failed to show: $error');
                 failedAd.dispose();
-                if (!completer.isCompleted) {
-                  completer.complete(RewardedAdOutcome.unavailable);
-                }
+                gate.settle(RewardedAdOutcome.unavailable);
               },
             );
             ad.show(onUserEarnedReward: (_, _) => earnedReward = true);
           },
           onAdFailedToLoad: (error) {
             AppLogger.debug('Rewarded ad failed to load: $error');
-            if (!completer.isCompleted) {
-              completer.complete(RewardedAdOutcome.unavailable);
-            }
+            gate.settle(RewardedAdOutcome.unavailable);
           },
         ),
       );
     } catch (error) {
       AppLogger.debug('Rewarded ad request failed: $error');
-      if (!completer.isCompleted) {
-        completer.complete(RewardedAdOutcome.unavailable);
-      }
+      gate.settle(RewardedAdOutcome.unavailable);
     }
     try {
-      return await completer.future;
+      return await gate.outcome;
     } finally {
       timeout?.cancel();
     }

@@ -151,6 +151,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
   }
 
   Future<void> _process(String path) async {
+    if (!mounted) return;
     setState(() {
       _processing = true;
       _error = null;
@@ -324,6 +325,14 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
       return;
     }
 
+    final totalAmountYen = int.tryParse(
+      _totalController.text.trim().replaceAll(',', ''),
+    );
+    if (totalAmountYen == null) {
+      setState(() => _error = '提示総額を整数（円）で入力してください。');
+      return;
+    }
+
     setState(() {
       _saving = true;
       _error = null;
@@ -332,9 +341,7 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
     try {
       final corrected = RawQuoteData(
         contractorName: _contractorController.text.trim(),
-        totalAmountYen: int.parse(
-          _totalController.text.trim().replaceAll(',', ''),
-        ),
+        totalAmountYen: totalAmountYen,
         lineItems: lineItems,
         extractedText: rawQuote.extractedText,
         sourcePath: rawQuote.sourcePath,

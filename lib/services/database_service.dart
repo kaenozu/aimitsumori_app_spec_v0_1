@@ -24,21 +24,30 @@ class DatabaseService {
   static const _databaseVersion = 4;
 
   Database? _database;
+  Future<Database>? _opening;
 
-  Future<Database> get database async {
+  Future<Database> get database {
     final current = _database;
-    if (current != null) return current;
+    if (current != null) return Future<Database>.value(current);
+    return _opening ??= _openDatabase();
+  }
 
-    final databasePath = p.join(await getDatabasesPath(), _databaseName);
-    final opened = await openDatabase(
-      databasePath,
-      version: _databaseVersion,
-      onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
-      onCreate: _createSchema,
-      onUpgrade: _upgradeSchema,
-    );
-    _database = opened;
-    return opened;
+  Future<Database> _openDatabase() async {
+    try {
+      final databasePath = p.join(await getDatabasesPath(), _databaseName);
+      final opened = await openDatabase(
+        databasePath,
+        version: _databaseVersion,
+        onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
+        onCreate: _createSchema,
+        onUpgrade: _upgradeSchema,
+      );
+      _database = opened;
+      return opened;
+    } catch (_) {
+      _opening = null;
+      rethrow;
+    }
   }
 
   @visibleForTesting

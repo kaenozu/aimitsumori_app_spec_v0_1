@@ -172,6 +172,17 @@ class OcrConfidenceEngine {
     return 0.58;
   }
 
+  /// 同一行マージ時のOCR信頼度は相加平均で求める。
+  /// 逐次 (a+b)/2 は後半の値が過剰に重み付けされる。
+  static double averageNativeConfidence(List<double> values) {
+    if (values.isEmpty) return 0;
+    var sum = 0.0;
+    for (final value in values) {
+      sum += value;
+    }
+    return sum / values.length;
+  }
+
   static final RegExp _amountTokenPattern = RegExp(
     r'(^|[^\dA-Za-z])'
     r'((?:[¥円]\s*)?'
