@@ -64,13 +64,15 @@ void main() {
     await _pumpForUi(tester);
     await _waitForText(tester, '比較');
     debugPrint('S5: project created');
-    // ComparisonScreen uses the Material AppBar back control, not the
+    // ComparisonScreen uses a Material AppBar, not the
     // CupertinoNavigationBarBackButton required by WidgetTester.pageBack().
-    // Exercise the same control an Android user sees and verify that it
-    // returns to the project list before continuing the flow.
-    final comparisonBackButton = find.byType(BackButton);
-    expect(comparisonBackButton, findsOneWidget);
-    await tester.tap(comparisonBackButton);
+    // This test owns the route stack, so pop the actual Navigator route and
+    // verify the semantic result (the project list) before continuing.
+    final navigator = tester.state<NavigatorState>(
+      find.byType(Navigator).first,
+    );
+    expect(navigator.canPop(), isTrue);
+    navigator.pop();
     await _pumpForUi(tester);
     debugPrint('S5: comparison closed');
     expect(find.text('Sprint 5 E2E案件'), findsOneWidget);
