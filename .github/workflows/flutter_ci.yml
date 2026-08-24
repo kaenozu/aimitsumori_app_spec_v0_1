@@ -141,7 +141,9 @@ jobs:
           # Override the default userdata size after AVD creation; ubuntu runners
           # may not have enough free space for the action's default partition.
           pre-emulator-launch-script: |
-            set -euo pipefail
+            # ReactiveCircus executes this hook with /usr/bin/sh, so avoid
+            # Bash-only pipefail while retaining fail-fast behavior.
+            set -eu
             # Free runner disk used by toolchains not needed for Flutter E2E.
             sudo rm -rf /usr/share/dotnet /opt/ghc
             sudo rm -rf "$ANDROID_HOME/ndk" "$ANDROID_HOME/cmake"
