@@ -4,6 +4,7 @@
 /// 関連ファイル: lib/main.dart, lib/screens/quote_input_screen.dart, lib/services/database_service.dart
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:aimitsumori_app/data/category_master.dart';
@@ -35,32 +36,44 @@ void main() {
     debugPrint('S5: start');
     SharedPreferences.setMockInitialValues({'onboarding_completed': true});
     final database = DatabaseService.instance;
-    await database.deleteAllData();
+    await _awaitStep('db.deleteAllData (setup)', database.deleteAllData());
     debugPrint('S5: database ready');
     addTearDown(() async {
-      await database.deleteAllData();
-      await database.close();
+      await _awaitStep('db.deleteAllData (teardown)', database.deleteAllData());
+      await _awaitStep('db.close (teardown)', database.close());
     });
 
     var repository = ProjectRepository(databaseService: database);
-    await tester.pumpWidget(
-      AimitsumoriApp(repository: repository, adService: MockAdMobService()),
+    await _awaitStep(
+      'ui.pumpWidget initial app',
+      tester.pumpWidget(
+        AimitsumoriApp(repository: repository, adService: MockAdMobService()),
+      ),
     );
     debugPrint('S5: app pumped');
     await _pumpForUi(tester);
     debugPrint('S5: initial UI ready');
 
-    await tester.tap(find.byKey(const ValueKey('create-project-button')));
+    await _awaitStep(
+      'ui.tap create-project-button',
+      tester.tap(find.byKey(const ValueKey('create-project-button'))),
+    );
     await _pumpForUi(tester);
     debugPrint('S5: create dialog ready');
-    await tester.enterText(
-      find.byKey(const ValueKey('project-name-field')),
-      'Sprint 5 E2E案件',
+    await _awaitStep(
+      'ui.enterText project-name-field',
+      tester.enterText(
+        find.byKey(const ValueKey('project-name-field')),
+        'Sprint 5 E2E案件',
+      ),
     );
-    await tester.tap(find.text('次へ'));
+    await _awaitStep('ui.tap 次へ', tester.tap(find.text('次へ')));
     await _pumpForUi(tester);
     debugPrint('S5: requirements ready');
-    await tester.tap(find.byKey(const ValueKey('skip-requirements-button')));
+    await _awaitStep(
+      'ui.tap skip-requirements-button',
+      tester.tap(find.byKey(const ValueKey('skip-requirements-button'))),
+    );
     await _pumpForUi(tester);
     await _waitForText(tester, '比較');
     debugPrint('S5: project created');
@@ -72,12 +85,17 @@ void main() {
       find.byType(Navigator).first,
     );
     expect(navigator.canPop(), isTrue);
+    debugPrint('S5: BEGIN ui.navigator.pop owned comparison route');
     navigator.pop();
+    debugPrint('S5: END ui.navigator.pop owned comparison route');
     await _pumpForUi(tester);
     debugPrint('S5: comparison closed');
     expect(find.text('Sprint 5 E2E案件'), findsOneWidget);
 
-    final createdProjects = await repository.getProjects();
+    final createdProjects = await _awaitStep(
+      'db.getProjects after route pop',
+      repository.getProjects(),
+    );
     expect(createdProjects, hasLength(1));
     final project = createdProjects.single;
 
@@ -101,7 +119,10 @@ void main() {
       expectedQuoteCountBeforeSave: 1,
     );
 
-    final reloaded = await repository.getProject(project.id);
+    final reloaded = await _awaitStep(
+      'db.getProject after quote saves',
+      repository.getProject(project.id),
+    );
     expect(reloaded, isNotNull);
     final persistedProject = reloaded!;
     expect(persistedProject.quotes, hasLength(2));
@@ -121,23 +142,32 @@ void main() {
       repository: repository,
     );
 
-    await tester.pumpWidget(const SizedBox.shrink());
+    await _awaitStep(
+      'ui.pumpWidget dispose app',
+      tester.pumpWidget(const SizedBox.shrink()),
+    );
     await _pumpForUi(tester);
-    await database.close();
+    await _awaitStep('db.close before reopen', database.close());
 
     repository = ProjectRepository(databaseService: database);
-    await tester.pumpWidget(
-      AimitsumoriApp(repository: repository, adService: MockAdMobService()),
+    await _awaitStep(
+      'ui.pumpWidget reloaded app',
+      tester.pumpWidget(
+        AimitsumoriApp(repository: repository, adService: MockAdMobService()),
+      ),
     );
     await _pumpForUi(tester);
 
     final projectCard = find.byKey(ValueKey('project-card-${project.id}'));
     expect(projectCard, findsOneWidget);
-    final persisted = await repository.getProject(project.id);
+    final persisted = await _awaitStep(
+      'db.getProject after app reload',
+      repository.getProject(project.id),
+    );
     expect(persisted, isNotNull);
     expect(persisted!.quotes, hasLength(2));
 
-    await tester.tap(projectCard);
+    await _awaitStep('ui.tap persisted project card', tester.tap(projectCard));
     await _pumpForUi(tester);
     expect(find.text('A社'), findsWidgets);
     expect(find.text('B社'), findsWidgets);
@@ -147,7 +177,10 @@ void main() {
 
 Future<void> _pumpForUi(WidgetTester tester) async {
   for (var i = 0; i < 10; i++) {
-    await tester.pump(const Duration(milliseconds: 100));
+    await _awaitStep(
+      'ui.pump ${i + 1}/10',
+      tester.pump(const Duration(milliseconds: 100)),
+    );
   }
 }
 
@@ -155,7 +188,10 @@ Future<void> _waitForText(WidgetTester tester, String text) async {
   final finder = find.text(text);
   for (var i = 0; i < 60; i++) {
     if (finder.evaluate().isNotEmpty) return;
-    await tester.pump(const Duration(milliseconds: 250));
+    await _awaitStep(
+      'ui.wait text $text',
+      tester.pump(const Duration(milliseconds: 250)),
+    );
   }
   fail('Timed out waiting for text: $text');
 }
@@ -171,6 +207,7 @@ Future<void> _saveQuoteThroughEditor(
   bool verifyValidation = false,
 }) async {
   final navigator = tester.state<NavigatorState>(find.byType(Navigator).first);
+  debugPrint('S5: BEGIN ui.navigator.push quote editor $contractorName');
   final result = navigator.push<bool>(
     MaterialPageRoute<bool>(
       builder: (_) => QuoteInputScreen(
@@ -193,6 +230,7 @@ Future<void> _saveQuoteThroughEditor(
       ),
     ),
   );
+  debugPrint('S5: END ui.navigator.push quote editor $contractorName');
   await _pumpForUi(tester);
 
   await _enterText(
@@ -232,7 +270,13 @@ Future<void> _saveQuoteThroughEditor(
   }
 
   await _tapSave(tester);
-  expect(await result, isTrue);
+  expect(
+    await _awaitStep(
+      'ui.await quote save route result $contractorName',
+      result,
+    ),
+    isTrue,
+  );
   await _expectQuoteCount(
     repository,
     project.id,
@@ -271,23 +315,29 @@ Future<void> _openAndVerifyComparison(
 Future<void> _enterText(WidgetTester tester, Key key, String value) async {
   final finder = find.byKey(key);
   if (finder.evaluate().isEmpty) {
-    await tester.scrollUntilVisible(
-      finder,
-      300,
-      scrollable: find.byType(Scrollable).first,
+    await _awaitStep(
+      'ui.scrollUntilVisible $key',
+      tester.scrollUntilVisible(
+        finder,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      ),
     );
   } else {
-    await tester.ensureVisible(finder);
+    await _awaitStep('ui.ensureVisible $key', tester.ensureVisible(finder));
   }
   await _pumpForUi(tester);
-  await tester.enterText(finder, value);
-  await tester.pump();
+  await _awaitStep('ui.enterText $key', tester.enterText(finder, value));
+  await _awaitStep('ui.pump after enterText $key', tester.pump());
 }
 
 Future<void> _tapSave(WidgetTester tester) async {
   FocusManager.instance.primaryFocus?.unfocus();
-  await tester.pump();
-  await tester.tap(find.byKey(const ValueKey('quote-save-button')));
+  await _awaitStep('ui.pump before quote save', tester.pump());
+  await _awaitStep(
+    'ui.tap quote-save-button',
+    tester.tap(find.byKey(const ValueKey('quote-save-button'))),
+  );
   await _pumpForUi(tester);
 }
 
@@ -296,9 +346,26 @@ Future<void> _expectQuoteCount(
   String projectId,
   int count,
 ) async {
-  final project = await repository.getProject(projectId);
+  final project = await _awaitStep(
+    'db.getProject verify count $count',
+    repository.getProject(projectId),
+  );
   expect(project, isNotNull);
   expect(project!.quotes, hasLength(count));
+}
+
+const _operationTimeout = Duration(seconds: 30);
+
+Future<T> _awaitStep<T>(String label, Future<T> operation) async {
+  debugPrint('S5: BEGIN $label');
+  try {
+    final result = await operation.timeout(_operationTimeout);
+    debugPrint('S5: END $label');
+    return result;
+  } on TimeoutException {
+    debugPrint('S5: TIMEOUT $label after ${_operationTimeout.inSeconds}s');
+    rethrow;
+  }
 }
 
 double _unitPrice(ContractorQuote quote) {

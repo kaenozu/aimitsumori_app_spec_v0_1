@@ -99,7 +99,7 @@ jobs:
     name: Android emulator E2E
     needs: quality
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 35
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -150,7 +150,18 @@ jobs:
             config="$HOME/.android/avd/test.avd/config.ini"
             sed -i '/^disk.dataPartition.size=/d' "$config"
             printf '%s\n' 'disk.dataPartition.size=4294967296' >> "$config"
-          script: flutter test -d emulator-5554 integration_test/sprint5_e2e_test.dart -r expanded
+          script: |
+            set -eu
+            echo 'E2E: starting Flutter integration test'
+            flutter test -d emulator-5554 integration_test/sprint5_e2e_test.dart -r expanded 2>&1 | tee e2e.log
+
+      - name: Upload E2E diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-e2e-logs
+          path: e2e.log
+          if-no-files-found: ignore
 
   release-apk:
     name: Release APK compile
