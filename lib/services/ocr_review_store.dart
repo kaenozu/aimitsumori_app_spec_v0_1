@@ -88,7 +88,9 @@ class OcrReviewStore {
         if (entry.value > 0 && entry.value < expiryMillis) entry.key,
     };
     final retained =
-        savedAtByKey.entries.where((entry) => !victims.contains(entry.key)).toList()
+        savedAtByKey.entries
+            .where((entry) => !victims.contains(entry.key))
+            .toList()
           ..sort((a, b) => b.value.compareTo(a.value));
     victims.addAll(retained.skip(maxEntries).map((entry) => entry.key));
 

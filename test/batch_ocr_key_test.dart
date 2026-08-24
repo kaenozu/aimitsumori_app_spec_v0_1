@@ -15,10 +15,7 @@ void main() {
         extractedText: '本文',
       );
 
-      expect(
-        key,
-        sha256.convert(utf8.encode('hash-a|hash-b')).toString(),
-      );
+      expect(key, sha256.convert(utf8.encode('hash-a|hash-b')).toString());
     });
 
     test('同じ入力なら同じキーになり、ページ順で変わる', () {
@@ -73,16 +70,16 @@ void main() {
     test('旧形式（保存時刻なし）の状態も読める', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final storage = await SharedPreferences.getInstance();
-      final legacyPayload = jsonEncode({'line-1': OcrReviewStatus.pending.code});
+      final legacyPayload = jsonEncode({
+        'line-1': OcrReviewStatus.pending.code,
+      });
       await storage.setString(
         'ocr_review_states_v2_${sha256.convert(utf8.encode('doc-key'))}',
         legacyPayload,
       );
       final store = OcrReviewStore(preferences: storage);
 
-      expect(await store.load('doc-key'), {
-        'line-1': OcrReviewStatus.pending,
-      });
+      expect(await store.load('doc-key'), {'line-1': OcrReviewStatus.pending});
     });
 
     test('件数上限を超えると古い確認状態から削除される', () async {

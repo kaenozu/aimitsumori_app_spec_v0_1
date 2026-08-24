@@ -1,4 +1,4 @@
-﻿/// 見積書を複数ページ撮影し、画質確認後にまとめてOCRする画面。
+/// 見積書を複数ページ撮影し、画質確認後にまとめてOCRする画面。
 library;
 
 import '../utils/app_logger.dart';
@@ -178,33 +178,35 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen>
     _previousLuma = evaluation.luma;
     _evaluatingFrame = true;
     unawaited(
-      compute(_evaluateCameraFrame, evaluation).then<void>((result) {
-        _evaluatingFrame = false;
-        if (!mounted) return;
+      compute(_evaluateCameraFrame, evaluation)
+          .then<void>((result) {
+            _evaluatingFrame = false;
+            if (!mounted) return;
 
-        if (result.isAcceptable) {
-          _stableSince ??= now;
-        } else {
-          _stableSince = null;
-          _awaitingDocumentChange = false;
-        }
-        setState(() => _quality = result);
+            if (result.isAcceptable) {
+              _stableSince ??= now;
+            } else {
+              _stableSince = null;
+              _awaitingDocumentChange = false;
+            }
+            setState(() => _quality = result);
 
-        final stableSince = _stableSince;
-        if (_autoCapture &&
-            !_awaitingDocumentChange &&
-            stableSince != null &&
-            now.difference(stableSince) >= _stableDuration &&
-            now.difference(_lastCapturedAt) >= _captureCooldown) {
-          _stableSince = null;
-          unawaited(_capturePage(auto: true));
-        }
-      }).catchError((Object error, StackTrace stackTrace) {
-        _evaluatingFrame = false;
-        AppLogger.debug(
-          'Camera frame quality analysis failed: $error\n$stackTrace',
-        );
-      }),
+            final stableSince = _stableSince;
+            if (_autoCapture &&
+                !_awaitingDocumentChange &&
+                stableSince != null &&
+                now.difference(stableSince) >= _stableDuration &&
+                now.difference(_lastCapturedAt) >= _captureCooldown) {
+              _stableSince = null;
+              unawaited(_capturePage(auto: true));
+            }
+          })
+          .catchError((Object error, StackTrace stackTrace) {
+            _evaluatingFrame = false;
+            AppLogger.debug(
+              'Camera frame quality analysis failed: $error\n$stackTrace',
+            );
+          }),
     );
   }
 

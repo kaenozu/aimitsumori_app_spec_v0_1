@@ -52,10 +52,9 @@ class _HomeScreenState extends State<HomeScreen> {
   ProjectRequirementRepository get _requirementRepository =>
       widget.requirementRepository ?? ProjectRequirementRepository.instance;
 
-  String _errorText(Object error) =>
-      error is ProjectRepositoryException
-          ? error.toString()
-          : '処理に失敗しました。もう一度お試しください。';
+  String _errorText(Object error) => error is ProjectRepositoryException
+      ? error.toString()
+      : '処理に失敗しました。もう一度お試しください。';
 
   List<Project> get _filteredProjects {
     final query = _searchQuery.trim().toLowerCase();
