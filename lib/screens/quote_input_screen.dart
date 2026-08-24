@@ -333,6 +333,13 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
       'reviewBundleLines=${_reviewBundle?.lines.length ?? 0} '
       'criticalPending=${_criticalPendingCount()}',
     );
+    if (!formValid) {
+      debugPrint(
+        'QUOTE_FIELDS contractor=${_contractorController.text} '
+        'total=${_totalController.text} totalError=${validateAmount(_totalController.text, maxDecimalPlaces: 0)} '
+        'items=${_editableItems.map((item) => 'label=${item.rawLabelController.text},amount=${item.amountController.text},amountError=${validateAmount(item.amountController.text, allowZero: true, maxDecimalPlaces: 0)},quantity=${item.quantityController.text},quantityError=${validateQuantity(item.quantityController.text)}').join('|')}',
+      );
+    }
     if (!formValid) return;
     if (!await _confirmSaveWithCriticalItems()) return;
 
