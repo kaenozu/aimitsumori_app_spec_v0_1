@@ -52,6 +52,10 @@ class _HomeScreenState extends State<HomeScreen> {
   ProjectRequirementRepository get _requirementRepository =>
       widget.requirementRepository ?? ProjectRequirementRepository.instance;
 
+  String _errorText(Object error) => error is ProjectRepositoryException
+      ? error.toString()
+      : '処理に失敗しました。もう一度お試しください。';
+
   List<Project> get _filteredProjects {
     final query = _searchQuery.trim().toLowerCase();
     if (query.isEmpty) return _projects;
@@ -91,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _projects = projects);
     } catch (error) {
       if (!mounted) return;
-      setState(() => _error = error.toString());
+      setState(() => _error = _errorText(error));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -163,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      ).showSnackBar(SnackBar(content: Text(_errorText(error))));
     }
   }
 
@@ -199,7 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(_errorText(error))));
       }
       return false;
     }
@@ -297,7 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      ).showSnackBar(SnackBar(content: Text(_errorText(error))));
     }
   }
 

@@ -3,9 +3,7 @@ library;
 import '../utils/app_logger.dart';
 
 import 'dart:async';
-import 'dart:convert';
 
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -63,7 +61,7 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
   bool _saving = false;
   String? _error;
 
-  String get _reviewKey => widget.result.quote.sourcePath;
+  String get _reviewKey => widget.result.documentKey;
 
   @override
   void initState() {
@@ -168,6 +166,14 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (!await _confirmCriticalItems()) return;
 
+    final totalAmountYen = int.tryParse(
+      _totalController.text.trim().replaceAll(',', ''),
+    );
+    if (totalAmountYen == null) {
+      setState(() => _error = '提示総額を整数（円）で入力してください。');
+      return;
+    }
+
     setState(() {
       _saving = true;
       _error = null;
@@ -176,9 +182,7 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
       final source = widget.result.quote;
       final corrected = RawQuoteData(
         contractorName: _contractorController.text.trim(),
-        totalAmountYen: int.parse(
-          _totalController.text.trim().replaceAll(',', ''),
-        ),
+        totalAmountYen: totalAmountYen,
         lineItems: source.lineItems,
         extractedText: source.extractedText,
         sourcePath: source.sourcePath,
@@ -187,13 +191,10 @@ class _ScannerOcrReviewScreenState extends State<ScannerOcrReviewScreen> {
       final quote = corrected.toContractorQuote(
         id: IdGenerator.prefixed('quote'),
       );
-      final sourceHash = sha256
-          .convert(utf8.encode(source.extractedText))
-          .toString();
       await _repository.saveQuote(
         widget.project.id,
         quote,
-        sourceFileHash: sourceHash,
+        sourceFileHash: _reviewKey,
       );
       await _reviewStore.save(_reviewKey, _statuses);
       if (mounted) Navigator.pop(context, true);
