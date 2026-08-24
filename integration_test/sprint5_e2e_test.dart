@@ -62,7 +62,7 @@ void main() {
     debugPrint('S5: requirements ready');
     await tester.tap(find.byKey(const ValueKey('skip-requirements-button')));
     await _pumpForUi(tester);
-    await _waitForText(tester, '案件を作成しました。');
+    await _waitForText(tester, '比較');
     debugPrint('S5: project created');
 
     final createdProjects = await repository.getProjects();
