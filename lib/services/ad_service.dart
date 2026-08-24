@@ -1,4 +1,4 @@
-﻿/// ファイルパス: lib/services/ad_service.dart
+/// ファイルパス: lib/services/ad_service.dart
 /// AdMob広告と広告削除の非消費型課金を管理するサービス。
 library;
 
@@ -11,6 +11,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'purchase_verification_queue.dart';
 import 'purchase_verification_service.dart';
 
 enum RewardedAdOutcome { rewarded, unavailable, dismissed }
@@ -34,15 +35,26 @@ class RewardedAdLoadGate {
 }
 
 class AdService {
-  AdService._({PurchaseVerifier? verifier})
-    : _verifier = verifier ?? const PurchaseVerificationService();
+  AdService._({
+    PurchaseVerifier? verifier,
+    PendingVerificationStore? verificationStore,
+  }) : _verifier = verifier ?? const PurchaseVerificationService() {
+    _verificationQueue = PurchaseVerificationQueue(
+      verifier: _verifier,
+      store: verificationStore,
+    );
+  }
 
   @visibleForTesting
   factory AdService.testing({
     bool adFree = true,
     PurchaseVerifier verifier = const TestingPurchaseVerifier(),
+    PendingVerificationStore? verificationStore,
   }) {
-    final service = AdService._(verifier: verifier);
+    final service = AdService._(
+      verifier: verifier,
+      verificationStore: verificationStore,
+    );
     service.adFree.value = adFree;
     service._initialized = true;
     return service;
@@ -85,8 +97,22 @@ class AdService {
       'ca-app-pub-3940256099942544/1712485313';
 
   final ValueNotifier<bool> adFree = ValueNotifier<bool>(false);
-  final InAppPurchase _inAppPurchase = InAppPurchase.instance;
+
+  /// 検証待ち（リトライキュー内）の購入件数。
+  final ValueNotifier<int> pendingVerificationCount = ValueNotifier<int>(0);
+
+  /// 最大試行回数・24時間窓を超えて自動再試行できなくなった購入（要確認）が
+  /// 1件でもあるかどうか。UIは非破壊の案内バナーを出す。
+  final ValueNotifier<bool> purchaseNeedsConfirmation = ValueNotifier<bool>(
+    false,
+  );
+
   final PurchaseVerifier _verifier;
+  late final PurchaseVerificationQueue _verificationQueue;
+
+  // 遅延解決：テストなどプラットフォームチャネルが無い環境でも
+  // インスタンス化できるようにする。
+  InAppPurchase get _inAppPurchase => InAppPurchase.instance;
 
   StreamSubscription<List<PurchaseDetails>>? _purchaseSubscription;
   ProductDetails? _removeAdsProduct;
@@ -141,6 +167,7 @@ class AdService {
     _initialized = true;
 
     await _loadRecentVerifiedEntitlement();
+    await _refreshPendingVerificationState();
     if (!isSupportedPlatform) return;
 
     _purchaseSubscription ??= _inAppPurchase.purchaseStream.listen(
@@ -165,6 +192,7 @@ class AdService {
     }
 
     await restorePurchases();
+    await retryPendingVerifications();
   }
 
   Future<void> _loadRecentVerifiedEntitlement() async {
@@ -313,6 +341,40 @@ class AdService {
     } catch (error) {
       AppLogger.debug('Purchase restore failed: $error');
     }
+    // ユーザーが復元を明示的に行ったタイミングでも保留中の検証を再試行する。
+    await retryPendingVerifications();
+  }
+
+  /// 検証待ち購入を再試行する。アプリ起動時・レジューム時・購入復元時に呼ぶ。
+  /// 検証に成功したレコードは権利付与後に削除し、invalidなら権利を取り消す。
+  /// 自動再試行が終了した（要確認）レコードは保持してUIへ状態を公開する。
+  Future<void> retryPendingVerifications() async {
+    try {
+      final report = await _verificationQueue.processPending();
+      if (report.verifiedRecordIds.isNotEmpty) {
+        AppLogger.debug(
+          'Pending purchase verification succeeded: '
+          '${report.verifiedRecordIds.length} record(s).',
+        );
+        await _setAdFree(true);
+      }
+      if (report.rejectedRecordIds.isNotEmpty) {
+        AppLogger.debug(
+          'Pending purchase verification rejected: '
+          '${report.rejectedRecordIds.length} record(s).',
+        );
+        await _setAdFree(false);
+      }
+      if (report.escalatedRecordIds.isNotEmpty) {
+        AppLogger.debug(
+          'Pending purchase verification needs confirmation: '
+          '${report.escalatedRecordIds.length} record(s).',
+        );
+      }
+    } catch (error, stackTrace) {
+      AppLogger.debug('Pending verification retry failed: $error\n$stackTrace');
+    }
+    await _refreshPendingVerificationState();
   }
 
   Future<void> _handlePurchaseUpdates(List<PurchaseDetails> purchases) async {
@@ -338,6 +400,9 @@ class AdService {
                 'Remove ads purchase verification is retryable; '
                 'preserving the current entitlement.',
               );
+              // ストア側の再配信に依存せず、アプリ起動・レジューム時にも
+              // 再検証できるようリトライキューへ永続化する。
+              await _enqueueRetryableVerification(purchase);
               break;
           }
         } else if (purchase.status == PurchaseStatus.error) {
@@ -350,6 +415,46 @@ class AdService {
           await _inAppPurchase.completePurchase(purchase);
         }
       }
+    }
+  }
+
+  /// retryable だった購入を検証リトライキューへ登録する。
+  /// 永続化に失敗してもストア側が未完了トランザクションを再配信するため、
+  /// ここで例外を投げずに継続する。
+  Future<void> _enqueueRetryableVerification(PurchaseDetails purchase) async {
+    try {
+      final record = await _verificationQueue.enqueue(
+        productId: purchase.productID,
+        serverVerificationData:
+            purchase.verificationData.serverVerificationData,
+        purchaseId: purchase.purchaseID,
+        transactionDate: purchase.transactionDate,
+        source: purchase.verificationData.source,
+      );
+      if (record == null) {
+        AppLogger.debug(
+          'Remove ads purchase has no verifiable receipt token; '
+          'it cannot be queued for retry.',
+        );
+      }
+    } catch (error, stackTrace) {
+      AppLogger.debug(
+        'Pending verification persist failed: $error\n$stackTrace',
+      );
+    }
+    await _refreshPendingVerificationState();
+  }
+
+  Future<void> _refreshPendingVerificationState() async {
+    try {
+      final records = await _verificationQueue.loadRecords();
+      pendingVerificationCount.value = records.length;
+      purchaseNeedsConfirmation.value = records.any(
+        (record) =>
+            record.status == PendingVerificationStatus.needsConfirmation,
+      );
+    } catch (error) {
+      AppLogger.debug('Pending verification state refresh failed: $error');
     }
   }
 
@@ -376,5 +481,7 @@ class AdService {
     await _purchaseSubscription?.cancel();
     _purchaseSubscription = null;
     adFree.dispose();
+    pendingVerificationCount.dispose();
+    purchaseNeedsConfirmation.dispose();
   }
 }

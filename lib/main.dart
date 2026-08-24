@@ -5,6 +5,8 @@ library;
 
 import 'utils/app_logger.dart';
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -49,16 +51,37 @@ class AimitsumoriApp extends StatefulWidget {
   State<AimitsumoriApp> createState() => _AimitsumoriAppState();
 }
 
-class _AimitsumoriAppState extends State<AimitsumoriApp> {
+class _AimitsumoriAppState extends State<AimitsumoriApp>
+    with WidgetsBindingObserver {
   bool _darkModeEnabled = false;
 
   AppPreferences get _preferences =>
       widget.preferences ?? AppPreferences.instance;
 
+  AdService get _adService => widget.adService ?? AdService.instance;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadDarkMode();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // 復帰（ネットワーク回復後の再開を含む）時に保留中の購入検証を再試行する。
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    try {
+      unawaited(_adService.retryPendingVerifications());
+    } catch (error) {
+      AppLogger.debug('Pending verification resume retry failed: $error');
+    }
   }
 
   Future<void> _loadDarkMode() async {

@@ -125,15 +125,30 @@ class MockDatabaseService implements DatabaseService {
 }
 
 class MockAdMobService implements AdService {
-  MockAdMobService({bool adFree = true}) : adFree = ValueNotifier<bool>(adFree);
+  MockAdMobService({
+    bool adFree = true,
+    int pendingVerificationCount = 0,
+    bool purchaseNeedsConfirmation = false,
+  }) : adFree = ValueNotifier<bool>(adFree),
+       pendingVerificationCount = ValueNotifier<int>(pendingVerificationCount),
+       purchaseNeedsConfirmation = ValueNotifier<bool>(
+         purchaseNeedsConfirmation,
+       );
 
   @override
   final ValueNotifier<bool> adFree;
+
+  @override
+  final ValueNotifier<int> pendingVerificationCount;
+
+  @override
+  final ValueNotifier<bool> purchaseNeedsConfirmation;
 
   int bannerRequestCount = 0;
   int rewardedRequestCount = 0;
   int purchaseRequestCount = 0;
   int restoreRequestCount = 0;
+  int retryPendingVerificationsCallCount = 0;
 
   @override
   bool get isSupportedPlatform => false;
@@ -177,8 +192,15 @@ class MockAdMobService implements AdService {
   }
 
   @override
+  Future<void> retryPendingVerifications() async {
+    retryPendingVerificationsCallCount += 1;
+  }
+
+  @override
   Future<void> dispose() async {
     adFree.dispose();
+    pendingVerificationCount.dispose();
+    purchaseNeedsConfirmation.dispose();
   }
 }
 

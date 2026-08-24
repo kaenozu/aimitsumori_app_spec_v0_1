@@ -23,6 +23,7 @@ import '../services/ad_service.dart';
 import '../services/comparison_export_service.dart';
 import '../widgets/accessibility_widgets.dart';
 import '../widgets/comparison_summary_card.dart';
+import '../widgets/pending_verification_banner.dart';
 import 'quote_input_screen.dart';
 
 class ComparisonScreen extends StatefulWidget {
@@ -399,6 +400,25 @@ class _ComparisonScreenState extends State<ComparisonScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
+            ValueListenableBuilder<bool>(
+              valueListenable: _adService.purchaseNeedsConfirmation,
+              builder: (context, needsConfirmation, _) =>
+                  ValueListenableBuilder<int>(
+                    valueListenable: _adService.pendingVerificationCount,
+                    builder: (context, pendingCount, _) {
+                      if (!needsConfirmation && pendingCount == 0) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: PendingVerificationBanner(
+                          needsConfirmation: needsConfirmation,
+                          pendingCount: pendingCount,
+                        ),
+                      );
+                    },
+                  ),
+            ),
             RepaintBoundary(
               key: _captureKey,
               child: ColoredBox(
