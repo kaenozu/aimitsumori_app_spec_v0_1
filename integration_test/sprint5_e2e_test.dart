@@ -64,6 +64,9 @@ void main() {
     await _pumpForUi(tester);
     await _waitForText(tester, '比較');
     debugPrint('S5: project created');
+    await tester.pageBack();
+    await _pumpForUi(tester);
+    debugPrint('S5: comparison closed');
 
     final createdProjects = await repository.getProjects();
     expect(createdProjects, hasLength(1));
