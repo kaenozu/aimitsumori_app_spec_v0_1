@@ -239,6 +239,7 @@ Future<void> _saveQuoteThroughEditor(
                     reason: OcrReviewReason.totalMismatch,
                     severity: OcrReviewSeverity.critical,
                     message: 'Sprint 5 E2E critical review fixture',
+                    initialStatus: OcrReviewStatus.pending,
                   ),
                 ],
               )

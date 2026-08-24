@@ -320,7 +320,14 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
   Future<void> _save() async {
     final rawQuote = _rawQuote;
     if (rawQuote == null || _saving) return;
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final formValid = _formKey.currentState?.validate() ?? false;
+    AppLogger.debug(
+      'Quote save preflight: formValid=$formValid '
+      'reviewBundleIssues=${_reviewBundle?.issues.length ?? 0} '
+      'reviewBundleLines=${_reviewBundle?.lines.length ?? 0} '
+      'criticalPending=${_criticalPendingCount()}',
+    );
+    if (!formValid) return;
     if (!await _confirmSaveWithCriticalItems()) return;
 
     late final List<RawQuoteLineItem> lineItems;
