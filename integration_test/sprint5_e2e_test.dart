@@ -62,6 +62,7 @@ void main() {
     debugPrint('S5: requirements ready');
     await tester.tap(find.byKey(const ValueKey('skip-requirements-button')));
     await _pumpForUi(tester);
+    await _waitForText(tester, '案件を作成しました。');
     debugPrint('S5: project created');
 
     final createdProjects = await repository.getProjects();
@@ -136,6 +137,15 @@ Future<void> _pumpForUi(WidgetTester tester) async {
   for (var i = 0; i < 10; i++) {
     await tester.pump(const Duration(milliseconds: 100));
   }
+}
+
+Future<void> _waitForText(WidgetTester tester, String text) async {
+  final finder = find.text(text);
+  for (var i = 0; i < 60; i++) {
+    if (finder.evaluate().isNotEmpty) return;
+    await tester.pump(const Duration(milliseconds: 250));
+  }
+  fail('Timed out waiting for text: $text');
 }
 
 Future<void> _saveQuoteThroughEditor(
