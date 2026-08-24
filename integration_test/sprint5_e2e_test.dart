@@ -271,9 +271,10 @@ Future<void> _saveQuoteThroughEditor(
 
   await _tapSave(tester);
   expect(
-    await _awaitStep(
-      'ui.await quote save route result $contractorName',
+    await _awaitRouteResult(
+      tester,
       result,
+      label: 'quote save route result $contractorName',
     ),
     isTrue,
   );
@@ -355,6 +356,46 @@ Future<void> _expectQuoteCount(
 }
 
 const _operationTimeout = Duration(seconds: 30);
+
+Future<bool> _awaitRouteResult(
+  WidgetTester tester,
+  Future<bool?> result, {
+  required String label,
+}) async {
+  var completed = false;
+  bool? value;
+  Object? error;
+  result.then<void>(
+    (routeValue) {
+      completed = true;
+      value = routeValue;
+    },
+    onError: (Object exception, StackTrace _) {
+      completed = true;
+      error = exception;
+    },
+  );
+
+  debugPrint('S5: BEGIN ui.await $label');
+  final deadline = DateTime.now().add(_operationTimeout);
+  var pumpIndex = 0;
+  while (!completed && DateTime.now().isBefore(deadline)) {
+    pumpIndex++;
+    await _awaitStep(
+      'ui.pump awaiting $label $pumpIndex',
+      tester.pump(const Duration(milliseconds: 100)),
+    );
+  }
+  if (!completed) {
+    debugPrint(
+      'S5: TIMEOUT ui.await $label after ${_operationTimeout.inSeconds}s',
+    );
+    throw TimeoutException('Future not completed', _operationTimeout);
+  }
+  if (error != null) Error.throwWithStackTrace(error!, StackTrace.current);
+  debugPrint('S5: END ui.await $label');
+  return value ?? false;
+}
 
 Future<T> _awaitStep<T>(String label, Future<T> operation) async {
   debugPrint('S5: BEGIN $label');
