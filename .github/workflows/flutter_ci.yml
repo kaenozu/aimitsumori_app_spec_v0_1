@@ -35,6 +35,9 @@ jobs:
       - name: Test release manifest generator
         run: python3 tool/test_generate_android_release_manifest.py
 
+      - name: Test Flutter CI emulator contract
+        run: python3 tool/test_flutter_ci_emulator_contract.py
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
