@@ -147,9 +147,8 @@ jobs:
             # Free runner disk used by toolchains not needed for Flutter E2E.
             sudo rm -rf /usr/share/dotnet /opt/ghc
             sudo rm -rf "$ANDROID_HOME/ndk" "$ANDROID_HOME/cmake"
-            config="$HOME/.android/avd/test.avd/config.ini"; \
-            sed -i '/^disk.dataPartition.size=/d' "$config"; \
-            printf '%s\n' 'disk.dataPartition.size=4294967296' >> "$config"
+            config="$HOME/.android/avd/test.avd/config.ini"; sed -i '/^disk.dataPartition.size=/d' "$config"; printf '%s
+' 'disk.dataPartition.size=4294967296' >> "$config"
           script: |
             set -eu
             echo 'E2E: starting Flutter integration test'

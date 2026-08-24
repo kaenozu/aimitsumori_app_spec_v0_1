@@ -218,6 +218,7 @@ Future<void> _saveQuoteThroughEditor(
         repository: repository,
         initialQuote: RawQuoteData(
           contractorName: '',
+          totalAmountYen: int.parse(amount),
           extractedText: '',
           sourcePath: 'memory://$contractorName',
           createdAtEpochMillis: DateTime.now().millisecondsSinceEpoch,
@@ -225,7 +226,9 @@ Future<void> _saveQuoteThroughEditor(
             RawQuoteLineItem(
               rawLabel: '施工費',
               categoryId: CategoryMaster.categories.first.id,
+              amountYen: int.parse(amount),
               inclusionStatus: InclusionStatus.included,
+              quantity: double.parse(quantity),
               unit: '㎡',
             ),
           ],
@@ -290,6 +293,22 @@ Future<void> _saveQuoteThroughEditor(
     // save handler synchronously calls FormState.validate().
     await _pumpForUi(tester);
   }
+
+  final totalField = tester.widget<TextFormField>(
+    find.byKey(const ValueKey('quote-total-field')),
+  );
+  final amountField = tester.widget<TextFormField>(
+    find.byKey(const ValueKey('quote-line-amount-0')),
+  );
+  final quantityField = tester.widget<TextFormField>(
+    find.byKey(const ValueKey('quote-line-quantity-0')),
+  );
+  expect(totalField.controller!.text, amount);
+  expect(amountField.controller!.text, amount);
+  expect(quantityField.controller!.text, quantity);
+  expect(int.tryParse(totalField.controller!.text), greaterThan(0));
+  expect(int.tryParse(amountField.controller!.text), greaterThan(0));
+  expect(double.tryParse(quantityField.controller!.text), greaterThan(0));
 
   await _tapSave(
     tester,
