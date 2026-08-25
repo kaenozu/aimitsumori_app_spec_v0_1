@@ -9,7 +9,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const _productId = 'remove_ads';
 
-DateTime _baseTime() => DateTime(2026, 8, 24, 10);
+final _testBaseTime = DateTime.now().subtract(const Duration(hours: 1));
+
+DateTime _baseTime() => _testBaseTime;
 
 class _MutableClock {
   _MutableClock(this._now);
@@ -261,14 +263,24 @@ void main() {
       expect(verifier.receiptCalls, 1);
       var persisted = (await queue.loadRecords()).single;
       expect(persisted.attempts, 2);
-      expect(persisted.nextAttemptAt, clock().add(const Duration(minutes: 2)));
+      expect(
+        persisted.nextAttemptAt,
+        DateTime.fromMillisecondsSinceEpoch(
+          clock().add(const Duration(minutes: 2)).millisecondsSinceEpoch,
+        ),
+      );
 
       clock.advance(const Duration(minutes: 2));
       await queue.processPending();
 
       persisted = (await queue.loadRecords()).single;
       expect(persisted.attempts, 3);
-      expect(persisted.nextAttemptAt, clock().add(const Duration(minutes: 4)));
+      expect(
+        persisted.nextAttemptAt,
+        DateTime.fromMillisecondsSinceEpoch(
+          clock().add(const Duration(minutes: 4)).millisecondsSinceEpoch,
+        ),
+      );
       expect(persisted.status, PendingVerificationStatus.pending);
     });
 
