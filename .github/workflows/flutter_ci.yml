@@ -140,7 +140,8 @@ jobs:
           target: google_apis
           profile: pixel_6
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -partition-size 4096
+          disk-size: 4G
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: flutter test -d emulator-5554 test/integration/sprint5_e2e_test.dart -r expanded
 
   release-apk:
