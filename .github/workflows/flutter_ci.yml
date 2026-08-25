@@ -30,7 +30,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.ref_name }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Test release manifest generator
         run: python3 tool/test_generate_android_release_manifest.py
@@ -99,12 +99,12 @@ jobs:
     name: Android emulator E2E
     needs: quality
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 35
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.ref_name }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -134,11 +134,32 @@ jobs:
         with:
           api-level: 35
           arch: x86_64
-          target: google_apis
+          target: default
           profile: pixel_6
+          disk-size: 4096M
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: flutter test -d emulator-5554 test/integration/sprint5_e2e_test.dart -r expanded
+          # Override the default userdata size after AVD creation; ubuntu runners
+          # may not have enough free space for the action's default partition.
+          pre-emulator-launch-script: |
+            # ReactiveCircus executes this hook with /usr/bin/sh, so avoid
+            # Bash-only pipefail while retaining fail-fast behavior.
+            set -eu
+            # Free runner disk used by toolchains not needed for Flutter E2E.
+            sudo rm -rf /usr/share/dotnet /opt/ghc
+            sudo rm -rf "$ANDROID_HOME/ndk" "$ANDROID_HOME/cmake"
+            config="$HOME/.android/avd/test.avd/config.ini"; sed -i '/^disk.dataPartition.size=/d' "$config"; printf '%s\n' 'disk.dataPartition.size=4294967296' >> "$config"
+          script: |
+            set -eu
+            echo 'E2E: starting Flutter integration test'
+            flutter test -d emulator-5554 integration_test/sprint5_e2e_test.dart -r expanded 2>&1 | tee e2e.log
+
+      - name: Upload E2E diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-e2e-logs
+          path: e2e.log
+          if-no-files-found: ignore
 
   release-apk:
     name: Release APK compile
@@ -155,7 +176,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.ref_name }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Java
         uses: actions/setup-java@v4

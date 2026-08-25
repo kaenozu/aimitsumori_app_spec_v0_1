@@ -19,7 +19,7 @@ class SettingsScreen extends StatefulWidget {
     this.reviewStore,
   });
 
-  static const appVersion = '0.1.4+3';
+  static const appVersion = '0.1.5+4';
 
   final ProjectRepository repository;
   final bool darkModeEnabled;

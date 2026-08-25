@@ -30,6 +30,7 @@ class QuoteInputScreen extends StatefulWidget {
     this.ocrService,
     this.reviewStore,
     this.initialQuote,
+    this.initialReviewBundle,
     this.revisionIntent = const QuoteImportIntent.newQuote(),
   });
 
@@ -38,6 +39,7 @@ class QuoteInputScreen extends StatefulWidget {
   final OcrService? ocrService;
   final OcrReviewStore? reviewStore;
   final RawQuoteData? initialQuote;
+  final OcrReviewBundle? initialReviewBundle;
   final QuoteImportIntent revisionIntent;
 
   @override
@@ -75,6 +77,13 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
 
     _rawQuote = initialQuote;
     _documentReviewKey = initialQuote.sourcePath;
+    _reviewBundle = widget.initialReviewBundle;
+    _reviewStatuses = {
+      for (final line in widget.initialReviewBundle?.lines ?? const [])
+        line.id: line.initialStatus,
+      for (final issue in widget.initialReviewBundle?.issues ?? const [])
+        issue.id: issue.initialStatus,
+    };
     _contractorController.text = initialQuote.contractorName;
     _totalController.text = initialQuote.totalAmountYen == null
         ? ''
@@ -311,7 +320,27 @@ class _QuoteInputScreenState extends State<QuoteInputScreen> {
   Future<void> _save() async {
     final rawQuote = _rawQuote;
     if (rawQuote == null || _saving) return;
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final formValid = _formKey.currentState?.validate() ?? false;
+    debugPrint(
+      'QUOTE_SAVE_PREFLIGHT formValid=$formValid '
+      'reviewBundleIssues=${_reviewBundle?.issues.length ?? 0} '
+      'reviewBundleLines=${_reviewBundle?.lines.length ?? 0} '
+      'criticalPending=${_criticalPendingCount()}',
+    );
+    AppLogger.debug(
+      'Quote save preflight: formValid=$formValid '
+      'reviewBundleIssues=${_reviewBundle?.issues.length ?? 0} '
+      'reviewBundleLines=${_reviewBundle?.lines.length ?? 0} '
+      'criticalPending=${_criticalPendingCount()}',
+    );
+    if (!formValid) {
+      debugPrint(
+        'QUOTE_FIELDS contractor=${_contractorController.text} '
+        'total=${_totalController.text} totalError=${validateAmount(_totalController.text, maxDecimalPlaces: 0)} '
+        'items=${_editableItems.map((item) => 'label=${item.rawLabelController.text},amount=${item.amountController.text},amountError=${validateAmount(item.amountController.text, allowZero: true, maxDecimalPlaces: 0)},quantity=${item.quantityController.text},quantityError=${validateQuantity(item.quantityController.text)}').join('|')}',
+      );
+    }
+    if (!formValid) return;
     if (!await _confirmSaveWithCriticalItems()) return;
 
     late final List<RawQuoteLineItem> lineItems;
