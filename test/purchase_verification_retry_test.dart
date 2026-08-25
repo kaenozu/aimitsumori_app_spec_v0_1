@@ -9,7 +9,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const _productId = 'remove_ads';
 
-DateTime _baseTime() => DateTime(2026, 8, 24, 10);
+final _testBaseTime = DateTime.now().subtract(const Duration(hours: 1));
+
+DateTime _baseTime() => _testBaseTime;
 
 class _MutableClock {
   _MutableClock(this._now);
